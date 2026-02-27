@@ -1,0 +1,450 @@
+import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { createPageUrl } from "./utils";
+import { base44 } from "@/api/base44Client";
+import { FloorPinProvider } from "@/components/auth/FloorPinContext";
+import { ForecastProvider } from "@/components/forecast/ForecastContext";
+import {
+  Factory,
+  Package,
+  ClipboardList,
+  History,
+  ShoppingCart,
+  Users,
+  BarChart3,
+  Menu,
+  X,
+  LogOut,
+  Beaker,
+  Truck,
+  FileText,
+  Settings,
+  ChevronDown,
+  Monitor,
+  Maximize2,
+  Minimize2,
+  AlertOctagon,
+  FileInput,
+  TrendingUp,
+  Wrench,
+  PackageOpen,
+  Droplets,
+  Tag,
+  Building2
+} from "lucide-react";
+
+const navItems = [
+        { name: "Dashboard", icon: BarChart3, page: "Dashboard" },
+        { name: "Analytics", icon: TrendingUp, page: "Analytics" },
+        { name: "Issue Alerts", icon: AlertOctagon, page: "IssueAlerts", alertStyle: true },
+        { name: "Equipment Repairs", icon: Wrench, page: "EquipmentRepairs", isRepairLink: true },
+        { name: "Low Consumables", icon: PackageOpen, page: "LowConsumables", isConsumablesLink: true },
+        { name: "Labels", icon: Tag, page: "Labels", isLabelsLink: true },
+        { name: "Label Usage", icon: Tag, page: "LabelUsage" },
+        { name: "Label POs", icon: ShoppingCart, page: "LabelPurchaseOrders" },
+        { name: "Review Queue", icon: ClipboardList, page: "ReviewQueue", badge: true },
+        { name: "Add to Inventory", icon: ShoppingCart, page: "AddToInventory", badge: true },
+        { name: "Batch History", icon: History, page: "BatchHistory" },
+        { name: "Inventory", icon: Package, page: "Inventory" },
+        { name: "Recipes", icon: Beaker, page: "Recipes" },
+        { name: "Recipe Versions", icon: History, page: "RecipeVersions" },
+        { name: "Purchase Orders", icon: ShoppingCart, page: "PurchaseOrders" },
+        { name: "Requisitions", icon: FileText, page: "PurchaseRequisitions", badge: true },
+        { name: "Suppliers", icon: Truck, page: "Suppliers" },
+        { name: "Co-packers", icon: Building2, page: "Copackers" },
+        { name: "Forecasting", icon: BarChart3, page: "Forecasting" },
+        { name: "Planning", icon: Factory, page: "ProductionPlanning" },
+      ];
+
+const settingsItems = [
+        { name: "User Management", icon: Users, page: "UserManagement" },
+        { name: "Line Capacity", icon: Factory, page: "LineCapacity" },
+        { name: "Recipe Templates", icon: FileInput, page: "RecipeTemplates" },
+        { name: "Bulk Upload", icon: FileText, page: "BulkUpload" },
+        { name: "Measurement Units", icon: Package, page: "MeasurementSettings" },
+        { name: "Audit Log", icon: ClipboardList, page: "AuditLog" },
+      ];
+
+export default function Layout({ children, currentPageName }) {
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+      const [settingsOpen, setSettingsOpen] = useState(false);
+      const [navOpen, setNavOpen] = useState(currentPageName !== "Kiosk");
+      const [user, setUser] = useState(null);
+      const [isFullScreen, setIsFullScreen] = useState(currentPageName === "Kiosk");
+      const [issueCount, setIssueCount] = useState(0);
+          const [productionQueueCount, setProductionQueueCount] = useState({ started: 0, onHold: 0 });
+          const [newRepairCount, setNewRepairCount] = useState(0);
+        const [pendingConsumablesCount, setPendingConsumablesCount] = useState(0);
+
+  useEffect(() => {
+    base44.auth.me().then(setUser).catch(() => setUser(null));
+  }, []);
+
+  // Fetch production queue counts
+  useEffect(() => {
+    const fetchQueueCounts = async () => {
+      try {
+        const batches = await base44.entities.Batch.filter({
+          status: { $in: ['started', 'on_hold', 'draft'] }
+        });
+        setProductionQueueCount({
+          started: batches.filter(b => b.status === 'started').length,
+          onHold: batches.filter(b => b.status === 'on_hold').length,
+          total: batches.length
+        });
+      } catch (err) {
+        setProductionQueueCount({ started: 0, onHold: 0, total: 0 });
+      }
+    };
+    fetchQueueCounts();
+  }, [currentPageName]);
+
+  // Fetch new equipment repair count
+  useEffect(() => {
+    const fetchRepairCount = async () => {
+      try {
+        const repairs = await base44.entities.EquipmentRepair.filter({
+          status: 'new_submission'
+        });
+        setNewRepairCount(repairs.length);
+      } catch (err) {
+        setNewRepairCount(0);
+      }
+    };
+    fetchRepairCount();
+  }, [currentPageName]);
+
+  // Fetch pending consumables count
+  useEffect(() => {
+    const fetchConsumablesCount = async () => {
+      try {
+        const reports = await base44.entities.ConsumableReport.filter({
+          status: 'pending'
+        });
+        setPendingConsumablesCount(reports.length);
+      } catch (err) {
+        setPendingConsumablesCount(0);
+      }
+    };
+    fetchConsumablesCount();
+  }, [currentPageName]);
+
+  // Fetch low label count
+  const [lowLabelCount, setLowLabelCount] = useState(0);
+  useEffect(() => {
+    const fetchLabelCount = async () => {
+      try {
+        const labels = await base44.entities.Label.list();
+        const lowCount = labels.filter(l => l.current_quantity <= l.reorder_point).length;
+        setLowLabelCount(lowCount);
+      } catch (err) {
+        setLowLabelCount(0);
+      }
+    };
+    fetchLabelCount();
+  }, [currentPageName]);
+
+  // Fetch issue count for nav styling
+  useEffect(() => {
+    const fetchIssueCount = async () => {
+      try {
+        const [scheduledItems, recipes] = await Promise.all([
+          base44.entities.ForecastSuggestion.filter({
+            status: { $in: ['suggested', 'scheduled', 'on_hold', 'in_progress'] }
+          }),
+          base44.entities.Recipe.list()
+        ]);
+        const recipeSKUs = new Set(recipes.map(r => r.sku));
+        const count = scheduledItems.filter(item => !recipeSKUs.has(item.sku)).length;
+        setIssueCount(count);
+      } catch (err) {
+        setIssueCount(0);
+      }
+    };
+    fetchIssueCount();
+  }, [currentPageName]);
+
+  useEffect(() => {
+    if (currentPageName === "Kiosk") {
+      setIsFullScreen(true);
+    }
+  }, [currentPageName]);
+
+  const handleLogout = () => {
+    base44.auth.logout();
+  };
+
+  return (
+    <FloorPinProvider>
+    <ForecastProvider>
+    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+      <style>{`
+        :root {
+          --background: 240 10% 3.9%;
+          --foreground: 0 0% 98%;
+          --card: 240 10% 7%;
+          --card-foreground: 0 0% 98%;
+          --popover: 240 10% 7%;
+          --popover-foreground: 0 0% 98%;
+          --primary: 24.6 95% 53.1%;
+          --primary-foreground: 0 0% 98%;
+          --secondary: 240 5.9% 12%;
+          --secondary-foreground: 0 0% 98%;
+          --muted: 240 5.9% 12%;
+          --muted-foreground: 240 5% 64.9%;
+          --accent: 240 5.9% 12%;
+          --accent-foreground: 0 0% 98%;
+          --destructive: 0 84.2% 60.2%;
+          --destructive-foreground: 0 0% 98%;
+          --border: 240 5.9% 18%;
+          --input: 240 5.9% 18%;
+          --ring: 24.6 95% 53.1%;
+        }
+        body {
+          font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #18181b; }
+        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #52525b; }
+      `}</style>
+
+      {/* Mobile Header */}
+              <div className={`${isFullScreen ? '' : 'lg:hidden'} fixed top-0 left-0 right-0 h-16 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-4 z-50`}>
+                <button
+                  onClick={() => isFullScreen ? setIsFullScreen(false) : setSidebarOpen(true)}
+                  className="p-2 hover:bg-zinc-800 rounded-lg"
+                >
+                  {isFullScreen ? <Minimize2 className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+                </button>
+                <span className="text-xl font-bold">neōb</span>
+                <div className="w-10" />
+              </div>
+
+      {/* Sidebar Overlay */}
+      {sidebarOpen && (
+        <div
+          className="lg:hidden fixed inset-0 bg-black/50 z-40"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+              <aside className={`
+                fixed top-0 left-0 h-full w-64 bg-zinc-900 border-r border-zinc-800 z-50
+                transform transition-transform duration-300 ease-in-out
+                ${isFullScreen ? '-translate-x-full' : sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+              `}>
+        <div className="flex flex-col h-full">
+          {/* Logo */}
+          <div className="h-16 flex items-center justify-between px-4 border-b border-zinc-800">
+            <div className="flex items-center gap-2">
+                                <span className="text-2xl font-bold text-white">neōb</span>
+                                <span className="text-xs px-2 py-0.5 bg-orange-500/20 text-orange-400 rounded-full font-medium">
+                                  v2.0
+                                </span>
+                              </div>
+                              <button
+                                                  onClick={() => setIsFullScreen(!isFullScreen)}
+                                                  className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-orange-400 transition-colors"
+                                                  title={isFullScreen ? "Exit Full Screen" : "Full Screen"}
+                                                >
+                                                  {isFullScreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
+                                                </button>
+                                                <Link
+                                                  to={createPageUrl("Kiosk")}
+                                                  className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-orange-400 transition-colors"
+                                                  title="Kiosk Mode"
+                                                >
+                                                  <Monitor className="w-5 h-5" />
+                                                </Link>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="lg:hidden p-2 hover:bg-zinc-800 rounded-lg"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Navigation */}
+                      <nav className="flex-1 py-4 px-3 overflow-y-auto">
+                        <button
+                          onClick={() => setNavOpen(!navOpen)}
+                          className="w-full px-3 py-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider flex items-center justify-between hover:text-zinc-400 transition-colors"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Menu className="w-4 h-4" />
+                            Navigation
+                          </div>
+                          <ChevronDown className={`w-4 h-4 transition-transform ${navOpen ? 'rotate-0' : '-rotate-90'}`} />
+                        </button>
+                        {navOpen && (
+                        <div className="space-y-1 mt-1">
+                          {navItems.map((item) => {
+                                                            const isActive = item.isQueueLink ? false : currentPageName === item.page;
+                                                            // Only show alert styling if there are actual issues
+                                                            const showAlertStyle = item.alertStyle && issueCount > 0;
+                                                            const isQueueItem = item.isQueueLink;
+                                                            const queueHasItems = productionQueueCount.total > 0;
+                                                            const isRepairItem = item.isRepairLink;
+                                                                                                                          const hasNewRepairs = newRepairCount > 0;
+                                                                                                                          const isConsumablesItem = item.isConsumablesLink;
+                                                                                                                                                                          const hasPendingConsumables = pendingConsumablesCount > 0;
+                                                                                                                                                                          const isLabelsItem = item.isLabelsLink;
+                                                                                                                                                                          const hasLowLabels = lowLabelCount > 0;
+
+                                                            return (
+                                                              <Link
+                                                                key={item.name}
+                                                                to={createPageUrl(item.page)}
+                                                                onClick={() => setSidebarOpen(false)}
+                                                                className={`
+                                                                  flex items-center justify-between px-3 py-1.5 rounded-lg text-sm font-medium
+                                                                  transition-colors duration-200
+                                                                  ${isActive
+                                                                    ? showAlertStyle 
+                                                                      ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+                                                                      : 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
+                                                                    : showAlertStyle
+                                                                      ? 'text-red-400 hover:text-red-300 hover:bg-red-500/10'
+                                                                      : isRepairItem && hasNewRepairs
+                                                                                                                                                    ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
+                                                                                                                                                    : isConsumablesItem && hasPendingConsumables
+                                                                                                                                                      ? 'text-orange-400 hover:text-orange-300 hover:bg-orange-500/10'
+                                                                                                                                                      : isLabelsItem && hasLowLabels
+                                                                                                                                                        ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
+                                                                                                                                                        : isQueueItem
+                                                                          ? 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 ml-4 border-l-2 border-zinc-700'
+                                                                          : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
+                                                                  }
+                                                                `}
+                                                              >
+                                                                <div className="flex items-center gap-3">
+                                                                  <item.icon className={`w-5 h-5 ${showAlertStyle ? 'text-red-400' : isRepairItem && hasNewRepairs ? 'text-amber-400' : isConsumablesItem && hasPendingConsumables ? 'text-orange-400' : isLabelsItem && hasLowLabels ? 'text-amber-400' : ''}`} />
+                                                                  {item.name}
+                                                                </div>
+                                                                {item.badge && (
+                                                                  <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
+                                                                )}
+                                                                {isRepairItem && hasNewRepairs && (
+                                                                                                                                        <span className="flex items-center gap-1 text-xs text-amber-400">
+                                                                                                                                          <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse"></span>
+                                                                                                                                          {newRepairCount}
+                                                                                                                                        </span>
+                                                                                                                                      )}
+                                                                                                                                      {isConsumablesItem && hasPendingConsumables && (
+                                                                                                                                          <span className="flex items-center gap-1 text-xs text-orange-400">
+                                                                                                                                            <span className="w-1.5 h-1.5 bg-orange-400 rounded-full animate-pulse"></span>
+                                                                                                                                            {pendingConsumablesCount}
+                                                                                                                                          </span>
+                                                                                                                                        )}
+                                                                                                                                        {isLabelsItem && hasLowLabels && (
+                                                                                                                                          <span className="flex items-center gap-1 text-xs text-amber-400">
+                                                                                                                                            <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse"></span>
+                                                                                                                                            {lowLabelCount}
+                                                                                                                                          </span>
+                                                                                                                                        )}
+                                                                                                                                      {isQueueItem && queueHasItems && (
+                                                                  <div className="flex items-center gap-1">
+                                                                    {productionQueueCount.started > 0 && (
+                                                                      <span className="flex items-center gap-1 text-xs text-blue-400">
+                                                                        <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse"></span>
+                                                                        {productionQueueCount.started}
+                                                                      </span>
+                                                                    )}
+                                                                    {productionQueueCount.onHold > 0 && (
+                                                                      <span className="flex items-center gap-1 text-xs text-amber-400 ml-1">
+                                                                        <span className="w-1.5 h-1.5 bg-amber-400 rounded-full"></span>
+                                                                        {productionQueueCount.onHold}
+                                                                      </span>
+                                                                    )}
+                                                                  </div>
+                                                                )}
+                                                              </Link>
+                                                            );
+                                                          })}
+                        </div>
+                        )}
+
+                        {/* Settings Section */}
+                                      <div className="mt-6 pt-4 border-t border-zinc-800">
+                                        <button
+                                          onClick={() => setSettingsOpen(!settingsOpen)}
+                                          className="w-full px-3 py-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider flex items-center justify-between hover:text-zinc-400 transition-colors"
+                                        >
+                                          <div className="flex items-center gap-2">
+                                            <Settings className="w-4 h-4" />
+                                            Settings
+                                          </div>
+                                          <ChevronDown className={`w-4 h-4 transition-transform ${settingsOpen ? 'rotate-0' : '-rotate-90'}`} />
+                                        </button>
+                                        {settingsOpen && (
+                                          <div className="space-y-1 mt-1">
+                                            {settingsItems.map((item) => {
+                                              const isActive = currentPageName === item.page;
+                                              return (
+                                                <Link
+                                                  key={item.page}
+                                                  to={createPageUrl(item.page)}
+                                                  onClick={() => setSidebarOpen(false)}
+                                                  className={`
+                                                    flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm font-medium
+                                                    transition-colors duration-200
+                                                    ${isActive
+                                                      ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
+                                                      : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
+                                                    }
+                                                  `}
+                                                >
+                                                  <item.icon className="w-5 h-5" />
+                                                  {item.name}
+                                                </Link>
+                                              );
+                                            })}
+                                          </div>
+                                        )}
+                                      </div>
+                      </nav>
+
+          {/* User Section */}
+          <div className="p-4 border-t border-zinc-800">
+            {user ? (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-orange-500/20 flex items-center justify-center">
+                    <span className="text-orange-400 font-semibold text-sm">
+                      {user.full_name?.[0] || user.email?.[0]?.toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-zinc-200 truncate">
+                      {user.full_name || 'User'}
+                    </p>
+                    <p className="text-xs text-zinc-500 truncate">{user.role}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="p-2 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 rounded-lg"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="text-sm text-zinc-500">Loading...</div>
+            )}
+          </div>
+        </div>
+      </aside>
+
+      {/* Main Content */}
+              <main className={`min-h-screen pt-16 lg:pt-0 transition-all duration-300 ${isFullScreen ? 'lg:ml-0' : 'lg:ml-64'}`}>
+        <div className="p-4 lg:p-6">
+          {children}
+        </div>
+      </main>
+    </div>
+    </ForecastProvider>
+    </FloorPinProvider>
+  );
+}
