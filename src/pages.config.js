@@ -47,12 +47,13 @@
  *
  * The mainPage value must match a key in the PAGES object exactly.
  */
-import Copackers from './pages/Copackers';
 import AddToInventory from './pages/AddToInventory';
 import Analytics from './pages/Analytics';
 import AuditLog from './pages/AuditLog';
 import BatchHistory from './pages/BatchHistory';
+import BugReports from './pages/BugReports';
 import BulkUpload from './pages/BulkUpload';
+import Copackers from './pages/Copackers';
 import Dashboard from './pages/Dashboard';
 import EquipmentRepairs from './pages/EquipmentRepairs';
 import Forecasting from './pages/Forecasting';
@@ -63,27 +64,35 @@ import LabelPurchaseOrders from './pages/LabelPurchaseOrders';
 import LabelUsage from './pages/LabelUsage';
 import Labels from './pages/Labels';
 import LineCapacity from './pages/LineCapacity';
+import LiquidBatchDetail from './pages/LiquidBatchDetail';
+import LiquidBatches from './pages/LiquidBatches';
 import LowConsumables from './pages/LowConsumables';
 import MeasurementSettings from './pages/MeasurementSettings';
+import ProductionEntry from './pages/ProductionEntry';
 import ProductionPlanning from './pages/ProductionPlanning';
+import ProductionQueue from './pages/ProductionQueue';
+import ProductionSchedule from './pages/ProductionSchedule';
 import PurchaseOrders from './pages/PurchaseOrders';
 import PurchaseRequisitions from './pages/PurchaseRequisitions';
 import RecipeTemplates from './pages/RecipeTemplates';
 import RecipeVersions from './pages/RecipeVersions';
 import Recipes from './pages/Recipes';
+import Reports from './pages/Reports';
 import ReviewQueue from './pages/ReviewQueue';
+import RunPlanner from './pages/RunPlanner';
 import Suppliers from './pages/Suppliers';
 import UserManagement from './pages/UserManagement';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
-    "Copackers": Copackers,
     "AddToInventory": AddToInventory,
     "Analytics": Analytics,
     "AuditLog": AuditLog,
     "BatchHistory": BatchHistory,
+    "BugReports": BugReports,
     "BulkUpload": BulkUpload,
+    "Copackers": Copackers,
     "Dashboard": Dashboard,
     "EquipmentRepairs": EquipmentRepairs,
     "Forecasting": Forecasting,
@@ -94,15 +103,22 @@ export const PAGES = {
     "LabelUsage": LabelUsage,
     "Labels": Labels,
     "LineCapacity": LineCapacity,
+    "LiquidBatchDetail": LiquidBatchDetail,
+    "LiquidBatches": LiquidBatches,
     "LowConsumables": LowConsumables,
     "MeasurementSettings": MeasurementSettings,
+    "ProductionEntry": ProductionEntry,
     "ProductionPlanning": ProductionPlanning,
+    "ProductionQueue": ProductionQueue,
+    "ProductionSchedule": ProductionSchedule,
     "PurchaseOrders": PurchaseOrders,
     "PurchaseRequisitions": PurchaseRequisitions,
     "RecipeTemplates": RecipeTemplates,
     "RecipeVersions": RecipeVersions,
     "Recipes": Recipes,
+    "Reports": Reports,
     "ReviewQueue": ReviewQueue,
+    "RunPlanner": RunPlanner,
     "Suppliers": Suppliers,
     "UserManagement": UserManagement,
 }

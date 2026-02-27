@@ -9,7 +9,6 @@ import {
   Package,
   Calendar,
   TrendingUp,
-  RefreshCw,
   Send,
   ShoppingBag,
   Loader2
@@ -51,6 +50,9 @@ export default function Forecasting() {
   const [saveNotes, setSaveNotes] = useState("");
   const [shopifyLoading, setShopifyLoading] = useState(false);
   const [shopifyDateRange, setShopifyDateRange] = useState(null);
+  const [forecastGenerated, setForecastGenerated] = useState(false);
+  const [forecastResults, setForecastResults] = useState([]);
+  const [activeTab, setActiveTab] = useState("data");
 
   const queryClient = useQueryClient();
 
@@ -156,8 +158,10 @@ export default function Forecasting() {
       setExclusions(workspace.exclusions || []);
     }
     
+    setForecastGenerated(false);
+    setForecastResults([]);
     setShowLoadModal(false);
-    toast.success('Workspace loaded - generating results...');
+    toast.success('Workspace loaded — click Generate Forecast to run results');
   };
 
   // Handle CSV uploads
@@ -176,15 +180,18 @@ export default function Forecasting() {
       const online = [];
 
       records.forEach(r => {
+        const qty = parseFloat(r.quantity) || 0;
+        if (qty <= 0) return; // skip zero/negative rows
         const formatted = {
           day: r.order_date,
-          sku: r.sku,
+          sku: String(r.sku || '').trim(),
           product: r.product_name,
           location: r.location_name,
-          qty: r.quantity
+          qty
         };
+        if (!formatted.sku || !formatted.day) return; // skip malformed rows
         if (r.channel === 'pos') retail.push(formatted);
-        else if (r.channel === 'online') online.push(formatted);
+        else online.push(formatted); // treat anything non-pos as online
       });
 
       setRetailData(retail.length > 0 ? retail : null);
@@ -278,18 +285,32 @@ export default function Forecasting() {
     };
   }, [config, events, exclusions, inventorySnapshot, retailData, onlineData]);
 
-  // Calculate forecast results
-  const forecastResults = React.useMemo(() => {
-    if (!retailData && !onlineData) return [];
-    
-    return calculateCompleteForecast(
+  // Determine if we have sales data loaded
+  const hasData = !!(retailData?.length || onlineData?.length);
+
+  // Handle Generate Forecast button
+  const handleGenerateForecast = () => {
+    if (!hasData) {
+      toast.error('Load sales data first (Shopify or CSV) before generating a forecast.');
+      return;
+    }
+    const results = calculateCompleteForecast(
       { retail: retailData, online: onlineData },
       effectiveInventory,
       events,
       config,
       exclusions
     );
-  }, [retailData, onlineData, effectiveInventory, events, config, exclusions]);
+    console.log('[Forecast] Generated', results.length, 'SKUs from', (retailData?.length||0), 'retail +', (onlineData?.length||0), 'online rows');
+    setForecastResults(results);
+    setForecastGenerated(true);
+    setActiveTab("results");
+    if (results.length === 0) {
+      toast.warning('No SKUs found — check that your data has valid SKUs and quantities.');
+    } else {
+      toast.success(`Forecast generated: ${results.length} SKUs`);
+    }
+  };
 
   // Get all unique SKUs for event manager
   const availableSkus = React.useMemo(() => {
@@ -358,35 +379,32 @@ export default function Forecasting() {
             {autoSaveStatus === 'error' && <span className="text-xs text-red-400">• Save failed</span>}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
            <Button variant="outline" onClick={() => setShowLoadModal(true)}>
              <FolderOpen className="w-4 h-4 mr-2" />
              Load
            </Button>
-           {forecastResults.length > 0 && (
-              <>
-                <Button variant="outline" onClick={() => setShowPushModal(true)}>
-                  <Send className="w-4 h-4 mr-2" />
-                  Push to Planner
-                </Button>
-                <Button variant="outline" onClick={() => {
-                  if (confirm('Regenerate forecast results with current data and configuration?')) {
-                    setConfig({...config});
-                    toast.success('Results regenerated');
-                  }
-                }}>
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Generate Results
-                </Button>
-              </>
-            )}
+           {forecastGenerated && (
+             <Button variant="outline" onClick={() => setShowPushModal(true)}>
+               <Send className="w-4 h-4 mr-2" />
+               Push to Planner
+             </Button>
+           )}
+           <Button
+             onClick={handleGenerateForecast}
+             disabled={!hasData}
+             className="bg-orange-500 hover:bg-orange-600 text-white font-semibold"
+           >
+             <TrendingUp className="w-4 h-4 mr-2" />
+             {forecastGenerated ? 'Regenerate' : 'Generate Forecast'}
+           </Button>
            <Button 
              onClick={() => {
                setSaveName(activeWorkspace?.name || '');
                setSaveNotes(activeWorkspace?.notes || '');
                setShowSaveModal(true);
              }} 
-             className="bg-orange-500 hover:bg-orange-600 text-white"
+             variant="outline"
            >
              <Save className="w-4 h-4 mr-2" />
              Save Workspace
@@ -398,7 +416,7 @@ export default function Forecasting() {
       </div>
 
       {/* Stats Dashboard */}
-      {forecastResults.length > 0 && (
+      {forecastGenerated && forecastResults.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <StatsCard
             title="Critical Items"
@@ -427,12 +445,13 @@ export default function Forecasting() {
         </div>
       )}
 
-      <Tabs defaultValue="data" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="bg-zinc-800">
           <TabsTrigger value="data">Data Import</TabsTrigger>
+          <TabsTrigger value="config">Settings</TabsTrigger>
+          <TabsTrigger value="exclusions">Exclusions</TabsTrigger>
           <TabsTrigger value="events">Events</TabsTrigger>
-          <TabsTrigger value="config">Configuration</TabsTrigger>
-          <TabsTrigger value="results">Results</TabsTrigger>
+          <TabsTrigger value="results">Results {forecastGenerated && <span className="ml-1 text-xs text-green-400">({forecastResults.length})</span>}</TabsTrigger>
         </TabsList>
 
         {/* Data Import Tab */}
@@ -463,10 +482,20 @@ export default function Forecasting() {
                 </Button>
               </div>
               {shopifyDateRange && (
-                <div className="text-xs text-zinc-400 bg-zinc-800/50 rounded px-3 py-2 border border-zinc-700">
-                  Shopify data loaded: <span className="text-zinc-200">{shopifyDateRange.from}</span> to <span className="text-zinc-200">{shopifyDateRange.to}</span>
-                  {retailData && <span className="ml-3 text-orange-400">{retailData.length} retail</span>}
-                  {onlineData && <span className="ml-3 text-blue-400">{onlineData.length} online</span>}
+                <div className="flex items-center justify-between flex-wrap gap-3 text-xs text-zinc-400 bg-zinc-800/50 rounded px-3 py-2 border border-zinc-700">
+                  <span>
+                    Shopify data loaded: <span className="text-zinc-200">{shopifyDateRange.from}</span> to <span className="text-zinc-200">{shopifyDateRange.to}</span>
+                    {retailData && <span className="ml-3 text-orange-400">{retailData.length} retail rows</span>}
+                    {onlineData && <span className="ml-3 text-blue-400">{onlineData.length} online rows</span>}
+                  </span>
+                  <Button
+                    onClick={handleGenerateForecast}
+                    className="bg-orange-500 hover:bg-orange-600 text-white font-semibold"
+                    size="sm"
+                  >
+                    <TrendingUp className="w-4 h-4 mr-1.5" />
+                    Generate Forecast
+                  </Button>
                 </div>
               )}
             </CardContent>
@@ -505,6 +534,15 @@ export default function Forecasting() {
             </CardContent>
           </Card>
 
+        </TabsContent>
+
+        {/* Settings Tab */}
+        <TabsContent value="config">
+          <ConfigPanel config={config} onChange={setConfig} />
+        </TabsContent>
+
+        {/* Exclusions Tab */}
+        <TabsContent value="exclusions">
           <ExclusionsManager
             exclusions={exclusions}
             onExclusionsChange={setExclusions}
@@ -521,14 +559,29 @@ export default function Forecasting() {
           />
         </TabsContent>
 
-        {/* Configuration Tab */}
-        <TabsContent value="config">
-          <ConfigPanel config={config} onChange={setConfig} />
-        </TabsContent>
-
         {/* Results Tab */}
         <TabsContent value="results">
-          <ForecastResults results={forecastResults} onStockChange={handleStockChange} />
+          {!forecastGenerated ? (
+            <div className="flex flex-col items-center justify-center py-24 gap-6">
+              <TrendingUp className="w-16 h-16 text-zinc-700" />
+              <div className="text-center">
+                <p className="text-zinc-300 text-lg font-medium">No forecast generated yet</p>
+                <p className="text-zinc-500 text-sm mt-1">
+                  {hasData ? 'Click the button below to run the forecast.' : 'Load sales data first, then generate your forecast.'}
+                </p>
+              </div>
+              <Button
+                onClick={handleGenerateForecast}
+                disabled={!hasData}
+                className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-3 text-base font-semibold"
+              >
+                <TrendingUp className="w-5 h-5 mr-2" />
+                {hasData ? 'Generate Forecast' : 'Load Data First'}
+              </Button>
+            </div>
+          ) : (
+            <ForecastResults results={forecastResults} onStockChange={handleStockChange} config={config} />
+          )}
         </TabsContent>
       </Tabs>
 
