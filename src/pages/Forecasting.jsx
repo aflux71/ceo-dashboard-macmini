@@ -213,12 +213,14 @@ export default function Forecasting() {
   };
 
   // Use current inventory if no snapshot uploaded
-  const effectiveInventory = inventorySnapshot || inventory.map(i => ({
-    sku: i.sku,
-    product: i.name,
-    quantity: i.quantity,
-    unit: i.unit
-  }));
+  const effectiveInventory = React.useMemo(() => {
+    return inventorySnapshot || inventory.map(i => ({
+      sku: i.sku,
+      product: i.name,
+      quantity: i.quantity,
+      unit: i.unit
+    }));
+  }, [inventorySnapshot, inventory]);
 
   // Handle stock level change from expanded row
   const handleStockChange = (sku, newValue) => {
@@ -301,7 +303,6 @@ export default function Forecasting() {
       config,
       exclusions
     );
-    console.log('[Forecast] Generated', results.length, 'SKUs from', (retailData?.length||0), 'retail +', (onlineData?.length||0), 'online rows');
     setForecastResults(results);
     setForecastGenerated(true);
     setActiveTab("results");

@@ -53,16 +53,16 @@ export function aggregateSales(retailData, onlineData, exclusions = []) {
     
     skuData[sku].total += row.qty;
     
-    const month = date.getMonth() + 1;
-    skuData[sku].byMonth[month] = (skuData[sku].byMonth[month] || 0) + row.qty;
+    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    skuData[sku].byMonth[monthKey] = (skuData[sku].byMonth[monthKey] || 0) + row.qty;
     
     if (row.location) {
       if (!skuData[sku].byLocation[row.location]) {
         skuData[sku].byLocation[row.location] = { total: 0, byMonth: {} };
       }
       skuData[sku].byLocation[row.location].total += row.qty;
-      skuData[sku].byLocation[row.location].byMonth[month] = 
-        (skuData[sku].byLocation[row.location].byMonth[month] || 0) + row.qty;
+      skuData[sku].byLocation[row.location].byMonth[monthKey] =
+        (skuData[sku].byLocation[row.location].byMonth[monthKey] || 0) + row.qty;
     }
   });
   

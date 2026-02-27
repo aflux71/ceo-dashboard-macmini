@@ -16,10 +16,6 @@ export default function CSVUploader({ onDataLoaded, type, label }) {
       header: true,
       skipEmptyLines: true,
       complete: function(results) {
-        console.log('CSV parsed:', results.data.length, 'rows');
-        console.log('Column names:', Object.keys(results.data[0] || {}));
-        console.log('First 3 rows:', results.data.slice(0, 3));
-        
         const data = results.data.map(row => {
           // Different column mappings for inventory vs sales
           if (type === 'inventory') {
@@ -52,13 +48,8 @@ export default function CSVUploader({ onDataLoaded, type, label }) {
           const hasValidQty = !isNaN(r.qty) && r.qty > 0;
           const valid = hasSku && hasValidQty;
           
-          if (!valid) {
-            console.log('Filtered out:', { sku: r.sku, qty: r.qty, hasSku, hasValidQty });
-          }
           return valid;
         });
-        
-        console.log('After filtering:', data.length, 'rows loaded');
         
         setFileName(file.name);
         setRowCount(data.length);

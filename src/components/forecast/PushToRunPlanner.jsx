@@ -42,6 +42,13 @@ export default function PushToRunPlanner({
   const [lineFilter, setLineFilter] = useState("all");
   const queryClient = useQueryClient();
 
+  // Reset selection when modal opens
+  React.useEffect(() => {
+    if (open) {
+      setSelected(new Set());
+    }
+  }, [open]);
+
   // Filter results with orderQty > 0
   const filteredResults = results.filter(item => {
     if (item.orderQty <= 0) return false;
