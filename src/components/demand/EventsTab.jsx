@@ -1,11 +1,12 @@
-import React, { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import React, { useState, useMemo, useRef } from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
-  Plus, Calendar, Trash2, Edit2, Check, X, Package, ChevronDown, ChevronUp,
+  Plus, Calendar, Trash2, Edit2, Check, X, ChevronDown, ChevronUp, Upload,
 } from "lucide-react";
 import { EVENT_TYPE_LABELS, EVENT_STATUS_LABELS, formatNumber } from "@/lib/demandHelpers";
+import Papa from "papaparse";
 
 const EMPTY_EVENT = {
   name: "",
@@ -16,12 +17,32 @@ const EMPTY_EVENT = {
   notes: "",
 };
 
-export default function EventsTab({ events, onAddEvent, onUpdateEvent, onDeleteEvent }) {
+export default function EventsTab({ events, onAddEvent, onUpdateEvent, onDeleteEvent, summaries = [] }) {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ ...EMPTY_EVENT });
   const [itemInput, setItemInput] = useState({ sku: "", product: "", qty: "" });
   const [expandedId, setExpandedId] = useState(null);
+  const [skuSearch, setSkuSearch] = useState("");
+  const [showDropdown, setShowDropdown] = useState(false);
+  const csvRef = useRef(null);
+
+  // SKU search results
+  const skuResults = useMemo(() => {
+    if (!skuSearch.trim() || skuSearch.length < 1) return [];
+    const q = skuSearch.toLowerCase();
+    return summaries
+      .filter((s) =>
+        s.sku?.toLowerCase().includes(q) || s.product?.toLowerCase().includes(q)
+      )
+      .slice(0, 8);
+  }, [skuSearch, summaries]);
+
+  const selectSku = (s) => {
+    setItemInput((v) => ({ ...v, sku: s.sku, product: s.product }));
+    setSkuSearch(s.product || s.sku);
+    setShowDropdown(false);
+  };
 
   const startEdit = (ev) => {
     setEditingId(ev.id);
@@ -38,10 +59,7 @@ export default function EventsTab({ events, onAddEvent, onUpdateEvent, onDeleteE
 
   const handleSubmit = () => {
     if (!form.name || !form.dueDate) return;
-    const payload = {
-      ...form,
-      items: JSON.stringify(form.items),
-    };
+    const payload = { ...form, items: JSON.stringify(form.items) };
     if (editingId) {
       onUpdateEvent(editingId, payload);
     } else {
@@ -54,25 +72,48 @@ export default function EventsTab({ events, onAddEvent, onUpdateEvent, onDeleteE
 
   const addItem = () => {
     if (!itemInput.sku || !itemInput.qty) return;
-    setForm(f => ({
+    setForm((f) => ({
       ...f,
       items: [...f.items, { sku: itemInput.sku, product: itemInput.product, qty: Number(itemInput.qty) }],
     }));
     setItemInput({ sku: "", product: "", qty: "" });
+    setSkuSearch("");
   };
 
   const removeItem = (idx) => {
-    setForm(f => ({ ...f, items: f.items.filter((_, i) => i !== idx) }));
+    setForm((f) => ({ ...f, items: f.items.filter((_, i) => i !== idx) }));
   };
+
+  const handleCSV = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (result) => {
+        const parsed = result.data.flatMap((row) => {
+          // Support flexible column names: SKU/sku, Product/product/name, Qty/qty/quantity
+          const sku = row.SKU || row.sku || row.Sku || "";
+          const product = row.Product || row.product || row.Name || row.name || "";
+          const qty = Number(row.Qty || row.qty || row.Quantity || row.quantity || 0);
+          if (!sku || !qty) return [];
+          return [{ sku: String(sku).trim(), product: String(product).trim(), qty }];
+        });
+        if (parsed.length > 0) {
+          setForm((f) => ({ ...f, items: [...f.items, ...parsed] }));
+        }
+      },
+    });
+    e.target.value = "";
+  };
+
+  const parseItems = (ev) =>
+    typeof ev.items === "string" ? JSON.parse(ev.items || "[]") : ev.items || [];
 
   const statusColor = (s) => {
     if (s === "fulfilled") return "green";
     if (s === "confirmed") return "blue";
     return "amber";
-  };
-
-  const parseItems = (ev) => {
-    return typeof ev.items === "string" ? JSON.parse(ev.items || "[]") : ev.items || [];
   };
 
   return (
@@ -100,7 +141,7 @@ export default function EventsTab({ events, onAddEvent, onUpdateEvent, onDeleteE
                 <label className="block text-[10px] text-zinc-500 uppercase mb-1">Event Name</label>
                 <Input
                   value={form.name}
-                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                   placeholder="e.g. LCBO PO #4521"
                   className="h-8 bg-zinc-800 border-zinc-700 text-sm"
                 />
@@ -109,7 +150,7 @@ export default function EventsTab({ events, onAddEvent, onUpdateEvent, onDeleteE
                 <label className="block text-[10px] text-zinc-500 uppercase mb-1">Type</label>
                 <select
                   value={form.type}
-                  onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
+                  onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
                   className="w-full bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm rounded px-2 py-1.5"
                 >
                   {Object.entries(EVENT_TYPE_LABELS).map(([k, v]) => (
@@ -122,7 +163,7 @@ export default function EventsTab({ events, onAddEvent, onUpdateEvent, onDeleteE
                 <Input
                   type="date"
                   value={form.dueDate}
-                  onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
+                  onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))}
                   className="h-8 bg-zinc-800 border-zinc-700 text-sm"
                 />
               </div>
@@ -130,7 +171,7 @@ export default function EventsTab({ events, onAddEvent, onUpdateEvent, onDeleteE
                 <label className="block text-[10px] text-zinc-500 uppercase mb-1">Status</label>
                 <select
                   value={form.status}
-                  onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
+                  onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
                   className="w-full bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm rounded px-2 py-1.5"
                 >
                   {Object.entries(EVENT_STATUS_LABELS).map(([k, v]) => (
@@ -144,7 +185,7 @@ export default function EventsTab({ events, onAddEvent, onUpdateEvent, onDeleteE
               <label className="block text-[10px] text-zinc-500 uppercase mb-1">Notes</label>
               <Input
                 value={form.notes}
-                onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
                 placeholder="Optional notes"
                 className="h-8 bg-zinc-800 border-zinc-700 text-sm"
               />
@@ -152,46 +193,80 @@ export default function EventsTab({ events, onAddEvent, onUpdateEvent, onDeleteE
 
             {/* Items */}
             <div>
-              <label className="block text-[10px] text-zinc-500 uppercase mb-1">Items</label>
-              <div className="flex gap-2 mb-2">
-                <Input
-                  value={itemInput.sku}
-                  onChange={e => setItemInput(v => ({ ...v, sku: e.target.value }))}
-                  placeholder="SKU"
-                  className="w-24 h-8 bg-zinc-800 border-zinc-700 text-sm"
-                />
-                <Input
-                  value={itemInput.product}
-                  onChange={e => setItemInput(v => ({ ...v, product: e.target.value }))}
-                  placeholder="Product name"
-                  className="flex-1 h-8 bg-zinc-800 border-zinc-700 text-sm"
-                />
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-[10px] text-zinc-500 uppercase">Items</label>
+                <div>
+                  <input type="file" accept=".csv" ref={csvRef} onChange={handleCSV} className="hidden" />
+                  <button
+                    onClick={() => csvRef.current?.click()}
+                    className="flex items-center gap-1 px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 text-[10px] rounded transition-colors"
+                  >
+                    <Upload className="w-3 h-3" /> Upload CSV
+                  </button>
+                </div>
+              </div>
+
+              {/* SKU search row */}
+              <div className="flex gap-2 mb-2 relative">
+                <div className="flex-1 relative">
+                  <Input
+                    value={skuSearch}
+                    onChange={(e) => {
+                      setSkuSearch(e.target.value);
+                      setItemInput((v) => ({ ...v, sku: "", product: "" }));
+                      setShowDropdown(true);
+                    }}
+                    onFocus={() => setShowDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+                    placeholder="Search SKU or product name..."
+                    className="h-8 bg-zinc-800 border-zinc-700 text-sm"
+                  />
+                  {showDropdown && skuResults.length > 0 && (
+                    <div className="absolute z-50 top-full left-0 right-0 mt-0.5 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl overflow-hidden">
+                      {skuResults.map((s) => (
+                        <div
+                          key={s.sku}
+                          onMouseDown={() => selectSku(s)}
+                          className="flex items-center justify-between px-3 py-2 hover:bg-zinc-700 cursor-pointer border-b border-zinc-700/50 last:border-b-0"
+                        >
+                          <span className="text-sm text-zinc-200">{s.product}</span>
+                          <span className="text-[10px] font-mono text-zinc-500">SKU {s.sku}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <Input
                   type="number"
                   value={itemInput.qty}
-                  onChange={e => setItemInput(v => ({ ...v, qty: e.target.value }))}
+                  onChange={(e) => setItemInput((v) => ({ ...v, qty: e.target.value }))}
                   placeholder="Qty"
                   className="w-20 h-8 bg-zinc-800 border-zinc-700 text-sm"
                 />
                 <button
                   onClick={addItem}
-                  className="px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 text-white text-xs rounded transition-colors"
+                  disabled={!itemInput.sku || !itemInput.qty}
+                  className="px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 disabled:opacity-40 text-white text-xs rounded transition-colors"
                 >
                   Add
                 </button>
               </div>
+
               {form.items.length > 0 && (
-                <div className="space-y-1">
+                <div className="space-y-1 max-h-48 overflow-y-auto">
                   {form.items.map((item, i) => (
                     <div key={i} className="flex items-center justify-between px-3 py-1.5 bg-zinc-800/50 rounded text-xs">
                       <span className="text-zinc-300">
-                        <span className="font-mono text-zinc-500">SKU {item.sku}</span> — {item.product || "N/A"} — {formatNumber(item.qty)} units
+                        <span className="font-mono text-zinc-500">SKU {item.sku}</span>
+                        {item.product && ` — ${item.product}`}
+                        {" — "}{formatNumber(item.qty)} units
                       </span>
                       <button onClick={() => removeItem(i)} className="text-zinc-500 hover:text-red-400">
                         <X className="w-3 h-3" />
                       </button>
                     </div>
                   ))}
+                  <p className="text-[10px] text-zinc-600 pt-1">{form.items.length} item{form.items.length !== 1 ? "s" : ""} total</p>
                 </div>
               )}
             </div>
@@ -225,7 +300,7 @@ export default function EventsTab({ events, onAddEvent, onUpdateEvent, onDeleteE
         </Card>
       )}
 
-      {events.map(ev => {
+      {events.map((ev) => {
         const items = parseItems(ev);
         const totalQty = items.reduce((s, i) => s + (i.qty || 0), 0);
         const isExpanded = expandedId === ev.id;
@@ -234,10 +309,7 @@ export default function EventsTab({ events, onAddEvent, onUpdateEvent, onDeleteE
           <Card key={ev.id} className="bg-zinc-900 border-zinc-800">
             <CardContent className="p-4">
               <div className="flex items-start justify-between">
-                <div
-                  className="flex-1 cursor-pointer"
-                  onClick={() => setExpandedId(isExpanded ? null : ev.id)}
-                >
+                <div className="flex-1 cursor-pointer" onClick={() => setExpandedId(isExpanded ? null : ev.id)}>
                   <div className="flex items-center gap-2 mb-1">
                     <h4 className="text-sm font-medium text-zinc-200">{ev.name}</h4>
                     <Badge variant={statusColor(ev.status)} className="text-[10px]">
@@ -254,22 +326,13 @@ export default function EventsTab({ events, onAddEvent, onUpdateEvent, onDeleteE
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => startEdit(ev)}
-                    className="p-1.5 hover:bg-zinc-800 rounded text-zinc-400 hover:text-zinc-200"
-                  >
+                  <button onClick={() => startEdit(ev)} className="p-1.5 hover:bg-zinc-800 rounded text-zinc-400 hover:text-zinc-200">
                     <Edit2 className="w-4 h-4" />
                   </button>
-                  <button
-                    onClick={() => onDeleteEvent(ev.id)}
-                    className="p-1.5 hover:bg-zinc-800 rounded text-zinc-400 hover:text-red-400"
-                  >
+                  <button onClick={() => onDeleteEvent(ev.id)} className="p-1.5 hover:bg-zinc-800 rounded text-zinc-400 hover:text-red-400">
                     <Trash2 className="w-4 h-4" />
                   </button>
-                  <button
-                    onClick={() => setExpandedId(isExpanded ? null : ev.id)}
-                    className="p-1.5 hover:bg-zinc-800 rounded text-zinc-400"
-                  >
+                  <button onClick={() => setExpandedId(isExpanded ? null : ev.id)} className="p-1.5 hover:bg-zinc-800 rounded text-zinc-400">
                     {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                   </button>
                 </div>
