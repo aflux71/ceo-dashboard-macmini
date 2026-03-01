@@ -327,7 +327,7 @@ export default function Layout({ children, currentPageName }) {
                                                                   <item.icon className={`w-5 h-5 ${showAlertStyle ? 'text-red-400' : isRepairItem && hasNewRepairs ? 'text-amber-400' : isConsumablesItem && hasPendingConsumables ? 'text-orange-400' : isLabelsItem && hasLowLabels ? 'text-amber-400' : ''}`} />
                                                                   {item.name}
                                                                 </div>
-                                                                {item.badge && (
+                                                                {item.badge && pendingQcCount > 0 && (
                                                                   <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
                                                                 )}
                                                                 {isRepairItem && hasNewRepairs && (
