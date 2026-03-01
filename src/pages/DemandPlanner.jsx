@@ -466,6 +466,10 @@ export default function DemandPlanner() {
             onViewDetail={setDetailItem}
             onPushToPlanning={handlePushToPlanning}
             onExclude={handleExclude}
+            onViewUrgencyList={(urgency) => {
+              setInitialUrgencyFilter(urgency);
+              setActiveTab("plan");
+            }}
           />
         </TabsContent>
 
@@ -476,6 +480,8 @@ export default function DemandPlanner() {
             onWorkspaceChange={handleWorkspaceChange}
             onViewDetail={setDetailItem}
             onPushToPlanning={handlePushToPlanning}
+            initialUrgencyFilter={initialUrgencyFilter}
+            onClearUrgencyFilter={() => setInitialUrgencyFilter(null)}
           />
         </TabsContent>
 

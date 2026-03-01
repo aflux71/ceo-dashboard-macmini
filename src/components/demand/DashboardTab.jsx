@@ -95,11 +95,19 @@ export default function DashboardTab({
           <div className="bg-green-500" style={{ width: `${(summary.ok / summary.totalSKUs) * 100}%` }} />
         )}
       </div>
-      <div className="flex gap-4 text-xs text-zinc-400">
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" />{summary.critical} Critical</span>
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500" />{summary.low} Low</span>
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-500" />{summary.watch} Watch</span>
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500" />{summary.ok} OK</span>
+      <div className="flex gap-2 text-xs text-zinc-400">
+        <button onClick={() => onViewUrgencyList("CRITICAL")} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-colors">
+          <span className="w-1.5 h-1.5 rounded-full bg-red-500" />{summary.critical} Critical
+        </button>
+        <button onClick={() => onViewUrgencyList("LOW")} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20 transition-colors">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />{summary.low} Low
+        </button>
+        <button onClick={() => onViewUrgencyList("WATCH")} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 hover:bg-yellow-500/20 transition-colors">
+          <span className="w-1.5 h-1.5 rounded-full bg-yellow-500" />{summary.watch} Watch
+        </button>
+        <button onClick={() => onViewUrgencyList("OK")} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-500/10 border border-green-500/20 text-green-400 hover:bg-green-500/20 transition-colors">
+          <span className="w-1.5 h-1.5 rounded-full bg-green-500" />{summary.ok} OK
+        </button>
       </div>
 
       {/* Top 40 Grid */}
