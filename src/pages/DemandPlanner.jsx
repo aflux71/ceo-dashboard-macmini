@@ -485,6 +485,7 @@ export default function DemandPlanner() {
             onApply={applyWorkspace}
             onRemoveExclusion={handleRemoveExclusion}
             summaries={summaries}
+            onExclude={handleExclude}
           />
         </TabsContent>
       </Tabs>
