@@ -277,7 +277,8 @@ export default function ProductionEntry() {
         target_qty: newExpected,
         actual_qty: newExpected,
         variance: 0,
-        variance_percent: 0
+        variance_percent: 0,
+        scaled_batch_multiplier: multiplier // track for display purposes
       };
     });
 
@@ -893,6 +894,11 @@ export default function ProductionEntry() {
                                 className="bg-zinc-800 border-zinc-700"
                                 disabled={mat.verified_by}
                               />
+                              {batchMultiplier !== 1 && mat.unit && mat.inventory_unit && (
+                                <p className="text-xs text-zinc-500 mt-0.5">
+                                  {(mat.expected_qty * batchMultiplier).toFixed(2)} {mat.unit} ({areUnitsCompatible(mat.unit, mat.inventory_unit) ? convertUnit(mat.expected_qty * batchMultiplier, mat.unit, mat.inventory_unit).toFixed(2) + ' ' + mat.inventory_unit : 'from inventory'})
+                                </p>
+                              )}
                             </div>
                             <div className="space-y-1">
                               <Label className="text-xs text-zinc-500">Unit</Label>
