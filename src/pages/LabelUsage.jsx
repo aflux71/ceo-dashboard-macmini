@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Search, Plus, Minus, Trash2, Tag, Send, LogOut } from "lucide-react";
 import { toast } from "sonner";
+import PinLoginScreen from "@/components/auth/PinLoginScreen";
 
 const REASONS = [
   { value: "production", label: "Production" },
@@ -36,6 +37,7 @@ export default function LabelUsage() {
   const [usageList, setUsageList] = useState([]);
   const [globalReason, setGlobalReason] = useState("production");
   const [globalNotes, setGlobalNotes] = useState("");
+  const [showPinScreen, setShowPinScreen] = useState(false);
 
   const { data: labels = [], isLoading } = useQuery({
     queryKey: ["labels"],
@@ -159,6 +161,7 @@ export default function LabelUsage() {
 
   return (
     <div className="space-y-6">
+      {showPinScreen && <PinLoginScreen onClose={() => setShowPinScreen(false)} />}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Label Usage</h1>
@@ -167,10 +170,10 @@ export default function LabelUsage() {
         <Button
           variant="outline"
           className="border-zinc-700 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
-          onClick={() => base44.auth.logout()}
+          onClick={() => setShowPinScreen(true)}
         >
           <LogOut className="w-4 h-4 mr-2" />
-          Logout
+          Switch User
         </Button>
       </div>
 
