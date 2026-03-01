@@ -69,7 +69,12 @@ export default function RecipeTemplates() {
   });
   
   const { hasPermission } = useFloorPin();
+  const [appUser, setAppUser] = useState(null);
   const queryClient = useQueryClient();
+
+  React.useEffect(() => {
+    base44.auth.me().then(setAppUser).catch(() => setAppUser(null));
+  }, []);
 
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ['recipe-templates'],
