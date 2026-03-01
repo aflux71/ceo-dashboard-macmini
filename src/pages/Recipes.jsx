@@ -38,6 +38,7 @@ import IngredientSkuSelect from "@/components/recipes/IngredientSkuSelect";
 import CompatibleUnitSelect from "@/components/recipes/CompatibleUnitSelect";
 import PrintRecipesDialog from "@/components/recipes/PrintRecipesDialog";
 import PackagingSkuSelect from "@/components/recipes/PackagingSkuSelect";
+import IngredientConversionHint from "@/components/recipes/IngredientConversionHint";
 import { useFloorPin } from "@/components/auth/FloorPinContext";
 import {
   AlertDialog,
@@ -848,6 +849,13 @@ export default function Recipes() {
                                   value={ing.unit}
                                   onChange={(v) => updateIngredient(idx, 'unit', v)}
                                   inventoryUnit={inventory.find(i => i.sku === ing.sku)?.unit}
+                                />
+                              </div>
+                              <div className="col-span-2">
+                                <Label className="text-xs">Stock Info</Label>
+                                <IngredientConversionHint 
+                                  ingredient={ing}
+                                  inventoryItem={inventory.find(i => i.sku === ing.sku)}
                                 />
                               </div>
                               <div className="col-span-1">
