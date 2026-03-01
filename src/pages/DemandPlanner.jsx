@@ -5,8 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   BarChart3, Table, Calendar, Database, Settings,
-  Plus, Trash2, Save, Copy, X, Check, Loader2,
+  Plus, Trash2, Save, Copy, X, Check, Loader2, Upload,
 } from "lucide-react";
+import Papa from "papaparse";
 import { toast } from "sonner";
 import { base44 } from "@/api/base44Client";
 import { generatePlan, categorize } from "@/lib/demandEngine";
