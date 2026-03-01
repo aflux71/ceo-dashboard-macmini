@@ -246,22 +246,30 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── Step 5: Execute updates sequentially with delays ────────────────
+    // ── Step 5: Execute updates in small batches with generous delays ────
     const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+    const BATCH = 3;
+    const DELAY = 2000;
 
     let updated = 0;
-    for (const { id, data } of toUpdate) {
-      await base44.asServiceRole.entities.DemandSummary.update(id, data);
-      updated++;
-      await sleep(300);
+    for (let i = 0; i < toUpdate.length; i += BATCH) {
+      const batch = toUpdate.slice(i, i + BATCH);
+      for (const { id, data } of batch) {
+        await base44.asServiceRole.entities.DemandSummary.update(id, data);
+      }
+      updated += batch.length;
+      await sleep(DELAY);
     }
 
-    // ── Step 6: Create new records sequentially ──────────────────────────
+    // ── Step 6: Create new records in small batches ───────────────────────
     let created = 0;
-    for (const data of toCreate) {
-      await base44.asServiceRole.entities.DemandSummary.create(data);
-      created++;
-      await sleep(300);
+    for (let i = 0; i < toCreate.length; i += BATCH) {
+      const batch = toCreate.slice(i, i + BATCH);
+      for (const data of batch) {
+        await base44.asServiceRole.entities.DemandSummary.create(data);
+      }
+      created += batch.length;
+      await sleep(DELAY);
     }
 
     const elapsed = Date.now() - startTime;
