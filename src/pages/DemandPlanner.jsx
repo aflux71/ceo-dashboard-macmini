@@ -513,6 +513,7 @@ export default function DemandPlanner() {
             onRemoveExclusion={handleRemoveExclusion}
             summaries={summaries}
             onExclude={handleExclude}
+            onBulkExclude={handleBulkExclude}
           />
         </TabsContent>
       </Tabs>
