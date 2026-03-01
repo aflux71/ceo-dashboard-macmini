@@ -315,18 +315,29 @@ export default function DemandPlanner() {
 
   // ── Exclusion management ──────────────────────────────────────────────────
   const handleExclude = (sku) => {
-    setWorkspace((prev) => ({
-      ...prev,
-      exclusionList: [...new Set([...prev.exclusionList, sku])],
-    }));
+    setWorkspace((prev) => {
+      const newList = [...new Set([...prev.exclusionList, sku])];
+      persistExclusions(newList);
+      return { ...prev, exclusionList: newList };
+    });
     toast.success(`SKU ${sku} excluded`);
   };
 
+  const handleBulkExclude = (skus) => {
+    setWorkspace((prev) => {
+      const newList = [...new Set([...prev.exclusionList, ...skus])];
+      persistExclusions(newList);
+      return { ...prev, exclusionList: newList };
+    });
+    toast.success(`${skus.length} SKUs excluded`);
+  };
+
   const handleRemoveExclusion = (sku) => {
-    setWorkspace((prev) => ({
-      ...prev,
-      exclusionList: prev.exclusionList.filter((s) => s !== sku),
-    }));
+    setWorkspace((prev) => {
+      const newList = prev.exclusionList.filter((s) => s !== sku);
+      persistExclusions(newList);
+      return { ...prev, exclusionList: newList };
+    });
   };
 
   // ── Inventory override ────────────────────────────────────────────────────
