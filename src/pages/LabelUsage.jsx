@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Plus, Minus, Trash2, Tag, Send } from "lucide-react";
+import { Search, Plus, Minus, Trash2, Tag, Send, LogOut } from "lucide-react";
 import { toast } from "sonner";
 
 const REASONS = [
