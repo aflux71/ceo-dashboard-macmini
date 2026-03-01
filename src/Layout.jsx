@@ -80,20 +80,24 @@ export default function Layout({ children, currentPageName }) {
     base44.auth.me().then(setUser).catch(() => setUser(null));
   }, []);
 
+  const [pendingQcCount, setPendingQcCount] = useState(0);
+
   // Fetch production queue counts
   useEffect(() => {
     const fetchQueueCounts = async () => {
       try {
         const batches = await base44.entities.Batch.filter({
-          status: { $in: ['started', 'on_hold', 'draft'] }
+          status: { $in: ['started', 'on_hold', 'draft', 'pending_qc'] }
         });
         setProductionQueueCount({
           started: batches.filter(b => b.status === 'started').length,
           onHold: batches.filter(b => b.status === 'on_hold').length,
-          total: batches.length
+          total: batches.filter(b => b.status !== 'pending_qc').length
         });
+        setPendingQcCount(batches.filter(b => b.status === 'pending_qc').length);
       } catch (err) {
         setProductionQueueCount({ started: 0, onHold: 0, total: 0 });
+        setPendingQcCount(0);
       }
     };
     fetchQueueCounts();
