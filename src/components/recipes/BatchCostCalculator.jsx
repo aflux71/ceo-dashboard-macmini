@@ -2,6 +2,7 @@ import React from "react";
 import { DollarSign, Lock } from "lucide-react";
 import Badge from "@/components/ui/Badge";
 import { useFloorPin } from "@/components/auth/FloorPinContext";
+import { convertUnit, areUnitsCompatible } from "@/components/utils/unitConversion";
 
 /**
  * Calculate batch cost from recipe ingredients and packaging with inventory costs
@@ -35,11 +36,20 @@ export function calculateBatchCost(recipe, inventory) {
       i.sku === ing.sku || i.name === ing.material
     );
     
-    const itemCostPerUnit = invItem?.cost_per_unit || 0;
-    const qty = ing.qty || 0;
+    let itemCostPerUnit = invItem?.cost_per_unit || 0;
+    let qty = ing.qty || 0;
+    
+    // Handle unit conversion for cost calculation
+    // If recipe unit differs from inventory unit, convert qty to inventory unit to match cost
+    if (itemCostPerUnit > 0 && invItem?.unit && ing.unit && 
+        areUnitsCompatible(ing.unit, invItem.unit)) {
+      const invUnitQty = convertUnit(qty, ing.unit, invItem.unit);
+      qty = invUnitQty; // use converted quantity for cost
+    }
+    
     const lineCost = itemCostPerUnit * qty;
 
-    if (!itemCostPerUnit && qty > 0) {
+    if (!itemCostPerUnit && ing.qty > 0) {
       hasMissingCosts = true;
     }
 
@@ -47,9 +57,10 @@ export function calculateBatchCost(recipe, inventory) {
     ingredientsBreakdown.push({
       material: ing.material,
       sku: ing.sku,
-      qty,
+      qty: ing.qty, // display original qty
       unit: ing.unit,
       costPerUnit: itemCostPerUnit,
+      costPerUnitUnit: invItem?.unit || ing.unit,
       lineCost,
       hasCost: itemCostPerUnit > 0,
       type: 'ingredient'
@@ -180,7 +191,7 @@ export default function BatchCostDisplay({
                   {item.material} ({item.qty} {item.unit})
                 </span>
                 <span className={item.hasCost ? "text-zinc-300" : "text-amber-400"}>
-                  {item.hasCost ? `$${item.lineCost.toFixed(2)}` : "No cost"}
+                  {item.hasCost ? `$${item.lineCost.toFixed(2)} @ $${item.costPerUnit.toFixed(3)}/${item.costPerUnitUnit}` : "No cost"}
                 </span>
               </div>
             ))}
