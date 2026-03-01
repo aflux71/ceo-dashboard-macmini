@@ -226,7 +226,9 @@ export default function DemandPlanner() {
   // ── Generate plan ─────────────────────────────────────────────────────────
   const plan = useMemo(() => {
     if (summaries.length === 0) return null;
-    return generatePlan(summaries, inventory, workspace, events);
+    const exclusionSet = new Set(workspace.exclusionList || []);
+    const filteredSummaries = summaries.filter((s) => !exclusionSet.has(s.sku));
+    return generatePlan(filteredSummaries, inventory, workspace, events);
   }, [summaries, inventory, workspace, events]);
 
   // ── Event handlers ────────────────────────────────────────────────────────
