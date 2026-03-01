@@ -164,6 +164,14 @@ export default function LabelUsage() {
           <h1 className="text-2xl font-bold text-white">Label Usage</h1>
           <p className="text-zinc-400">Record label deductions from inventory</p>
         </div>
+        <Button
+          variant="outline"
+          className="border-zinc-700 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+          onClick={() => base44.auth.logout()}
+        >
+          <LogOut className="w-4 h-4 mr-2" />
+          Logout
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
