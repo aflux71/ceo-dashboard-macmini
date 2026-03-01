@@ -473,8 +473,17 @@ export default function RecipeTemplates() {
                   <Button
                     size="sm"
                     variant="ghost"
+                    onClick={() => cloneToRecipe(template)}
+                    className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
+                    title="Create Recipe from Template"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
                     onClick={() => duplicateTemplate(template)}
-                    title="Duplicate"
+                    title="Duplicate Template"
                   >
                     <Copy className="w-4 h-4" />
                   </Button>
