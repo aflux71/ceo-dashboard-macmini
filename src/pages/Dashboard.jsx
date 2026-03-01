@@ -275,6 +275,9 @@ export default function Dashboard() {
         </Card>
       </div>
 
+      {/* Sync Log */}
+      <SyncLogMini />
+
       {/* Quick Actions */}
       <Card className="bg-zinc-900 border-zinc-800">
         <CardHeader>
