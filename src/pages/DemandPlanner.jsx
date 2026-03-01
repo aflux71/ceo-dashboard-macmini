@@ -606,13 +606,15 @@ function SettingsPanel({
               />
             </div>
           </div>
-          <div className="flex gap-2">
-            <button onClick={onSave} className="flex items-center gap-1 px-3 py-1.5 bg-orange-600 hover:bg-orange-500 text-white text-xs font-medium rounded transition-colors">
-              <Save className="w-3 h-3" /> Save Workspace
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={() => onSave()} className="flex items-center gap-1 px-3 py-1.5 bg-orange-600 hover:bg-orange-500 text-white text-xs font-medium rounded transition-colors">
+              <Save className="w-3 h-3" /> {activeWorkspaceId ? "Save Changes" : "Save as New"}
             </button>
-            <button onClick={onDuplicate} className="flex items-center gap-1 px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 text-zinc-200 text-xs rounded transition-colors">
-              <Copy className="w-3 h-3" /> Duplicate
-            </button>
+            {activeWorkspaceId && (
+              <button onClick={onDuplicate} className="flex items-center gap-1 px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 text-zinc-200 text-xs rounded transition-colors">
+                <Copy className="w-3 h-3" /> Duplicate
+              </button>
+            )}
           </div>
         </CardContent>
       </Card>
