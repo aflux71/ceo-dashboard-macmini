@@ -515,15 +515,20 @@ function SettingsPanel({
   onApply,
   onRemoveExclusion,
   summaries,
+  onExclude,
 }) {
-  const [newName, setNewName] = useState("");
+  const [exclusionSearch, setExclusionSearch] = useState("");
 
-  const createNew = async () => {
-    if (!newName.trim()) return;
-    onWorkspaceChange({ name: newName.trim() });
-    setNewName("");
-    // Will be saved when user clicks Save
-  };
+  const exclusionResults = useMemo(() => {
+    if (!exclusionSearch.trim()) return [];
+    const q = exclusionSearch.toLowerCase();
+    return summaries
+      .filter((s) =>
+        (s.product?.toLowerCase().includes(q) || s.sku?.toLowerCase().includes(q)) &&
+        !workspace.exclusionList.includes(s.sku)
+      )
+      .slice(0, 10);
+  }, [exclusionSearch, summaries, workspace.exclusionList]);
 
   return (
     <div className="space-y-4 max-w-2xl">
