@@ -157,21 +157,41 @@ Deno.serve(async (req) => {
 
     console.log(`Aggregated ${Object.keys(syncData).length} SKUs from ShopifySaleRecord`);
 
-    // ── Step 4: Merge sync data into summaries ───────────────────────────
-    // Only process SKUs that exist in sync data (don't touch the rest)
+    // ── Step 4: Build full merged summary list ───────────────────────────
     const now = new Date().toISOString();
-    const toUpdate: { id: string; data: Record<string, any> }[] = [];
-    const toCreate: Record<string, any>[] = [];
+    
+    // Start with all existing summaries, update any that have new sync data
+    const finalSummaries: Record<string, any> = {};
+    
+    // Copy all existing as-is first
+    for (const [sku, existing] of Object.entries(summaryMap)) {
+      finalSummaries[sku] = {
+        sku,
+        product: existing.product,
+        category: categorize(existing.product),
+        monthly: JSON.stringify(existing.monthly),
+        byChannel: JSON.stringify(existing.byChannel),
+        byLocation: JSON.stringify(existing.byLocation),
+        totalQty: existing.totalQty,
+        avgMonthly: existing.avgMonthly || 0,
+        totalRevenue: existing.totalRevenue || 0,
+        dataMonths: existing.dataMonths || 12,
+        periodStart: existing.periodStart || '2025-01-01',
+        periodEnd: existing.periodEnd || '2025-12-31',
+        updatedAt: existing.updatedAt || now,
+      };
+    }
 
+    // Merge sync data
     for (const [sku, sync] of Object.entries(syncData)) {
       const existing = summaryMap[sku];
 
       if (existing) {
         const syncYear = getYear(sync.minDate);
         const baselineEndYear = getYear(existing.periodEnd);
+        const mergedMonthly = [...existing.monthly];
 
         if (syncYear > baselineEndYear) {
-          const mergedMonthly = [...existing.monthly];
           for (let i = 0; i < 12; i++) {
             if (sync.monthly[i] > 0) {
               mergedMonthly[i] = mergedMonthly[i] > 0
@@ -195,7 +215,8 @@ Deno.serve(async (req) => {
             (endDate.getFullYear() - startDate.getFullYear()) * 12 +
             (endDate.getMonth() - startDate.getMonth()) + 1
           );
-          toUpdate.push({ id: summaryIdMap[sku], data: {
+          finalSummaries[sku] = {
+            ...finalSummaries[sku],
             product: sync.product || existing.product,
             category: categorize(sync.product || existing.product),
             monthly: JSON.stringify(mergedMonthly),
@@ -203,33 +224,33 @@ Deno.serve(async (req) => {
             byLocation: JSON.stringify(mergedLocation),
             totalQty,
             avgMonthly: Math.round((totalQty / monthsSpan) * 10) / 10,
-            totalRevenue: existing.totalRevenue,
             dataMonths: monthsSpan,
             periodEnd,
             updatedAt: now,
-          }});
+          };
         } else {
-          const mergedMonthly = [...existing.monthly];
           for (let i = 0; i < 12; i++) {
             if (sync.monthly[i] > 0) mergedMonthly[i] = Math.max(mergedMonthly[i], sync.monthly[i]);
           }
           const totalQty = mergedMonthly.reduce((s, v) => s + v, 0);
           const dataMonths = existing.dataMonths || 12;
-          toUpdate.push({ id: summaryIdMap[sku], data: {
+          finalSummaries[sku] = {
+            ...finalSummaries[sku],
             monthly: JSON.stringify(mergedMonthly),
             totalQty,
             avgMonthly: Math.round((totalQty / dataMonths) * 10) / 10,
             category: categorize(existing.product),
             updatedAt: now,
-          }});
+          };
         }
       } else {
+        // New SKU not in baseline
         const monthsSpan = Math.max(1, (() => {
           const start = new Date(sync.minDate);
           const end = new Date(sync.maxDate);
           return (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
         })());
-        toCreate.push({
+        finalSummaries[sku] = {
           sku,
           product: sync.product,
           category: categorize(sync.product),
@@ -243,34 +264,33 @@ Deno.serve(async (req) => {
           periodStart: sync.minDate.split('T')[0],
           periodEnd: sync.maxDate.split('T')[0],
           updatedAt: now,
-        });
+        };
       }
     }
 
-    // ── Step 5: Execute updates in small batches with generous delays ────
+    // ── Step 5: Delete all existing, then bulk create ────────────────────
+    // This avoids rate-limited individual updates
     const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
-    const BATCH = 3;
-    const DELAY = 2000;
 
-    let updated = 0;
-    for (let i = 0; i < toUpdate.length; i += BATCH) {
-      const batch = toUpdate.slice(i, i + BATCH);
-      for (const { id, data } of batch) {
-        await base44.asServiceRole.entities.DemandSummary.update(id, data);
-      }
-      updated += batch.length;
-      await sleep(DELAY);
+    // Delete existing records in batches
+    const existingIds = Object.values(summaryIdMap);
+    const DEL_BATCH = 10;
+    for (let i = 0; i < existingIds.length; i += DEL_BATCH) {
+      const batch = existingIds.slice(i, i + DEL_BATCH);
+      await Promise.all(batch.map(id => base44.asServiceRole.entities.DemandSummary.delete(id)));
+      await sleep(500);
     }
 
-    // ── Step 6: Create new records in small batches ───────────────────────
+    // Bulk create all final summaries
+    const allFinal = Object.values(finalSummaries);
+    const CREATE_BATCH = 20;
     let created = 0;
-    for (let i = 0; i < toCreate.length; i += BATCH) {
-      const batch = toCreate.slice(i, i + BATCH);
-      for (const data of batch) {
-        await base44.asServiceRole.entities.DemandSummary.create(data);
-      }
+    let updated = allFinal.length;
+    for (let i = 0; i < allFinal.length; i += CREATE_BATCH) {
+      const batch = allFinal.slice(i, i + CREATE_BATCH);
+      await base44.asServiceRole.entities.DemandSummary.bulkCreate(batch);
       created += batch.length;
-      await sleep(DELAY);
+      await sleep(500);
     }
 
     const elapsed = Date.now() - startTime;
