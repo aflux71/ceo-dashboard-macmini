@@ -196,13 +196,20 @@ export default function DemandPlanner() {
     }
   };
 
-  // Auto-save exclusion changes to DemandConfig
+  // Auto-save exclusion changes to DemandConfig (creates workspace if none exists)
   const persistExclusions = async (newList) => {
-    if (!activeWorkspaceId) return;
     try {
-      await base44.entities.DemandConfig.update(activeWorkspaceId, {
-        exclusionList: JSON.stringify(newList),
-      });
+      if (activeWorkspaceId) {
+        await base44.entities.DemandConfig.update(activeWorkspaceId, {
+          exclusionList: JSON.stringify(newList),
+        });
+      } else {
+        // No workspace yet — create one automatically
+        const payload = buildPayload({ ...workspace, exclusionList: newList });
+        const created = await base44.entities.DemandConfig.create(payload);
+        setActiveWorkspaceId(created.id);
+        setWorkspaces((prev) => [...prev, created]);
+      }
     } catch (err) {
       console.error("Failed to persist exclusions:", err);
     }
