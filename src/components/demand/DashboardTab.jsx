@@ -22,6 +22,7 @@ export default function DashboardTab({
   onViewDetail,
   onPushToPlanning,
   onExclude,
+  onViewUrgencyList,
 }) {
   if (!plan) return null;
 
