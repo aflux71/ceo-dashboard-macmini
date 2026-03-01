@@ -23,6 +23,7 @@ import UrgentItemsList from "@/components/dashboard/UrgentItemsList";
 import RequisitionAlerts from "@/components/dashboard/RequisitionAlerts";
 import SyncLogMini from "@/components/dashboard/SyncLogMini";
 import Badge from "@/components/ui/Badge";
+import PinLoginScreen from "@/components/auth/PinLoginScreen";
 
 export default function Dashboard() {
   const [showPinScreen, setShowPinScreen] = useState(false);
@@ -89,6 +90,10 @@ export default function Dashboard() {
   );
 
   const recentBatches = batches.slice(0, 5);
+
+  if (showPinScreen) {
+    return <PinLoginScreen onClose={() => setShowPinScreen(false)} />;
+  }
 
   return (
     <div className="space-y-6">
