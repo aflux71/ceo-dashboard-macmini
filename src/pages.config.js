@@ -83,6 +83,7 @@ import ReviewQueue from './pages/ReviewQueue';
 import RunPlanner from './pages/RunPlanner';
 import Suppliers from './pages/Suppliers';
 import UserManagement from './pages/UserManagement';
+import SyncLog from './pages/SyncLog';
 import __Layout from './Layout.jsx';
 
 
@@ -123,6 +124,7 @@ export const PAGES = {
     "RunPlanner": RunPlanner,
     "Suppliers": Suppliers,
     "UserManagement": UserManagement,
+    "SyncLog": SyncLog,
 }
 
 export const pagesConfig = {
