@@ -298,12 +298,12 @@ Deno.serve(async (req) => {
     const allFinal = Object.values(finalSummaries);
     const CREATE_BATCH = 20;
     let created = 0;
-    let updated = allFinal.length;
+    const updated = allFinal.length;
     for (let i = 0; i < allFinal.length; i += CREATE_BATCH) {
       const batch = allFinal.slice(i, i + CREATE_BATCH);
       await base44.asServiceRole.entities.DemandSummary.bulkCreate(batch);
       created += batch.length;
-      await sleep(500);
+      await sleep(1000);
     }
 
     const elapsed = Date.now() - startTime;
