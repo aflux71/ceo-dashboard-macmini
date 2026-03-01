@@ -10,10 +10,9 @@ import {
   AlertTriangle, 
   Search, 
   Beaker, 
-  Package,
   ChevronRight,
-  Filter,
-  Tag
+  Tag,
+  RefreshCw
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Badge from "@/components/ui/Badge";
