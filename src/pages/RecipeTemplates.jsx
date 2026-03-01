@@ -288,6 +288,47 @@ export default function RecipeTemplates() {
     setEditItem(null);
   };
 
+  const cloneToRecipe = async (template) => {
+    const newRecipeName = prompt("Enter recipe name:", template.name);
+    if (!newRecipeName) return;
+
+    const newSkuBase = newRecipeName.toUpperCase().replace(/\s+/g, '-').slice(0, 10);
+    const newSku = prompt("Enter product SKU:", newSkuBase);
+    if (!newSku) return;
+
+    // Check for duplicate SKU
+    const existingRecipe = templates.find(t => t.sku === newSku);
+    if (existingRecipe) {
+      const confirmed = window.confirm(
+        `A recipe for SKU "${newSku}" already exists: "${existingRecipe.name}".\n\nDo you want to create a new version instead?`
+      );
+      if (!confirmed) return;
+    }
+
+    try {
+      const recipeData = {
+        sku: newSku,
+        name: newRecipeName,
+        category: template.category,
+        batch_size: template.batch_size,
+        production_line: template.production_line,
+        ingredients: template.ingredients || [],
+        packaging: template.packaging || [],
+        procedures: template.procedures || [],
+        qc_checks: template.qc_checks || [],
+        active: true,
+        version: 1,
+        version_notes: `Created from template: ${template.name}`
+      };
+
+      await base44.entities.Recipe.create(recipeData);
+      toast.success(`Recipe "${newRecipeName}" created from template`);
+      queryClient.invalidateQueries({ queryKey: ['recipes'] });
+    } catch (error) {
+      toast.error("Failed to create recipe from template");
+    }
+  };
+
   const filtered = templates.filter(template => {
     const matchesSearch = !search || 
       template.name?.toLowerCase().includes(search.toLowerCase());
