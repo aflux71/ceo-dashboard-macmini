@@ -618,10 +618,54 @@ function SettingsPanel({
               ({workspace.exclusionList.length} SKUs excluded)
             </span>
           </h3>
+
+          {/* Search to add */}
+          <div className="relative mb-3">
+            <Input
+              placeholder="Search product name or SKU to exclude..."
+              value={exclusionSearch}
+              onChange={(e) => setExclusionSearch(e.target.value)}
+              className="h-8 bg-zinc-800 border-zinc-700 text-sm pr-8"
+            />
+            {exclusionSearch && (
+              <button
+                onClick={() => setExclusionSearch("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+
+          {/* Search results */}
+          {exclusionResults.length > 0 && (
+            <div className="mb-3 border border-zinc-700 rounded-lg overflow-hidden">
+              {exclusionResults.map((s) => (
+                <div
+                  key={s.sku}
+                  className="flex items-center justify-between px-3 py-2 hover:bg-zinc-800/80 cursor-pointer border-b border-zinc-800 last:border-b-0"
+                  onClick={() => { onExclude(s.sku); setExclusionSearch(""); }}
+                >
+                  <div>
+                    <span className="text-xs text-zinc-200">{s.product}</span>
+                    <span className="text-[10px] text-zinc-500 ml-2 font-mono">SKU {s.sku}</span>
+                  </div>
+                  <span className="text-[10px] text-orange-400 flex items-center gap-1">
+                    <Plus className="w-3 h-3" /> Exclude
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          {exclusionSearch && exclusionResults.length === 0 && (
+            <p className="text-xs text-zinc-500 mb-3">No matching SKUs found.</p>
+          )}
+
+          {/* Current exclusion list */}
           {workspace.exclusionList.length === 0 ? (
-            <p className="text-xs text-zinc-500">No SKUs excluded. Use the Exclude button on any SKU to add it here.</p>
+            <p className="text-xs text-zinc-500">No SKUs excluded. Search above or use the ⊘ button on any Dashboard card.</p>
           ) : (
-            <div className="space-y-1">
+            <div className="space-y-1 max-h-72 overflow-y-auto">
               {workspace.exclusionList.map((sku) => {
                 const summary = summaries.find((s) => s.sku === sku);
                 return (
