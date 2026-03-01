@@ -190,8 +190,10 @@ export default function Forecasting() {
           qty
         };
         if (!formatted.sku || !formatted.day) return; // skip malformed rows
-        if (r.channel === 'pos') retail.push(formatted);
-        else online.push(formatted); // treat anything non-pos as online
+        // Determine channel: use stored channel field, or fall back to location_id presence
+        const isPos = r.channel === 'pos' || (!r.channel && !!r.location_id);
+        if (isPos) retail.push(formatted);
+        else online.push(formatted);
       });
 
       setRetailData(retail.length > 0 ? retail : null);
