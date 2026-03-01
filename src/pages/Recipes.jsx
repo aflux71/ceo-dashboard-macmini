@@ -702,35 +702,24 @@ export default function Recipes() {
               </div>
             </div>
 
-            {/* Version Info (when editing) */}
+            {/* Version Info (when editing - auto-create version on edit) */}
             {editItem && (
-              <div className="p-4 bg-zinc-800/50 rounded-lg border border-zinc-700">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <GitBranch className="w-4 h-4 text-orange-400" />
-                    <span className="text-sm text-zinc-400">Current Version: <span className="text-zinc-200 font-semibold">{editItem.version || 1}</span></span>
-                  </div>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={createNewVersion}
-                      onChange={(e) => setCreateNewVersion(e.target.checked)}
-                      className="rounded border-zinc-600"
-                    />
-                    <span className="text-sm text-orange-400">Create new version</span>
-                  </label>
+              <div className="p-4 bg-amber-500/10 rounded-lg border border-amber-500/30">
+                <div className="flex items-center gap-2">
+                  <GitBranch className="w-4 h-4 text-amber-400" />
+                  <span className="text-sm text-amber-200">
+                    <strong>Creating v{(editItem.version || 1) + 1}</strong> — Changes will save as a new version
+                  </span>
                 </div>
-                {createNewVersion && (
-                  <div className="mt-3">
-                    <Label className="text-xs text-zinc-500">Version Notes</Label>
-                    <Input
-                      value={formData.version_notes}
-                      onChange={(e) => setFormData({ ...formData, version_notes: e.target.value })}
-                      placeholder="Describe what changed in this version..."
-                      className="bg-zinc-800 border-zinc-700 mt-1"
-                    />
-                  </div>
-                )}
+                <div className="mt-3">
+                  <Label className="text-xs text-amber-600">What changed? (Version notes)</Label>
+                  <Input
+                    value={formData.version_notes}
+                    onChange={(e) => setFormData({ ...formData, version_notes: e.target.value })}
+                    placeholder="e.g., Updated ingredient X from 5kg to 6kg, improved procedure step 2"
+                    className="bg-zinc-800 border-zinc-700 mt-1 text-zinc-100"
+                  />
+                </div>
               </div>
             )}
 
