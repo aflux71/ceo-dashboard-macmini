@@ -581,7 +581,7 @@ export default function Forecasting() {
               </Button>
             </div>
           ) : (
-            <ForecastResults results={forecastResults} onStockChange={handleStockChange} config={config} />
+            <ForecastResults results={forecastResults} onStockChange={handleStockChange} config={config} salesData={{ retail: retailData, online: onlineData }} />
           )}
         </TabsContent>
       </Tabs>
