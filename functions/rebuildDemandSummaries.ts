@@ -246,30 +246,22 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── Step 5: Execute updates in batches with delays ───────────────────
-    const BATCH_SIZE = 5;
-    const DELAY_MS = 1200;
+    // ── Step 5: Execute updates sequentially with delays ────────────────
     const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
     let updated = 0;
-    for (let i = 0; i < toUpdate.length; i += BATCH_SIZE) {
-      const batch = toUpdate.slice(i, i + BATCH_SIZE);
-      await Promise.all(batch.map(({ id, data }) =>
-        base44.asServiceRole.entities.DemandSummary.update(id, data)
-      ));
-      updated += batch.length;
-      if (i + BATCH_SIZE < toUpdate.length) await sleep(DELAY_MS);
+    for (const { id, data } of toUpdate) {
+      await base44.asServiceRole.entities.DemandSummary.update(id, data);
+      updated++;
+      await sleep(300);
     }
 
-    // ── Step 6: Bulk create new records ─────────────────────────────────
+    // ── Step 6: Create new records sequentially ──────────────────────────
     let created = 0;
-    for (let i = 0; i < toCreate.length; i += BATCH_SIZE) {
-      const batch = toCreate.slice(i, i + BATCH_SIZE);
-      await Promise.all(batch.map(data =>
-        base44.asServiceRole.entities.DemandSummary.create(data)
-      ));
-      created += batch.length;
-      if (i + BATCH_SIZE < toCreate.length) await sleep(DELAY_MS);
+    for (const data of toCreate) {
+      await base44.asServiceRole.entities.DemandSummary.create(data);
+      created++;
+      await sleep(300);
     }
 
     const elapsed = Date.now() - startTime;
