@@ -304,20 +304,31 @@ export default function Recipes() {
       finalFormData.sku = generateSku(finalFormData.category);
     }
     
-    if (editItem && createNewVersion) {
-      // Create a new version: archive the old recipe and create new one
+    if (editItem) {
+      // ALWAYS create a new version when editing (auto-create on every edit)
       const newVersionData = {
         ...finalFormData,
         version: (editItem.version || 1) + 1,
-        previous_version_id: editItem.id
+        previous_version_id: editItem.id,
+        active: true
       };
       // Mark old version as inactive
       await base44.entities.Recipe.update(editItem.id, { active: false });
       createMutation.mutate(newVersionData);
-    } else if (editItem) {
-      updateMutation.mutate({ id: editItem.id, data: finalFormData });
     } else {
-      createMutation.mutate({ ...finalFormData, version: 1 });
+      // New recipe: check for duplicates
+      const existingBySku = recipes.find(r => r.sku === finalFormData.sku);
+      if (existingBySku) {
+        const confirm = window.confirm(
+          `A recipe for SKU "${finalFormData.sku}" already exists: "${existingBySku.name}".\n\nDo you want to create a new version instead?`
+        );
+        if (confirm) {
+          // Open the existing recipe in edit mode to create a version
+          openModal(existingBySku);
+          return;
+        }
+      }
+      createMutation.mutate({ ...finalFormData, version: 1, active: true });
     }
   };
 
