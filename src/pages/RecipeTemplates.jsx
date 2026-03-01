@@ -27,6 +27,7 @@ import IngredientSkuSelect from "@/components/recipes/IngredientSkuSelect";
 import CompatibleUnitSelect from "@/components/recipes/CompatibleUnitSelect";
 import PackagingSkuSelect from "@/components/recipes/PackagingSkuSelect";
 import { useFloorPin } from "@/components/auth/FloorPinContext";
+import { Shield } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
