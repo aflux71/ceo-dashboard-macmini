@@ -160,7 +160,7 @@ export default function InventoryStatusTab({ results = [], salesData }) {
 
   React.useEffect(() => {
     setPage(1);
-  }, [search, statusFilter, pageSize]);
+  }, [search, statusFilter, locationFilter, pageSize]);
 
   const handlePrint = () => {
     window.print();
