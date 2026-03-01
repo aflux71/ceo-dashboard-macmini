@@ -166,14 +166,25 @@ export default function IssueAlerts() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-zinc-100 flex items-center gap-2">
-          <AlertTriangle className="w-6 h-6 text-red-400" />
-          Issue Alerts
-        </h1>
-        <p className="text-zinc-500 text-sm mt-1">
-          Products and items requiring attention
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-zinc-100 flex items-center gap-2">
+            <AlertTriangle className="w-6 h-6 text-red-400" />
+            Issue Alerts
+          </h1>
+          <p className="text-zinc-500 text-sm mt-1">
+            Products and items requiring attention
+          </p>
+        </div>
+        <Button
+          onClick={handleRescan}
+          disabled={isRefreshing}
+          variant="outline"
+          className="border-zinc-700 text-zinc-300 hover:bg-zinc-800"
+        >
+          <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+          {isRefreshing ? 'Scanning...' : 'Rescan'}
+        </Button>
       </div>
 
       {/* Stats */}
