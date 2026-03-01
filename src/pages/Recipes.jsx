@@ -541,98 +541,33 @@ export default function Recipes() {
         </CardContent>
       </Card>
 
-      {/* Recipes Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {isLoading ? (
-          <p className="col-span-full text-center text-zinc-500 py-8">Loading...</p>
-        ) : filtered.length === 0 ? (
-          <p className="col-span-full text-center text-zinc-500 py-8">No recipes found</p>
-        ) : (
-          filtered.map((recipe) => (
-            <Card key={recipe.id} className="bg-zinc-900 border-zinc-800 hover:border-zinc-700 transition-colors">
-              <CardContent className="pt-6">
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <span className="font-mono text-sm text-orange-400">{recipe.sku}</span>
-                    <h3 className="font-semibold text-zinc-100 mt-1">{recipe.name}</h3>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <BatchCostBadge recipe={recipe} inventory={inventory} />
-                    <Badge variant={getCategoryColor(recipe.category)}>{recipe.category}</Badge>
-                  </div>
-                </div>
-                
-                <div className="space-y-2 text-sm text-zinc-400 mb-4">
-                  <p>Batch size: <span className="text-zinc-200">{recipe.batch_size} units</span></p>
-                  <p>Line: <span className="text-zinc-200">{recipe.production_line || 1}</span></p>
-                  <p>Ingredients: <span className="text-zinc-200">{recipe.ingredients?.length || 0}</span></p>
-                  {recipe.packaging?.length > 0 && (
-                    <p>Packaging: <span className="text-zinc-200">{recipe.packaging.length} items</span></p>
-                  )}
-                  <p className="flex items-center gap-1">
-                    <GitBranch className="w-3 h-3" />
-                    Version: <span className="text-zinc-200">{recipe.version || 1}</span>
-                  </p>
-                  {recipe.is_seasonal && (
-                    <div className="flex items-center gap-2 mt-1">
-                      <Snowflake className="w-3 h-3 text-blue-400" />
-                      <span className="text-blue-400">
-                        {recipe.season && recipe.holiday ? `${recipe.season} / ${recipe.holiday}` : recipe.season || recipe.holiday}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => { setSelectedRecipe(recipe); setShowViewModal(true); }}
-                    className="flex-1"
-                  >
-                    <Eye className="w-4 h-4 mr-1" /> View
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => openModal(recipe)}
-                  >
-                    <Edit className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => duplicateRecipe(recipe)}
-                    title="Duplicate"
-                  >
-                    <Copy className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => { setSaveAsTemplateRecipe(recipe); setTemplateName(recipe.name + " Template"); }}
-                    title="Save as Template"
-                    className="text-orange-400 hover:text-orange-300 hover:bg-orange-500/10"
-                  >
-                    <Save className="w-4 h-4" />
-                  </Button>
-                  {canDeleteRecipe && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setDeleteConfirmRecipe(recipe)}
-                      className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                      title="Delete"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </div>
+      {/* Recipes Expandable Table */}
+      <Card className="bg-zinc-900 border-zinc-800">
+        <CardContent className="pt-0">
+          {isLoading ? (
+            <p className="text-center text-zinc-500 py-8">Loading...</p>
+          ) : filtered.length === 0 ? (
+            <p className="text-center text-zinc-500 py-8">No recipes found</p>
+          ) : (
+            <div className="divide-y divide-zinc-800">
+              {filtered.map((recipe) => (
+                <RecipeRow 
+                  key={recipe.id}
+                  recipe={recipe}
+                  inventory={inventory}
+                  getCategoryColor={getCategoryColor}
+                  onView={() => { setSelectedRecipe(recipe); setShowViewModal(true); }}
+                  onEdit={() => openModal(recipe)}
+                  onDuplicate={() => duplicateRecipe(recipe)}
+                  onSaveTemplate={() => { setSaveAsTemplateRecipe(recipe); setTemplateName(recipe.name + " Template"); }}
+                  onDelete={() => setDeleteConfirmRecipe(recipe)}
+                  canDelete={canDeleteRecipe}
+                />
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Add/Edit Modal */}
       <Dialog open={showModal} onOpenChange={setShowModal}>
