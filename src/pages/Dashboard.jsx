@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import StatsCard from "@/components/dashboard/StatsCard";
 import UrgentItemsList from "@/components/dashboard/UrgentItemsList";
 import RequisitionAlerts from "@/components/dashboard/RequisitionAlerts";
+import SyncLogMini from "@/components/dashboard/SyncLogMini";
 import Badge from "@/components/ui/Badge";
 
 export default function Dashboard() {
