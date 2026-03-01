@@ -158,63 +158,43 @@ Deno.serve(async (req) => {
     console.log(`Aggregated ${Object.keys(syncData).length} SKUs from ShopifySaleRecord`);
 
     // ── Step 4: Merge sync data into summaries ───────────────────────────
-    // Strategy: For SKUs that exist in baseline (summaryMap), ADD sync data
-    // For new SKUs only in sync, create fresh summary
     const now = new Date().toISOString();
-    let created = 0;
-    let updated = 0;
+    const toUpdate: { id: string; data: Record<string, any> }[] = [];
+    const toCreate: Record<string, any>[] = [];
 
     for (const [sku, sync] of Object.entries(syncData)) {
       const existing = summaryMap[sku];
 
       if (existing) {
-        // Merge: baseline monthly stays, sync data adds on top
-        // But we need to avoid double-counting if sync covers same period as baseline
-        // Since baseline is 2025 and sync should be 2026+, they shouldn't overlap
-        // If they DO overlap (backfill ran for 2025 dates), sync overwrites for those months
-        
         const syncYear = getYear(sync.minDate);
         const baselineEndYear = getYear(existing.periodEnd);
-        
+
         if (syncYear > baselineEndYear) {
-          // Clean merge — sync is newer period, just add to totals
-          // Monthly array: we ADD sync months (they're different calendar years but same month indices)
-          // For forecasting purposes, we want the LATEST year's data to dominate
-          // So we REPLACE the monthly values with sync data where sync has data
           const mergedMonthly = [...existing.monthly];
           for (let i = 0; i < 12; i++) {
             if (sync.monthly[i] > 0) {
-              // Use the average of both years for better forecasting
-              if (mergedMonthly[i] > 0) {
-                mergedMonthly[i] = Math.round((mergedMonthly[i] + sync.monthly[i]) / 2);
-              } else {
-                mergedMonthly[i] = sync.monthly[i];
-              }
+              mergedMonthly[i] = mergedMonthly[i] > 0
+                ? Math.round((mergedMonthly[i] + sync.monthly[i]) / 2)
+                : sync.monthly[i];
             }
           }
-
           const mergedChannel = {
             online: existing.byChannel.online + sync.byChannel.online,
             pos: existing.byChannel.pos + sync.byChannel.pos,
           };
-
           const mergedLocation = { ...existing.byLocation };
           for (const [loc, qty] of Object.entries(sync.byLocation)) {
             mergedLocation[loc] = (mergedLocation[loc] || 0) + qty;
           }
-
           const totalQty = existing.totalQty + sync.totalQty;
           const periodEnd = sync.maxDate > existing.periodEnd ? sync.maxDate : existing.periodEnd;
-          
-          // Calculate months span for avgMonthly
           const startDate = new Date(existing.periodStart);
           const endDate = new Date(periodEnd);
-          const monthsSpan = Math.max(1, 
-            (endDate.getFullYear() - startDate.getFullYear()) * 12 + 
+          const monthsSpan = Math.max(1,
+            (endDate.getFullYear() - startDate.getFullYear()) * 12 +
             (endDate.getMonth() - startDate.getMonth()) + 1
           );
-
-          const updateData = {
+          toUpdate.push({ id: summaryIdMap[sku], data: {
             product: sync.product || existing.product,
             category: categorize(sync.product || existing.product),
             monthly: JSON.stringify(mergedMonthly),
@@ -222,53 +202,33 @@ Deno.serve(async (req) => {
             byLocation: JSON.stringify(mergedLocation),
             totalQty,
             avgMonthly: Math.round((totalQty / monthsSpan) * 10) / 10,
-            totalRevenue: existing.totalRevenue, // Sync doesn't have revenue
+            totalRevenue: existing.totalRevenue,
             dataMonths: monthsSpan,
             periodEnd,
             updatedAt: now,
-          };
-
-          await base44.asServiceRole.entities.DemandSummary.update(
-            summaryIdMap[sku],
-            updateData
-          );
-          updated++;
+          }});
         } else {
-          // Sync overlaps with baseline period — update monthly totals
-          // This handles the case where backfill ran for 2025 dates
-          // In this case, sync data should be additive (more records found)
           const mergedMonthly = [...existing.monthly];
           for (let i = 0; i < 12; i++) {
-            if (sync.monthly[i] > 0) {
-              mergedMonthly[i] = Math.max(mergedMonthly[i], sync.monthly[i]);
-            }
+            if (sync.monthly[i] > 0) mergedMonthly[i] = Math.max(mergedMonthly[i], sync.monthly[i]);
           }
-
           const totalQty = mergedMonthly.reduce((s, v) => s + v, 0);
           const dataMonths = existing.dataMonths || 12;
-
-          await base44.asServiceRole.entities.DemandSummary.update(
-            summaryIdMap[sku],
-            {
-              monthly: JSON.stringify(mergedMonthly),
-              totalQty,
-              avgMonthly: Math.round((totalQty / dataMonths) * 10) / 10,
-              category: categorize(existing.product),
-              updatedAt: now,
-            }
-          );
-          updated++;
+          toUpdate.push({ id: summaryIdMap[sku], data: {
+            monthly: JSON.stringify(mergedMonthly),
+            totalQty,
+            avgMonthly: Math.round((totalQty / dataMonths) * 10) / 10,
+            category: categorize(existing.product),
+            updatedAt: now,
+          }});
         }
       } else {
-        // New SKU not in baseline — create fresh summary
         const monthsSpan = Math.max(1, (() => {
           const start = new Date(sync.minDate);
           const end = new Date(sync.maxDate);
-          return (end.getFullYear() - start.getFullYear()) * 12 + 
-                 (end.getMonth() - start.getMonth()) + 1;
+          return (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
         })());
-
-        await base44.asServiceRole.entities.DemandSummary.create({
+        toCreate.push({
           sku,
           product: sync.product,
           category: categorize(sync.product),
@@ -283,8 +243,33 @@ Deno.serve(async (req) => {
           periodEnd: sync.maxDate.split('T')[0],
           updatedAt: now,
         });
-        created++;
       }
+    }
+
+    // ── Step 5: Execute updates in batches with delays ───────────────────
+    const BATCH_SIZE = 10;
+    const DELAY_MS = 500;
+    const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+    let updated = 0;
+    for (let i = 0; i < toUpdate.length; i += BATCH_SIZE) {
+      const batch = toUpdate.slice(i, i + BATCH_SIZE);
+      await Promise.all(batch.map(({ id, data }) =>
+        base44.asServiceRole.entities.DemandSummary.update(id, data)
+      ));
+      updated += batch.length;
+      if (i + BATCH_SIZE < toUpdate.length) await sleep(DELAY_MS);
+    }
+
+    // ── Step 6: Bulk create new records ─────────────────────────────────
+    let created = 0;
+    for (let i = 0; i < toCreate.length; i += BATCH_SIZE) {
+      const batch = toCreate.slice(i, i + BATCH_SIZE);
+      await Promise.all(batch.map(data =>
+        base44.asServiceRole.entities.DemandSummary.create(data)
+      ));
+      created += batch.length;
+      if (i + BATCH_SIZE < toCreate.length) await sleep(DELAY_MS);
     }
 
     const elapsed = Date.now() - startTime;
