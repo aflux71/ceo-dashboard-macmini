@@ -99,6 +99,14 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex gap-3">
+          <Button
+            variant="outline"
+            className="border-zinc-700 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+            onClick={() => base44.auth.logout()}
+          >
+            <LogOut className="w-4 h-4 mr-2" />
+            Logout
+          </Button>
           <Link to={createPageUrl("ProductionPlanning")}>
             <Button className="bg-orange-500 hover:bg-orange-600 text-white">
               <Factory className="w-4 h-4 mr-2" />
