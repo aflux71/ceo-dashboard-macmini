@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Search, AlertTriangle, TrendingUp, Package, CheckCircle, Copy, Printer } from "lucide-react";
+import { Search, AlertTriangle, TrendingUp, Package, CheckCircle, Copy, Printer, MapPin } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -9,13 +9,54 @@ import { urgencyConfig } from "./ForecastResults";
 
 const PAGE_SIZE_OPTIONS = [20, 50, 100, 200];
 
-export default function InventoryStatusTab({ results = [] }) {
+export default function InventoryStatusTab({ results = [], salesData }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [locationFilter, setLocationFilter] = useState("all");
   const [sortField, setSortField] = useState("coverage");
   const [sortDir, setSortDir] = useState("asc");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
+
+  // Derive unique location names from salesData
+  const locations = useMemo(() => {
+    const allRows = [...(salesData?.retail || []), ...(salesData?.online || [])];
+    const locs = new Set(allRows.map(r => r.location).filter(Boolean));
+    return Array.from(locs).sort();
+  }, [salesData]);
+
+  // Build per-location on-hand data (sum of sales per SKU per location)
+  // We use location sales velocity to estimate how inventory is distributed across locations
+  const locationOnHandMap = useMemo(() => {
+    if (locationFilter === "all") return null;
+    const allRows = [...(salesData?.retail || []), ...(salesData?.online || [])];
+    
+    // Calculate total qty per SKU overall and per location
+    const skuTotal = {};
+    const skuLocation = {};
+    allRows.forEach(r => {
+      if (!r.sku) return;
+      skuTotal[r.sku] = (skuTotal[r.sku] || 0) + (r.qty || 0);
+      if (r.location === locationFilter) {
+        skuLocation[r.sku] = (skuLocation[r.sku] || 0) + (r.qty || 0);
+      }
+    });
+
+    // For each SKU, estimate on-hand at this location as proportion of total sales
+    const map = {};
+    results.forEach(item => {
+      const total = skuTotal[item.sku] || 0;
+      const locQty = skuLocation[item.sku] || 0;
+      const proportion = total > 0 ? locQty / total : 0;
+      map[item.sku] = {
+        onHand: Math.round(item.onHand * proportion),
+        proportion,
+        locSales: locQty,
+        totalSales: total
+      };
+    });
+    return map;
+  }, [locationFilter, salesData, results]);
 
   const statusGroups = useMemo(() => {
     const groups = {
