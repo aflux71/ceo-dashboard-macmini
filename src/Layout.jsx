@@ -52,7 +52,7 @@ const navItems = [
         { name: "Requisitions", icon: FileText, page: "PurchaseRequisitions", badge: true },
         { name: "Suppliers", icon: Truck, page: "Suppliers" },
         { name: "Co-packers", icon: Building2, page: "Copackers" },
-        { name: "Forecasting", icon: BarChart3, page: "Forecasting" },
+        { name: "Demand Planner", icon: BarChart3, page: "DemandPlanner" },
         { name: "Planning", icon: Factory, page: "ProductionPlanning" },
       ];
 
