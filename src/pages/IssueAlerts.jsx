@@ -44,7 +44,7 @@ export default function IssueAlerts() {
   const queryClient = useQueryClient();
 
   // Fetch scheduled items
-  const { data: scheduledItems = [] } = useQuery({
+  const { data: scheduledItems = [], isFetching: fetchingItems } = useQuery({
     queryKey: ['forecast-suggestions-all'],
     queryFn: () => base44.entities.ForecastSuggestion.filter({
       status: { $in: ['suggested', 'scheduled', 'on_hold', 'in_progress'] }
@@ -52,16 +52,24 @@ export default function IssueAlerts() {
   });
 
   // Fetch recipes
-  const { data: recipes = [] } = useQuery({
+  const { data: recipes = [], isFetching: fetchingRecipes } = useQuery({
     queryKey: ['recipes'],
     queryFn: () => base44.entities.Recipe.list()
   });
 
   // Fetch labels
-  const { data: labels = [] } = useQuery({
+  const { data: labels = [], isFetching: fetchingLabels } = useQuery({
     queryKey: ['labels'],
     queryFn: () => base44.entities.Label.list()
   });
+
+  const isRefreshing = fetchingItems || fetchingRecipes || fetchingLabels;
+
+  const handleRescan = () => {
+    queryClient.invalidateQueries({ queryKey: ['forecast-suggestions-all'] });
+    queryClient.invalidateQueries({ queryKey: ['recipes'] });
+    queryClient.invalidateQueries({ queryKey: ['labels'] });
+  };
 
   // Find items with issues
   const issueItems = useMemo(() => {
