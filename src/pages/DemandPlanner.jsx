@@ -361,38 +361,29 @@ export default function DemandPlanner() {
   const handleRebuild = async () => {
     setIsRebuilding(true);
     try {
-      // Re-seed from baseline
-      const fresh = baselineToSummaries(baselineData);
-
-      // Try to merge with Shopify records
-      try {
-        const records = await base44.entities.ShopifySaleRecord.list();
-        // For now, baseline is the primary source
-        // Future: merge records from after 2025 into summaries
-        setShopifyRecordCount(records.length);
-      } catch (e) {
-        // ignore
-      }
-
-      // Try to persist to DemandSummary entity
-      try {
-        await base44.entities.DemandSummary.bulkCreate(
-          fresh.map((s) => ({
+      const response = await base44.functions.invoke("rebuildDemandSummaries", {});
+      const result = response.data;
+      if (result?.success || result?.message) {
+        toast.success(result.message || "Summaries rebuilt successfully");
+        setLastSync(new Date().toISOString().split("T")[0]);
+        // Reload summaries from DB
+        const updated = await base44.entities.DemandSummary.list();
+        if (updated?.length > 0) {
+          const parsed = updated.map((s) => ({
             ...s,
-            monthly: JSON.stringify(s.monthly),
-            byChannel: JSON.stringify(s.byChannel),
-            byLocation: JSON.stringify(s.byLocation),
-          }))
-        );
-      } catch (e) {
-        // Entity may not exist yet
+            monthly: typeof s.monthly === "string" ? JSON.parse(s.monthly) : s.monthly,
+            byChannel: typeof s.byChannel === "string" ? JSON.parse(s.byChannel) : s.byChannel,
+            byLocation: typeof s.byLocation === "string" ? JSON.parse(s.byLocation) : s.byLocation,
+            category: s.category || categorize(s.product),
+          }));
+          setSummaries(parsed);
+          setShopifyRecordCount(result.sale_records_processed || 0);
+        }
+      } else {
+        toast.error(result?.error || "Rebuild failed");
       }
-
-      setSummaries(fresh);
-      setLastSync(new Date().toISOString().split("T")[0]);
-      toast.success("Summaries rebuilt from baseline data");
     } catch (err) {
-      toast.error("Rebuild failed");
+      toast.error("Rebuild failed: " + err.message);
     }
     setIsRebuilding(false);
   };

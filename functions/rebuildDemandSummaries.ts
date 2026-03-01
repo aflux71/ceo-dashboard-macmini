@@ -247,8 +247,8 @@ Deno.serve(async (req) => {
     }
 
     // ── Step 5: Execute updates in batches with delays ───────────────────
-    const BATCH_SIZE = 10;
-    const DELAY_MS = 500;
+    const BATCH_SIZE = 5;
+    const DELAY_MS = 1200;
     const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
     let updated = 0;
