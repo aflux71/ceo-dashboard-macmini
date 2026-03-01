@@ -317,21 +317,22 @@ export default function InventoryStatusTab({ results = [], salesData }) {
               </tr>
             ) : (
               paginatedResults.map(item => {
-                const monthlyDemand = item.forecastTotal ? Math.round(item.forecastTotal / 6) : 0;
-                const urgencyInfo = urgencyConfig[item.urgency] || urgencyConfig.ok;
-                
+                const effectiveOnHand = getEffectiveOnHand(item);
+                const monthlyDemand = getEffectiveMonthlyDemand(item);
+                const effectiveMc = monthlyDemand > 0 ? effectiveOnHand / monthlyDemand : 999;
+
                 let statusLabel = "Healthy";
                 let statusColor = "green";
-                if (item.onHand === 0) {
+                if (effectiveOnHand === 0) {
                   statusLabel = "Out of Stock";
                   statusColor = "red";
-                } else if (item.monthsCover < 1) {
+                } else if (effectiveMc < 1) {
                   statusLabel = "Critical";
                   statusColor = "red";
-                } else if (item.monthsCover < 2) {
+                } else if (effectiveMc < 2) {
                   statusLabel = "Low";
                   statusColor = "amber";
-                } else if (item.monthsCover < 4) {
+                } else if (effectiveMc < 4) {
                   statusLabel = "Adequate";
                   statusColor = "blue";
                 }
@@ -344,19 +345,22 @@ export default function InventoryStatusTab({ results = [], salesData }) {
                     <td className="p-4 text-zinc-200">{item.product}</td>
                     <td className="p-4 text-zinc-400 text-sm">{item.category || '-'}</td>
                     <td className="p-4 text-right">
-                      <span className={`font-semibold ${item.onHand === 0 ? 'text-red-400' : 'text-zinc-200'}`}>
-                        {item.onHand}
+                      <span className={`font-semibold ${effectiveOnHand === 0 ? 'text-red-400' : 'text-zinc-200'}`}>
+                        {effectiveOnHand}
+                        {locationFilter !== "all" && item.onHand !== effectiveOnHand && (
+                          <span className="text-xs text-zinc-500 ml-1">/ {item.onHand} total</span>
+                        )}
                       </span>
                     </td>
                     <td className="p-4 text-right text-zinc-400">{monthlyDemand}/mo</td>
                     <td className="p-4 text-right">
                       <span className={`font-semibold ${
-                        item.monthsCover < 1 ? 'text-red-400' :
-                        item.monthsCover < 2 ? 'text-amber-400' :
-                        item.monthsCover >= 999 ? 'text-zinc-600' :
+                        effectiveMc < 1 ? 'text-red-400' :
+                        effectiveMc < 2 ? 'text-amber-400' :
+                        effectiveMc >= 999 ? 'text-zinc-600' :
                         'text-green-400'
                       }`}>
-                        {item.monthsCover >= 999 ? '∞' : `${Math.round(item.monthsCover * 10) / 10}mo`}
+                        {effectiveMc >= 999 ? '∞' : `${Math.round(effectiveMc * 10) / 10}mo`}
                       </span>
                     </td>
                     <td className="p-4">
