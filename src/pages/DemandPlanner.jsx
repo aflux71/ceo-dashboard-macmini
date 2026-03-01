@@ -545,8 +545,27 @@ function SettingsPanel({
   onRemoveExclusion,
   summaries,
   onExclude,
+  onBulkExclude,
 }) {
   const [exclusionSearch, setExclusionSearch] = useState("");
+  const exclusionCsvRef = React.useRef(null);
+
+  const handleExclusionCSV = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (result) => {
+        const skus = result.data.flatMap((row) => {
+          const sku = String(row.SKU || row.sku || row.Sku || "").trim();
+          return sku ? [sku] : [];
+        });
+        if (skus.length > 0) onBulkExclude(skus);
+      },
+    });
+    e.target.value = "";
+  };
 
   const exclusionResults = useMemo(() => {
     if (!exclusionSearch.trim()) return [];
