@@ -57,6 +57,7 @@ import Copackers from './pages/Copackers';
 import Dashboard from './pages/Dashboard';
 import EquipmentRepairs from './pages/EquipmentRepairs';
 import Forecasting from './pages/Forecasting';
+import DemandPlanner from './pages/DemandPlanner';
 import Inventory from './pages/Inventory';
 import IssueAlerts from './pages/IssueAlerts';
 import Kiosk from './pages/Kiosk';
@@ -96,6 +97,7 @@ export const PAGES = {
     "Dashboard": Dashboard,
     "EquipmentRepairs": EquipmentRepairs,
     "Forecasting": Forecasting,
+    "DemandPlanner": DemandPlanner,
     "Inventory": Inventory,
     "IssueAlerts": IssueAlerts,
     "Kiosk": Kiosk,
