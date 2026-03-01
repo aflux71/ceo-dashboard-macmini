@@ -614,7 +614,7 @@ function RequestsTab() {
               Cancel
             </Button>
             <Button
-              onClick={() => deleteMutation.mutate(deleteConfirmId)}
+              onClick={() => deleteMutation.mutate({ id: deleteConfirmId.id, type: deleteConfirmId.type })}
               disabled={deleteMutation.isPending}
               className="bg-red-600 hover:bg-red-700 text-white"
             >
