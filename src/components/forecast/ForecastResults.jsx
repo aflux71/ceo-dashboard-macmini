@@ -21,7 +21,7 @@ export const urgencyConfig = {
   ok: { variant: 'green', label: 'OK', icon: Package }
 };
 
-export default function ForecastResults({ results = [], onStockChange }) {
+export default function ForecastResults({ results = [], onStockChange, salesData }) {
   const stats = useMemo(() => {
     if (!results.length) return null;
     
