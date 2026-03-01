@@ -3,7 +3,7 @@
 // No UI dependencies. Designed for future AI/ML integration.
 // ============================================================================
 
-const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+export const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 // ── Category Detection ─────────────────────────────────────────────────────
 export const categorize = (name) => {
