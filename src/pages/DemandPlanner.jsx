@@ -280,23 +280,19 @@ export default function DemandPlanner() {
       for (const item of toCreate) {
         await base44.entities.ForecastSuggestion.create({
           sku: item.sku,
-          product: item.product,
-          quantity: item.productionNeed,
-          source: "demand_planner",
+          product_name: item.product,
+          suggested_qty: item.productionNeed,
+          urgency: item.urgency === "CRITICAL" ? "critical" : item.urgency === "LOW" ? "critical" : item.urgency === "WATCH" ? "soon" : "ok",
           status: "suggested",
-          forecast_basis: JSON.stringify({
-            avgMonthly: item.avgMonthly,
-            forecastTotal: item.forecastTotal,
-            onHand: item.onHand,
-            urgency: item.urgency,
-            monthsCover: item.monthsCover,
-            mode: workspace.mode,
-          }),
+          on_hand: item.onHand,
+          forecast_qty: item.forecastTotal || 0,
+          notes: `Demand Planner: avg/mo ${Math.round(item.avgMonthly)}, ${item.monthsCover} mo cover, mode: ${workspace.mode}`,
         });
       }
       toast.success(`${toCreate.length} item${toCreate.length > 1 ? "s" : ""} pushed to Planning`);
     } catch (err) {
-      toast.error("Failed to push to planning");
+      console.error("Push to planning failed:", err);
+      toast.error(`Failed to push to planning: ${err.message}`);
     }
   };
 
