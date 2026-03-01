@@ -158,6 +158,7 @@ Deno.serve(async (req) => {
     console.log(`Aggregated ${Object.keys(syncData).length} SKUs from ShopifySaleRecord`);
 
     // ── Step 4: Merge sync data into summaries ───────────────────────────
+    // Only process SKUs that exist in sync data (don't touch the rest)
     const now = new Date().toISOString();
     const toUpdate: { id: string; data: Record<string, any> }[] = [];
     const toCreate: Record<string, any>[] = [];
