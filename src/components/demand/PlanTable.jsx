@@ -20,10 +20,19 @@ export default function PlanTable({
   onWorkspaceChange,
   onViewDetail,
   onPushToPlanning,
+  initialUrgencyFilter,
+  onClearUrgencyFilter,
 }) {
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState("All");
-  const [urgencyFilter, setUrgencyFilter] = useState("All");
+  const [urgencyFilter, setUrgencyFilter] = useState(initialUrgencyFilter || "All");
+
+  // Sync urgencyFilter when initialUrgencyFilter changes (e.g. from dashboard buttons)
+  React.useEffect(() => {
+    if (initialUrgencyFilter) {
+      setUrgencyFilter(initialUrgencyFilter);
+    }
+  }, [initialUrgencyFilter]);
   const [sortBy, setSortBy] = useState("urgency");
   const [selected, setSelected] = useState(new Set());
 
