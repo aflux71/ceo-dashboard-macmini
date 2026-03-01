@@ -14,7 +14,7 @@ import {
 import { URGENCY_COLORS, URGENCY_LABELS, formatNumber, getCategories } from "@/lib/demandHelpers";
 import { sortPlanItems } from "@/lib/demandEngine";
 
-const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export default function PlanTable({
   plan,
