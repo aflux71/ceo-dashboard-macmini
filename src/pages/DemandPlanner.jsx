@@ -662,12 +662,23 @@ function SettingsPanel({
       {/* Exclusion list */}
       <Card className="bg-zinc-900 border-zinc-800">
         <CardContent className="p-4">
-          <h3 className="text-sm font-semibold text-zinc-300 mb-3 flex items-center gap-2">
-            Exclusion List
-            <span className="text-xs text-zinc-500 font-normal">
-              ({workspace.exclusionList.length} SKUs excluded)
-            </span>
-          </h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-zinc-300 flex items-center gap-2">
+              Exclusion List
+              <span className="text-xs text-zinc-500 font-normal">
+                ({workspace.exclusionList.length} SKUs excluded)
+              </span>
+            </h3>
+            <div>
+              <input type="file" accept=".csv" ref={exclusionCsvRef} onChange={handleExclusionCSV} className="hidden" />
+              <button
+                onClick={() => exclusionCsvRef.current?.click()}
+                className="flex items-center gap-1 px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 text-[10px] rounded transition-colors"
+              >
+                <Upload className="w-3 h-3" /> Upload CSV
+              </button>
+            </div>
+          </div>
 
           {/* Search to add */}
           <div className="relative mb-3">
