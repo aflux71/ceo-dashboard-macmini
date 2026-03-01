@@ -310,10 +310,16 @@ export default function RecipeTemplates() {
     return colors[category] || 'default';
   };
 
-  if (!hasPermission("templates")) {
+  const hasAccess = hasPermission("recipe_templates") || appUser?.role === "admin";
+
+  if (!hasAccess) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-zinc-500">You don't have permission to manage templates.</p>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Shield className="w-16 h-16 text-zinc-700 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-zinc-300">Access Denied</h2>
+          <p className="text-zinc-500 mt-2">Only owners and admins can manage templates</p>
+        </div>
       </div>
     );
   }
