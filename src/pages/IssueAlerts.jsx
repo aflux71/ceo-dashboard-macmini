@@ -297,7 +297,9 @@ export default function IssueAlerts() {
                               <span className="text-xs text-zinc-500">{issue.category}</span>
                             )}
                             {issue.status && (
-                              <Badge variant="default">{issue.status}</Badge>
+                              <Badge variant="default">
+                                {issue.status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                              </Badge>
                             )}
                           </div>
                         </div>
