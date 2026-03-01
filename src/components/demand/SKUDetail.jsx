@@ -10,7 +10,7 @@ import {
   PieChart, Pie, Legend,
 } from "recharts";
 import { URGENCY_COLORS, URGENCY_LABELS, formatNumber, formatCurrency, getCategoryColor } from "@/lib/demandHelpers";
-import { MONTHS } from "@/lib/demandEngine";
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export default function SKUDetail({
   item,
