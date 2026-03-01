@@ -170,7 +170,10 @@ export default function PlanTable({
 
           <select
             value={urgencyFilter}
-            onChange={e => setUrgencyFilter(e.target.value)}
+            onChange={e => {
+              setUrgencyFilter(e.target.value);
+              if (onClearUrgencyFilter) onClearUrgencyFilter();
+            }}
             className="bg-zinc-900 border border-zinc-700 text-zinc-300 text-sm rounded px-2 py-1.5 focus:border-orange-500 focus:outline-none"
           >
             <option value="All">All Urgency</option>
