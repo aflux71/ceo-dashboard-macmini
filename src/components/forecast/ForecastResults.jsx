@@ -180,7 +180,7 @@ export default function ForecastResults({ results = [], onStockChange, salesData
         </TabsContent>
 
         <TabsContent value="inventory" className="mt-4">
-          <InventoryStatusTab results={results} />
+          <InventoryStatusTab results={results} salesData={salesData} />
         </TabsContent>
 
         <TabsContent value="charts" className="mt-4">
