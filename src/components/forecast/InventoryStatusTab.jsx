@@ -234,6 +234,22 @@ export default function InventoryStatusTab({ results = [], salesData }) {
             <SelectItem value="healthy">Healthy (4+ mo)</SelectItem>
           </SelectContent>
         </Select>
+        {locations.length > 0 && (
+          <Select value={locationFilter} onValueChange={setLocationFilter}>
+            <SelectTrigger className="w-52 bg-zinc-800 border-zinc-700">
+              <div className="flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-zinc-400" />
+                <SelectValue placeholder="All Locations" />
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Locations</SelectItem>
+              {locations.map(loc => (
+                <SelectItem key={loc} value={loc}>{loc}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <div className="flex gap-2 ml-auto">
           <Button onClick={copyForSheets} variant="outline" size="sm" className="gap-2">
             <Copy className="w-4 h-4" />
