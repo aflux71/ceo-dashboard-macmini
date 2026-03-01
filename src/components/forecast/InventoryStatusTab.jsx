@@ -58,6 +58,20 @@ export default function InventoryStatusTab({ results = [], salesData }) {
     return map;
   }, [locationFilter, salesData, results]);
 
+  // Get effective on-hand for an item given current location filter
+  const getEffectiveOnHand = (item) => {
+    if (!locationOnHandMap) return item.onHand;
+    return locationOnHandMap[item.sku]?.onHand ?? 0;
+  };
+
+  // Get monthly demand scaled to location if filtered
+  const getEffectiveMonthlyDemand = (item) => {
+    const base = item.forecastTotal ? Math.round(item.forecastTotal / 6) : 0;
+    if (!locationOnHandMap) return base;
+    const proportion = locationOnHandMap[item.sku]?.proportion ?? 0;
+    return Math.round(base * proportion);
+  };
+
   const statusGroups = useMemo(() => {
     const groups = {
       outOfStock: { label: "Out of Stock", icon: AlertTriangle, color: "red", items: [] },
@@ -68,13 +82,20 @@ export default function InventoryStatusTab({ results = [], salesData }) {
     };
 
     results.forEach(item => {
-      if (item.onHand === 0) {
+      const oh = getEffectiveOnHand(item);
+      const monthlyDemand = item.forecastTotal ? item.forecastTotal / 6 : 0;
+      const locMonthlyDemand = locationOnHandMap
+        ? monthlyDemand * (locationOnHandMap[item.sku]?.proportion ?? 0)
+        : monthlyDemand;
+      const mc = locMonthlyDemand > 0 ? oh / locMonthlyDemand : 999;
+
+      if (oh === 0) {
         groups.outOfStock.items.push(item);
-      } else if (item.monthsCover < 1) {
+      } else if (mc < 1) {
         groups.critical.items.push(item);
-      } else if (item.monthsCover < 2) {
+      } else if (mc < 2) {
         groups.low.items.push(item);
-      } else if (item.monthsCover < 4) {
+      } else if (mc < 4) {
         groups.adequate.items.push(item);
       } else {
         groups.healthy.items.push(item);
@@ -82,7 +103,7 @@ export default function InventoryStatusTab({ results = [], salesData }) {
     });
 
     return groups;
-  }, [results]);
+  }, [results, locationOnHandMap]);
 
   const filteredItems = useMemo(() => {
     let items = [];
