@@ -92,9 +92,21 @@ Deno.serve(async (req) => {
 
     console.log(`Loaded ${existingSummaries.length} existing DemandSummary records`);
 
-    // ── Step 2: Load ALL ShopifySaleRecord records ───────────────────────
-    // Base44 list() may have pagination limits, so we fetch all
-    const saleRecords = await base44.asServiceRole.entities.ShopifySaleRecord.list();
+    // ── Step 2: Load ALL ShopifySaleRecord records with pagination ───────
+    const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+    const PAGE_SIZE = 200;
+    let saleRecords: any[] = [];
+    let page = 0;
+    while (true) {
+      const batch = await base44.asServiceRole.entities.ShopifySaleRecord.list(
+        '-order_date', PAGE_SIZE, page * PAGE_SIZE
+      );
+      if (!batch || batch.length === 0) break;
+      saleRecords = saleRecords.concat(batch);
+      if (batch.length < PAGE_SIZE) break;
+      page++;
+      await sleep(500);
+    }
     console.log(`Loaded ${saleRecords.length} ShopifySaleRecord records`);
 
     if (saleRecords.length === 0) {
