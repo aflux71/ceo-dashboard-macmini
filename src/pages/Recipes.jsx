@@ -22,7 +22,8 @@ import {
   Gift,
   FileInput,
   Save,
-  ChevronRight
+  ChevronRight,
+  Zap
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -124,12 +125,24 @@ function RecipeRow({ recipe, inventory, getCategoryColor, onView, onEdit, onDupl
             <div>
               <p className="text-xs text-zinc-500 uppercase mb-2">Active Ingredients (v{recipe.version || 1})</p>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                {recipe.ingredients.map((ing, idx) => (
-                  <div key={idx} className="p-2 bg-zinc-900 rounded border border-zinc-700 text-xs">
-                    <p className="text-zinc-400">{ing.material}</p>
-                    <p className="text-zinc-300 font-mono">{ing.qty} {ing.unit}</p>
-                  </div>
-                ))}
+                {recipe.ingredients.map((ing, idx) => {
+                  const invItem = inventory.find(i => i.sku === ing.sku);
+                  const needsConversion = invItem?.unit && ing.unit && 
+                    invItem.unit.toLowerCase() !== ing.unit.toLowerCase();
+                  
+                  return (
+                    <div key={idx} className="p-2 bg-zinc-900 rounded border border-zinc-700 text-xs">
+                      <p className="text-zinc-400">{ing.material}</p>
+                      <p className="text-zinc-300 font-mono">{ing.qty} {ing.unit}</p>
+                      {needsConversion && (
+                        <div className="flex items-center gap-1 mt-1 text-blue-400">
+                          <Zap className="w-2.5 h-2.5" />
+                          <span>{ing.unit} → {invItem.unit}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
