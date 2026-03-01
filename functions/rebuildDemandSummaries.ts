@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
     console.log(`Loaded ${existingSummaries.length} existing DemandSummary records`);
 
     // ── Step 2: Load ALL ShopifySaleRecord records with pagination ───────
-    const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+    const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
     const PAGE_SIZE = 200;
     let saleRecords: any[] = [];
     let page = 0;
