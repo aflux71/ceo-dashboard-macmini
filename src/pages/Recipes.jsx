@@ -67,6 +67,97 @@ const CATEGORY_PREFIXES = {
   "Other": "OT"
 };
 
+// Expandable Recipe Row Component
+function RecipeRow({ recipe, inventory, getCategoryColor, onView, onEdit, onDuplicate, onSaveTemplate, onDelete, canDelete }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <>
+      <div
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-4 p-4 hover:bg-zinc-800/50 transition-colors cursor-pointer"
+      >
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-3 mb-1">
+            <span className="font-mono text-sm text-orange-400">{recipe.sku}</span>
+            <span className="font-semibold text-zinc-100">{recipe.name}</span>
+            <Badge variant={getCategoryColor(recipe.category)}>{recipe.category}</Badge>
+            <div className="flex items-center gap-1 text-xs text-zinc-500">
+              <GitBranch className="w-3 h-3" />
+              v{recipe.version || 1}
+            </div>
+          </div>
+          <p className="text-sm text-zinc-400">
+            {recipe.batch_size} units • Line {recipe.production_line || 1} • {recipe.ingredients?.length || 0} ingredients
+          </p>
+        </div>
+        <BatchCostBadge recipe={recipe} inventory={inventory} />
+        <ChevronRight className={`w-5 h-5 text-zinc-600 transition-transform ${expanded ? 'rotate-90' : ''}`} />
+      </div>
+
+      {/* Expanded Details */}
+      {expanded && (
+        <div className="px-4 py-4 bg-zinc-800/30 border-t border-zinc-800 space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+              <span className="text-zinc-500">Batch Size</span>
+              <p className="text-zinc-200 font-medium">{recipe.batch_size} units</p>
+            </div>
+            <div>
+              <span className="text-zinc-500">Production Line</span>
+              <p className="text-zinc-200 font-medium">Line {recipe.production_line || 1}</p>
+            </div>
+            <div>
+              <span className="text-zinc-500">Ingredients</span>
+              <p className="text-zinc-200 font-medium">{recipe.ingredients?.length || 0} items</p>
+            </div>
+            <div>
+              <span className="text-zinc-500">Packaging</span>
+              <p className="text-zinc-200 font-medium">{recipe.packaging?.length || 0} items</p>
+            </div>
+          </div>
+
+          {/* Ingredients Summary */}
+          {recipe.ingredients?.length > 0 && (
+            <div>
+              <p className="text-xs text-zinc-500 uppercase mb-2">Active Ingredients (v{recipe.version || 1})</p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {recipe.ingredients.map((ing, idx) => (
+                  <div key={idx} className="p-2 bg-zinc-900 rounded border border-zinc-700 text-xs">
+                    <p className="text-zinc-400">{ing.material}</p>
+                    <p className="text-zinc-300 font-mono">{ing.qty} {ing.unit}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex flex-wrap gap-2 pt-2">
+            <Button size="sm" variant="outline" onClick={onView}>
+              <Eye className="w-4 h-4 mr-1" /> View
+            </Button>
+            <Button size="sm" variant="ghost" onClick={onEdit}>
+              <Edit className="w-4 h-4 mr-1" /> Edit (New Version)
+            </Button>
+            <Button size="sm" variant="ghost" onClick={onDuplicate}>
+              <Copy className="w-4 h-4 mr-1" /> Duplicate
+            </Button>
+            <Button size="sm" variant="ghost" onClick={onSaveTemplate} className="text-orange-400 hover:text-orange-300">
+              <Save className="w-4 h-4 mr-1" /> Save as Template
+            </Button>
+            {canDelete && (
+              <Button size="sm" variant="ghost" onClick={onDelete} className="text-red-400 hover:text-red-300">
+                <Trash2 className="w-4 h-4 mr-1" /> Delete
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 export default function Recipes() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
