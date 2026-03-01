@@ -191,16 +191,14 @@ function RequestsTab() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id) => base44.entities.ProductionRequest.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["planning_production_requests"] });
+    mutationFn: ({ id, type }) => type === "forecast" ? base44.entities.ForecastSuggestion.delete(id) : base44.entities.ProductionRequest.delete(id),
+    onSuccess: (_, { type }) => {
+      if (type === "forecast") queryClient.invalidateQueries({ queryKey: ["planning_forecast_suggestions"] });
+      else queryClient.invalidateQueries({ queryKey: ["planning_production_requests"] });
       toast.success("Request deleted");
       setDeleteConfirmId(null);
     },
-    onError: (err) => {
-      const msg = err?.response?.data?.message || err?.message || String(err);
-      toast.error(`Failed to delete: ${msg}`);
-    },
+    onError: (err) => { toast.error(`Failed to delete: ${err?.message || String(err)}`); },
   });
 
   const allItems = useMemo(() => {
