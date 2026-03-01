@@ -282,15 +282,16 @@ Deno.serve(async (req) => {
 
     // ── Step 5: Delete all existing, then bulk create ────────────────────
     // This avoids rate-limited individual updates
-    const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-    // Delete existing records in batches
+    // Delete existing records sequentially with delay to avoid rate limits
     const existingIds = Object.values(summaryIdMap);
-    const DEL_BATCH = 10;
+    const DEL_BATCH = 5;
     for (let i = 0; i < existingIds.length; i += DEL_BATCH) {
       const batch = existingIds.slice(i, i + DEL_BATCH);
-      await Promise.all(batch.map(id => base44.asServiceRole.entities.DemandSummary.delete(id)));
-      await sleep(500);
+      for (const id of batch) {
+        await base44.asServiceRole.entities.DemandSummary.delete(id);
+      }
+      await sleep(1000);
     }
 
     // Bulk create all final summaries
