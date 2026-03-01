@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { Link } from "react-router-dom";
@@ -25,6 +25,8 @@ import SyncLogMini from "@/components/dashboard/SyncLogMini";
 import Badge from "@/components/ui/Badge";
 
 export default function Dashboard() {
+  const [showPinScreen, setShowPinScreen] = useState(false);
+
   const { data: batches = [] } = useQuery({
     queryKey: ['batches'],
     queryFn: () => base44.entities.Batch.list('-created_date', 100),
@@ -102,10 +104,10 @@ export default function Dashboard() {
           <Button
             variant="outline"
             className="border-zinc-700 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
-            onClick={() => base44.auth.logout()}
+            onClick={() => setShowPinScreen(true)}
           >
             <LogOut className="w-4 h-4 mr-2" />
-            Logout
+            Switch User
           </Button>
           <Link to={createPageUrl("ProductionPlanning")}>
             <Button className="bg-orange-500 hover:bg-orange-600 text-white">
