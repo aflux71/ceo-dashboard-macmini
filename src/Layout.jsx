@@ -63,6 +63,7 @@ const settingsItems = [
         { name: "Bulk Upload", icon: FileText, page: "BulkUpload" },
         { name: "Measurement Units", icon: Package, page: "MeasurementSettings" },
         { name: "Audit Log", icon: ClipboardList, page: "AuditLog" },
+        { name: "Sync Log", icon: History, page: "SyncLog" },
       ];
 
 export default function Layout({ children, currentPageName }) {
