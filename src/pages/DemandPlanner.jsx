@@ -169,16 +169,20 @@ export default function DemandPlanner() {
     setWorkspace((prev) => ({ ...prev, ...changes }));
   }, []);
 
-  const saveWorkspace = async () => {
-    const payload = {
-      ...workspace,
-      targetLevels: JSON.stringify(workspace.targetLevels),
-      inventoryOverrides: JSON.stringify(workspace.inventoryOverrides),
-      exclusionList: JSON.stringify(workspace.exclusionList),
-    };
+  const buildPayload = (ws) => ({
+    ...ws,
+    targetLevels: JSON.stringify(ws.targetLevels),
+    inventoryOverrides: JSON.stringify(ws.inventoryOverrides),
+    exclusionList: JSON.stringify(ws.exclusionList),
+  });
+
+  const saveWorkspace = async (wsOverride) => {
+    const ws = wsOverride || workspace;
+    const payload = buildPayload(ws);
     try {
       if (activeWorkspaceId) {
         await base44.entities.DemandConfig.update(activeWorkspaceId, payload);
+        setWorkspaces((prev) => prev.map((w) => w.id === activeWorkspaceId ? { ...w, ...payload } : w));
         toast.success("Workspace saved");
       } else {
         const created = await base44.entities.DemandConfig.create(payload);
@@ -188,6 +192,18 @@ export default function DemandPlanner() {
       }
     } catch (err) {
       toast.error("Failed to save workspace");
+    }
+  };
+
+  // Auto-save exclusion changes to DemandConfig
+  const persistExclusions = async (newList) => {
+    if (!activeWorkspaceId) return;
+    try {
+      await base44.entities.DemandConfig.update(activeWorkspaceId, {
+        exclusionList: JSON.stringify(newList),
+      });
+    } catch (err) {
+      console.error("Failed to persist exclusions:", err);
     }
   };
 
