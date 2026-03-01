@@ -97,7 +97,7 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex gap-3">
-          <Link to={createPageUrl("ProductionEntry")}>
+          <Link to={createPageUrl("ProductionPlanning")}>
             <Button className="bg-orange-500 hover:bg-orange-600 text-white">
               <Factory className="w-4 h-4 mr-2" />
               New Batch
@@ -283,7 +283,7 @@ export default function Dashboard() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Link to={createPageUrl("ProductionEntry")}>
+            <Link to={createPageUrl("ProductionPlanning")}>
               <div className="p-4 bg-zinc-800/50 rounded-lg border border-zinc-800 hover:border-orange-500/30 transition-colors cursor-pointer text-center">
                 <Factory className="w-8 h-8 text-orange-500 mx-auto mb-2" />
                 <p className="text-sm font-medium text-zinc-200">Start Production</p>
