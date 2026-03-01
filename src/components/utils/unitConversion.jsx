@@ -3,7 +3,7 @@
 // Define unit groups and their base conversions
 export const UNIT_GROUPS = {
   weight: {
-    units: ['kg', 'Kg', 'KG', 'g', 'gram', 'grams'],
+    units: ['kg', 'Kg', 'KG', 'g', 'gram', 'grams', 'lb', 'lbs', 'oz', 'ounce', 'ounces'],
     base: 'g', // base unit is grams
     conversions: {
       'kg': 1000,
@@ -12,6 +12,11 @@ export const UNIT_GROUPS = {
       'g': 1,
       'gram': 1,
       'grams': 1,
+      'lb': 453.592,
+      'lbs': 453.592,
+      'oz': 28.3495,
+      'ounce': 28.3495,
+      'ounces': 28.3495,
     }
   },
   volume: {
@@ -33,6 +38,8 @@ export function normalizeUnit(unit) {
   const u = unit.trim().toLowerCase();
   if (['kg', 'kgs'].includes(u)) return 'kg';
   if (['g', 'gram', 'grams'].includes(u)) return 'g';
+  if (['lb', 'lbs', 'pound', 'pounds'].includes(u)) return 'lb';
+  if (['oz', 'ounce', 'ounces'].includes(u)) return 'oz';
   if (['l', 'liter', 'liters', 'litre', 'litres'].includes(u)) return 'L';
   if (['ml', 'milliliter', 'milliliters'].includes(u)) return 'ml';
   return unit;
@@ -55,7 +62,7 @@ export function getCompatibleUnits(unit) {
   if (!group) return [unit]; // No compatible units, return original
   
   // Return normalized display units
-  if (group === 'weight') return ['kg', 'g'];
+  if (group === 'weight') return ['kg', 'g', 'lb', 'oz'];
   if (group === 'volume') return ['L', 'ml'];
   return [unit];
 }
