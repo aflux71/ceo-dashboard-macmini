@@ -42,8 +42,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 // Default role permissions
 const DEFAULT_ROLE_PERMISSIONS = {
-  owner: ["production", "inventory", "requisitions", "recipes", "forecasting", "user_management", "settings", "reports", "batch_history", "review_queue", "purchase_orders", "view_costs"],
-  admin: ["production", "inventory", "requisitions", "recipes", "forecasting", "user_management", "reports", "batch_history", "review_queue", "purchase_orders", "view_costs"],
+  owner: ["production", "inventory", "requisitions", "recipes", "recipe_templates", "forecasting", "user_management", "settings", "reports", "batch_history", "review_queue", "purchase_orders", "view_costs"],
+  admin: ["production", "inventory", "requisitions", "recipes", "recipe_templates", "forecasting", "user_management", "reports", "batch_history", "review_queue", "purchase_orders", "view_costs"],
   production_lead: ["production", "inventory", "requisitions", "recipes", "reports", "batch_history", "review_queue"],
   production_labor: ["production", "batch_history"],
   qc: ["review_queue", "batch_history", "inventory", "requisitions"],
@@ -52,7 +52,7 @@ const DEFAULT_ROLE_PERMISSIONS = {
 };
 
 const ALL_PERMISSIONS = [
-  "production", "inventory", "requisitions", "recipes", "forecasting", 
+  "production", "inventory", "requisitions", "recipes", "recipe_templates", "forecasting", 
   "user_management", "settings", "reports", "batch_history", "review_queue", 
   "purchase_orders", "view_costs"
 ];
