@@ -93,11 +93,15 @@ export default function DemandPlanner() {
       }
       setSummaries(loadedSummaries);
 
-      // 3. Load inventory from Shopify HQ
+      // 3. Load finished product inventory
       let inventoryMap = {};
       try {
-        const inv = await base44.entities.Inventory.list();
-        inventoryMap = buildInventoryMap(inv);
+        const inv = await base44.entities.Inventory.filter({ type: "finished_product" });
+        inv.forEach((item) => {
+          if (item.sku) {
+            inventoryMap[item.sku] = (inventoryMap[item.sku] || 0) + (item.quantity || 0);
+          }
+        });
       } catch (e) {
         // No inventory data available
       }

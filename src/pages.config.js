@@ -57,7 +57,6 @@ import Copackers from './pages/Copackers';
 import Dashboard from './pages/Dashboard';
 import EquipmentRepairs from './pages/EquipmentRepairs';
 import Forecasting from './pages/Forecasting';
-import DemandPlanner from './pages/DemandPlanner';
 import Inventory from './pages/Inventory';
 import IssueAlerts from './pages/IssueAlerts';
 import Kiosk from './pages/Kiosk';
@@ -83,6 +82,7 @@ import ReviewQueue from './pages/ReviewQueue';
 import RunPlanner from './pages/RunPlanner';
 import Suppliers from './pages/Suppliers';
 import UserManagement from './pages/UserManagement';
+import DemandPlanner from './pages/DemandPlanner';
 import __Layout from './Layout.jsx';
 
 
@@ -97,7 +97,6 @@ export const PAGES = {
     "Dashboard": Dashboard,
     "EquipmentRepairs": EquipmentRepairs,
     "Forecasting": Forecasting,
-    "DemandPlanner": DemandPlanner,
     "Inventory": Inventory,
     "IssueAlerts": IssueAlerts,
     "Kiosk": Kiosk,
@@ -123,6 +122,7 @@ export const PAGES = {
     "RunPlanner": RunPlanner,
     "Suppliers": Suppliers,
     "UserManagement": UserManagement,
+    "DemandPlanner": DemandPlanner,
 }
 
 export const pagesConfig = {
