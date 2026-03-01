@@ -456,6 +456,7 @@ export default function DemandPlanner() {
             onAddEvent={handleAddEvent}
             onUpdateEvent={handleUpdateEvent}
             onDeleteEvent={handleDeleteEvent}
+            summaries={summaries}
           />
         </TabsContent>
 
