@@ -82,8 +82,8 @@ import Reports from './pages/Reports';
 import ReviewQueue from './pages/ReviewQueue';
 import RunPlanner from './pages/RunPlanner';
 import Suppliers from './pages/Suppliers';
-import UserManagement from './pages/UserManagement';
 import SyncLog from './pages/SyncLog';
+import UserManagement from './pages/UserManagement';
 import __Layout from './Layout.jsx';
 
 
@@ -123,8 +123,8 @@ export const PAGES = {
     "ReviewQueue": ReviewQueue,
     "RunPlanner": RunPlanner,
     "Suppliers": Suppliers,
-    "UserManagement": UserManagement,
     "SyncLog": SyncLog,
+    "UserManagement": UserManagement,
 }
 
 export const pagesConfig = {

@@ -37,7 +37,7 @@ const DEFAULT_PRODUCTION_TAGS = [
 ];
 
 export default function ProductionSchedule() {
-  const [viewStartDate, setViewStartDate] = useState(startOfWeek(new Date()));
+  const [viewStartDate, setViewStartDate] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [daysToShow, setDaysToShow] = useState(14);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -265,7 +265,7 @@ export default function ProductionSchedule() {
   };
 
   const goToToday = () => {
-    setViewStartDate(startOfWeek(new Date()));
+    setViewStartDate(startOfWeek(new Date(), { weekStartsOn: 1 }));
   };
 
   const productionTags = settings?.productionTags || DEFAULT_PRODUCTION_TAGS;
