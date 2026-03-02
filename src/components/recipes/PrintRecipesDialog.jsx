@@ -46,7 +46,78 @@ export default function PrintRecipesDialog({ open, onOpenChange, recipes }) {
           <title>Batch Records</title>
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { font-family: Arial, sans-serif; }
+            body { font-family: Arial, sans-serif; font-size: 12px; line-height: 1.4; color: black; background: white; }
+            .print-batch-sheet { font-family: Arial, sans-serif; font-size: 12px; line-height: 1.4; padding: 32px; }
+            .batch-header { border-bottom: 2px solid #333; padding-bottom: 12px; margin-bottom: 16px; }
+            .flex { display: flex; }
+            .justify-between { justify-content: space-between; }
+            .items-start { align-items: flex-start; }
+            .text-right { text-align: right; }
+            .text-2xl { font-size: 1.4em; }
+            .font-bold { font-weight: bold; }
+            .mb-1 { margin-bottom: 4px; }
+            .mb-6 { margin-bottom: 24px; }
+            .text-gray-600 { color: #4b5563; }
+            .text-sm { font-size: 0.85em; }
+            .text-xs { font-size: 0.75em; }
+            .uppercase { text-transform: uppercase; }
+            .text-gray-500 { color: #6b7280; }
+            .text-gray-400 { color: #9ca3af; }
+            .text-gray-700 { color: #374151; }
+            .text-center { text-align: center; }
+            .grid { display: grid; }
+            .grid-cols-3 { grid-template-columns: repeat(3, 1fr); }
+            .grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
+            .gap-4 { gap: 16px; }
+            .gap-8 { gap: 32px; }
+            .p-4 { padding: 16px; }
+            .p-3 { padding: 12px; }
+            .p-2 { padding: 8px; }
+            .pt-4 { padding-top: 16px; }
+            .pb-1 { padding-bottom: 4px; }
+            .mt-2 { margin-top: 8px; }
+            .mt-4 { margin-top: 16px; }
+            .ml-4 { margin-left: 16px; }
+            .mx-auto { margin-left: auto; margin-right: auto; }
+            .min-h-6 { min-height: 24px; }
+            .min-h-24 { min-height: 96px; }
+            .min-w-8 { min-width: 32px; }
+            .flex-1 { flex: 1; }
+            .flex-shrink-0 { flex-shrink: 0; }
+            .italic { font-style: italic; }
+            .font-medium { font-weight: 500; }
+            .font-mono { font-family: monospace; }
+            .inline-block { display: inline-block; }
+            .border { border: 1px solid #d1d5db; }
+            .border-2 { border: 2px solid; }
+            .border-b { border-bottom: 1px solid; }
+            .border-t { border-top: 1px solid; }
+            .border-gray-300 { border-color: #d1d5db; }
+            .border-gray-400 { border-color: #9ca3af; }
+            .border-gray-200 { border-color: #e5e7eb; }
+            .rounded { border-radius: 4px; }
+            .bg-gray-50 { background-color: #f9fafb; }
+            .w-12 { width: 48px; }
+            .w-16 { width: 64px; }
+            .w-24 { width: 96px; }
+            .w-32 { width: 128px; }
+            .items-center { align-items: center; }
+            .gap-3 { gap: 12px; }
+            .gap-4 { gap: 16px; }
+            .section-title { background: #f3f4f6; padding: 8px 12px; font-weight: bold; border: 1px solid #d1d5db; margin-bottom: 0; }
+            .checkbox-row { display: flex; align-items: flex-start; padding: 8px 12px; border: 1px solid #d1d5db; border-top: none; }
+            .checkbox { width: 18px; height: 18px; border: 2px solid #374151; margin-right: 12px; flex-shrink: 0; display: inline-block; }
+            .verify-section { margin-top: 8px; padding: 8px 12px; border: 1px solid #d1d5db; border-top: none; background: #fef3c7; }
+            .signature-line { border-bottom: 1px solid #374151; min-width: 150px; display: inline-block; margin-left: 8px; }
+            .ingredients-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+            .ingredients-table th, .ingredients-table td { border: 1px solid #d1d5db; padding: 8px; text-align: left; }
+            .ingredients-table th { background: #f3f4f6; font-weight: bold; }
+            .recipe-page { margin-bottom: 32px; }
+            .page-break { page-break-after: always; break-after: page; }
+            @media print {
+              .page-break { page-break-after: always; break-after: page; }
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            }
           </style>
         </head>
         <body>
@@ -59,7 +130,7 @@ export default function PrintRecipesDialog({ open, onOpenChange, recipes }) {
     setTimeout(() => {
       printWindow.print();
       printWindow.close();
-    }, 250);
+    }, 500);
   };
 
   const selectedRecipeData = recipes.filter(r => selectedRecipes.includes(r.id));
