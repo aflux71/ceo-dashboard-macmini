@@ -124,23 +124,26 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Bulk create new items
-    if (toCreate.length > 0) {
-      await base44.asServiceRole.entities.Inventory.bulkCreate(toCreate);
-      created = toCreate.length;
+    // Bulk create new items in chunks of 20
+    for (let i = 0; i < toCreate.length; i += 20) {
+      const chunk = toCreate.slice(i, i + 20);
+      await base44.asServiceRole.entities.Inventory.bulkCreate(chunk);
+      created += chunk.length;
+      if (i + 20 < toCreate.length) await sleep(500);
     }
 
-    // Update existing items one at a time with delay to avoid rate limiting
-    for (const item of toUpdate) {
+    // Update existing items one at a time with 300ms delay to avoid rate limiting
+    for (let i = 0; i < toUpdate.length; i++) {
+      const item = toUpdate[i];
       await base44.asServiceRole.entities.Inventory.update(item.id, {
         name: item.name,
         quantity: item.quantity,
         location: 'neob HQ',
         last_shopify_sync: now,
       });
-      await sleep(150);
+      updated++;
+      await sleep(300);
     }
-    updated = toUpdate.length;
 
     const duration = Math.round((Date.now() - startTime) / 1000);
 
