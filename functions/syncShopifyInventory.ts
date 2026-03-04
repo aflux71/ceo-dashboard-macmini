@@ -132,19 +132,29 @@ Deno.serve(async (req) => {
       if (i + 20 < toCreate.length) await sleep(500);
     }
 
-    // Update existing items: 3 concurrent with 200ms stagger to balance speed vs rate limits
-    const CONCURRENCY = 3;
-    for (let i = 0; i < toUpdate.length; i += CONCURRENCY) {
-      const chunk = toUpdate.slice(i, i + CONCURRENCY);
-      await Promise.all(chunk.map(item =>
-        base44.asServiceRole.entities.Inventory.update(item.id, {
-          name: item.name,
-          quantity: item.quantity,
-          location: 'neob HQ',
-          last_shopify_sync: now,
-        })
-      ));
-      updated += chunk.length;
+    // Update existing items one at a time with retry logic
+    for (const item of toUpdate) {
+      let retries = 3;
+      while (retries > 0) {
+        try {
+          await base44.asServiceRole.entities.Inventory.update(item.id, {
+            name: item.name,
+            quantity: item.quantity,
+            location: 'neob HQ',
+            last_shopify_sync: now,
+          });
+          updated++;
+          break;
+        } catch (e) {
+          retries--;
+          if (retries === 0) {
+            console.error(`Failed to update ${item.id} after 3 retries: ${e.message}`);
+          } else {
+            // Back off longer on rate limit
+            await sleep(2000);
+          }
+        }
+      }
       await sleep(500);
     }
 
