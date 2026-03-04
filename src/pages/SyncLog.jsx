@@ -83,12 +83,22 @@ export default function SyncLog() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-zinc-100 flex items-center gap-2">
-          <RefreshCw className="w-6 h-6 text-zinc-400" />
-          Sync Log
-        </h1>
-        <p className="text-zinc-500 text-sm mt-1">Full history of data sync operations</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-zinc-100 flex items-center gap-2">
+            <RefreshCw className="w-6 h-6 text-zinc-400" />
+            Sync Log
+          </h1>
+          <p className="text-zinc-500 text-sm mt-1">Full history of data sync operations</p>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => queryClient.invalidateQueries({ queryKey: ["sync-logs-all"] })}
+          className="border-zinc-700 text-zinc-400 hover:text-zinc-100"
+        >
+          <RefreshCw className="w-3 h-3 mr-2" /> Refresh
+        </Button>
       </div>
 
       {/* Automations Status */}
