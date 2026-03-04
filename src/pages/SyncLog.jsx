@@ -27,15 +27,39 @@ const SYNC_TYPE_LABELS = {
   manual: "Manual",
 };
 
+const MANUAL_SYNCS = [
+  { label: "Shopify Orders", fn: "syncShopifyOrders" },
+  { label: "Shopify Inventory", fn: "syncShopifyInventory" },
+  { label: "Rebuild Demand Summaries", fn: "rebuildDemandSummaries" },
+];
+
 export default function SyncLog() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [runningSync, setRunningSync] = useState(null);
+  const [syncResults, setSyncResults] = useState({});
+  const queryClient = useQueryClient();
 
   const { data: logs = [], isLoading } = useQuery({
     queryKey: ["sync-logs-all"],
     queryFn: () => base44.entities.SyncLog.list("-created_date", 200),
+    refetchInterval: runningSync ? 3000 : false,
   });
+
+  const runSync = async (fn, label) => {
+    setRunningSync(fn);
+    setSyncResults(prev => ({ ...prev, [fn]: null }));
+    try {
+      const res = await base44.functions.invoke(fn, {});
+      setSyncResults(prev => ({ ...prev, [fn]: { ok: true, data: res.data } }));
+      queryClient.invalidateQueries({ queryKey: ["sync-logs-all"] });
+    } catch (err) {
+      setSyncResults(prev => ({ ...prev, [fn]: { ok: false, error: err.message } }));
+    } finally {
+      setRunningSync(null);
+    }
+  };
 
   const filtered = logs.filter((log) => {
     if (statusFilter !== "all" && log.status !== statusFilter) return false;
