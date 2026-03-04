@@ -55,7 +55,9 @@ export default function SyncLog() {
       setSyncResults(prev => ({ ...prev, [fn]: { ok: true, data: res.data } }));
       queryClient.invalidateQueries({ queryKey: ["sync-logs-all"] });
     } catch (err) {
-      setSyncResults(prev => ({ ...prev, [fn]: { ok: false, error: err.message } }));
+      const errorMsg = err?.response?.data?.error || err?.response?.data?.message || err?.response?.data?.detail || err.message;
+      const statusCode = err?.response?.status;
+      setSyncResults(prev => ({ ...prev, [fn]: { ok: false, error: statusCode ? `[${statusCode}] ${errorMsg}` : errorMsg } }));
     } finally {
       setRunningSync(null);
     }
