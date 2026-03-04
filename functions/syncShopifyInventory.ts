@@ -1,6 +1,9 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
 Deno.serve(async (req) => {
+  const startTime = Date.now();
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
@@ -17,12 +20,11 @@ Deno.serve(async (req) => {
 
     const headers = { 'X-Shopify-Access-Token': token };
 
-    // Step 1: Fetch all Shopify locations and find neob HQ
+    // Step 1: Find neob HQ location
     const locRes = await fetch(`https://${store}/admin/api/2026-01/locations.json`, { headers });
     const locData = await locRes.json();
     const locations = locData.locations || [];
 
-    // Find neob HQ location - try exact match first, then partial
     const hqLocation = locations.find(l => l.name === 'neob HQ')
       || locations.find(l => l.name?.toLowerCase().includes('neob hq'))
       || locations.find(l => l.name?.toLowerCase().includes('hq'));
@@ -70,9 +72,9 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Step 3: Fetch inventory levels filtered to neob HQ location only
+    // Step 3: Fetch inventory levels at neob HQ
     const inventoryItemIds = allVariants.map(v => v.inventory_item_id);
-    const quantityMap = {}; // inventory_item_id -> quantity at neob HQ only
+    const quantityMap = {};
 
     for (let i = 0; i < inventoryItemIds.length; i += 50) {
       const batch = inventoryItemIds.slice(i, i + 50);
@@ -82,7 +84,6 @@ Deno.serve(async (req) => {
       const data = await res.json();
       for (const level of data.inventory_levels || []) {
         const id = String(level.inventory_item_id);
-        // Only use neob HQ levels (should already be filtered, but double-check)
         if (String(level.location_id) === String(hqLocationId)) {
           quantityMap[id] = (level.available || 0);
         }
@@ -100,20 +101,18 @@ Deno.serve(async (req) => {
     let updated = 0;
     let created = 0;
 
+    // Separate into creates and updates
+    const toCreate = [];
+    const toUpdate = [];
+
     for (const variant of allVariants) {
       const quantity = quantityMap[variant.inventory_item_id] ?? 0;
       const existing = inventoryBySku[variant.sku];
 
       if (existing) {
-        await base44.asServiceRole.entities.Inventory.update(existing.id, {
-          name: variant.name,
-          quantity,
-          location: 'neob HQ',
-          last_shopify_sync: now,
-        });
-        updated++;
+        toUpdate.push({ id: existing.id, quantity, name: variant.name });
       } else {
-        await base44.asServiceRole.entities.Inventory.create({
+        toCreate.push({
           sku: variant.sku,
           name: variant.name,
           quantity,
@@ -122,20 +121,66 @@ Deno.serve(async (req) => {
           location: 'neob HQ',
           last_shopify_sync: now,
         });
-        created++;
       }
     }
+
+    // Bulk create new items
+    if (toCreate.length > 0) {
+      await base44.asServiceRole.entities.Inventory.bulkCreate(toCreate);
+      created = toCreate.length;
+    }
+
+    // Update existing items in batches of 10 with small delays
+    const BATCH_SIZE = 10;
+    for (let i = 0; i < toUpdate.length; i += BATCH_SIZE) {
+      const batch = toUpdate.slice(i, i + BATCH_SIZE);
+      await Promise.all(batch.map(item =>
+        base44.asServiceRole.entities.Inventory.update(item.id, {
+          name: item.name,
+          quantity: item.quantity,
+          location: 'neob HQ',
+          last_shopify_sync: now,
+        })
+      ));
+      if (i + BATCH_SIZE < toUpdate.length) await sleep(300);
+    }
+    updated = toUpdate.length;
+
+    const duration = Math.round((Date.now() - startTime) / 1000);
+
+    // Log the sync
+    await base44.asServiceRole.entities.SyncLog.create({
+      sync_type: 'shopify_inventory',
+      status: 'success',
+      records_processed: allVariants.length,
+      records_created: created,
+      records_updated: updated,
+      duration_seconds: duration,
+      triggered_by: user.email,
+      notes: `Synced from neob HQ (location ${hqLocationId})`,
+    });
 
     return Response.json({
       success: true,
       hq_location: { id: hqLocationId, name: hqLocation.name },
-      all_locations: locationLog,
       total_synced: allVariants.length,
       updated,
       created,
+      duration_seconds: duration,
     });
 
   } catch (error) {
+    const duration = Math.round((Date.now() - startTime) / 1000);
+    // Try to log the error too
+    try {
+      const base44 = createClientFromRequest(req);
+      await base44.asServiceRole.entities.SyncLog.create({
+        sync_type: 'shopify_inventory',
+        status: 'error',
+        duration_seconds: duration,
+        notes: error.message,
+      });
+    } catch {}
     return Response.json({ error: error.message }, { status: 500 });
   }
 });
