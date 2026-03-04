@@ -105,12 +105,18 @@ Deno.serve(async (req) => {
     const toCreate = [];
     const toUpdate = [];
 
+    let skipped = 0;
     for (const variant of allVariants) {
       const quantity = quantityMap[variant.inventory_item_id] ?? 0;
       const existing = inventoryBySku[variant.sku];
 
       if (existing) {
-        toUpdate.push({ id: existing.id, quantity, name: variant.name });
+        // Only update if quantity or name actually changed
+        if (existing.quantity !== quantity || existing.name !== variant.name) {
+          toUpdate.push({ id: existing.id, quantity, name: variant.name });
+        } else {
+          skipped++;
+        }
       } else {
         toCreate.push({
           sku: variant.sku,
