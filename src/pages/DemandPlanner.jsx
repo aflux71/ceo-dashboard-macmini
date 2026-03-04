@@ -98,8 +98,10 @@ export default function DemandPlanner() {
       // 3. Load finished product inventory
       let inventoryMap = {};
       try {
-        const inv = await base44.entities.Inventory.filter({ type: "finished_product" });
-        inv.forEach((item) => {
+        const inv = await base44.entities.Inventory.filter({ type: "finished_product", location: "neob HQ" });
+        // Fall back to all finished_product records if no neob HQ records found (pre-migration data)
+        const invToUse = inv.length > 0 ? inv : await base44.entities.Inventory.filter({ type: "finished_product" });
+        invToUse.forEach((item) => {
           if (item.sku) {
             inventoryMap[item.sku] = (inventoryMap[item.sku] || 0) + (item.quantity || 0);
           }
