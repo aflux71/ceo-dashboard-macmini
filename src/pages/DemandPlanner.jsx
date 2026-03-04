@@ -158,7 +158,7 @@ export default function DemandPlanner() {
       forecastMonths: ws.forecastMonths || 3,
       growthPct: ws.growthPct || 0,
       safetyPct: ws.safetyPct ?? 20,
-      minMonthlyVelocity: ws.minMonthlyVelocity ?? 5,
+      minMonthlyVelocity: ws.minMonthlyVelocity ?? 0,
       targetLevels: typeof ws.targetLevels === "string" ? JSON.parse(ws.targetLevels || "{}") : ws.targetLevels || {},
       inventoryOverrides: typeof ws.inventoryOverrides === "string" ? JSON.parse(ws.inventoryOverrides || "{}") : ws.inventoryOverrides || {},
       exclusionList: typeof ws.exclusionList === "string" ? JSON.parse(ws.exclusionList || "[]") : ws.exclusionList || [],
