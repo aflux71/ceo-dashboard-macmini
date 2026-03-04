@@ -66,6 +66,7 @@ export default function Inventory() {
     } catch { return []; }
   });
   const [showAllDuplicates, setShowAllDuplicates] = useState(false);
+  const [showLowStockList, setShowLowStockList] = useState(false);
 
   const CURRENCIES = ["CAD", "USD", "EUR", "GBP"];
 
