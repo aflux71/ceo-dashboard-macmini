@@ -130,19 +130,15 @@ Deno.serve(async (req) => {
       created = toCreate.length;
     }
 
-    // Update existing items in batches of 10 with small delays
-    const BATCH_SIZE = 10;
-    for (let i = 0; i < toUpdate.length; i += BATCH_SIZE) {
-      const batch = toUpdate.slice(i, i + BATCH_SIZE);
-      await Promise.all(batch.map(item =>
-        base44.asServiceRole.entities.Inventory.update(item.id, {
-          name: item.name,
-          quantity: item.quantity,
-          location: 'neob HQ',
-          last_shopify_sync: now,
-        })
-      ));
-      if (i + BATCH_SIZE < toUpdate.length) await sleep(300);
+    // Update existing items one at a time with delay to avoid rate limiting
+    for (const item of toUpdate) {
+      await base44.asServiceRole.entities.Inventory.update(item.id, {
+        name: item.name,
+        quantity: item.quantity,
+        location: 'neob HQ',
+        last_shopify_sync: now,
+      });
+      await sleep(150);
     }
     updated = toUpdate.length;
 
