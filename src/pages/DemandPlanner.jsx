@@ -624,11 +624,13 @@ function SettingsPanel({
         </CardContent>
       </Card>
 
-      {/* Saved workspaces */}
-      {workspaces.length > 0 && (
-        <Card className="bg-zinc-900 border-zinc-800">
-          <CardContent className="p-4">
-            <h3 className="text-sm font-semibold text-zinc-300 mb-3">Saved Workspaces</h3>
+      {/* Saved workspaces - always visible */}
+      <Card className="bg-zinc-900 border-zinc-800">
+        <CardContent className="p-4">
+          <h3 className="text-sm font-semibold text-zinc-300 mb-3">Saved Workspaces</h3>
+          {workspaces.length === 0 ? (
+            <p className="text-xs text-zinc-500">No saved workspaces yet. Configure settings above and click "Save as New".</p>
+          ) : (
             <div className="space-y-2">
               {workspaces.map((ws) => (
                 <div
@@ -642,6 +644,9 @@ function SettingsPanel({
                   <div>
                     <span className="text-sm text-zinc-200">{ws.name}</span>
                     <span className="text-xs text-zinc-500 ml-2">{ws.mode} · {ws.forecastMonths || 3}mo</span>
+                    {activeWorkspaceId === ws.id && (
+                      <span className="ml-2 text-[10px] px-1.5 py-0.5 bg-orange-500/20 text-orange-400 rounded-full">Active</span>
+                    )}
                   </div>
                   <div className="flex gap-1">
                     <button
@@ -660,9 +665,9 @@ function SettingsPanel({
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
 
       {/* Exclusion list */}
       <Card className="bg-zinc-900 border-zinc-800">
