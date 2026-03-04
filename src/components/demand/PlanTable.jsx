@@ -11,8 +11,8 @@ import {
   CheckSquare,
   Square,
 } from "lucide-react";
-import { URGENCY_COLORS, URGENCY_LABELS, formatNumber, getCategories } from "@/lib/demandHelpers";
-import { sortPlanItems } from "@/lib/demandEngine";
+import { URGENCY_COLORS, URGENCY_LABELS, formatNumber, getCategories } from "@/components/demand/demandHelpers";
+import { sortPlanItems } from "@/components/demand/demandEngine";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 

@@ -15,7 +15,7 @@ import {
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
 } from "recharts";
-import { URGENCY_COLORS, URGENCY_LABELS, formatNumber, getCategoryColor } from "@/lib/demandHelpers";
+import { URGENCY_COLORS, URGENCY_LABELS, formatNumber, getCategoryColor } from "@/components/demand/demandHelpers";
 
 export default function DashboardTab({
   plan,

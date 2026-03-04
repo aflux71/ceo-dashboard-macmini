@@ -9,7 +9,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
   PieChart, Pie, Legend,
 } from "recharts";
-import { URGENCY_COLORS, URGENCY_LABELS, formatNumber, formatCurrency, getCategoryColor } from "@/lib/demandHelpers";
+import { URGENCY_COLORS, URGENCY_LABELS, formatNumber, formatCurrency, getCategoryColor } from "@/components/demand/demandHelpers";
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export default function SKUDetail({

@@ -10,12 +10,12 @@ import {
 import Papa from "papaparse";
 import { toast } from "sonner";
 import { base44 } from "@/api/base44Client";
-import { generatePlan, categorize } from "@/lib/demandEngine";
+import { generatePlan, categorize } from "@/components/demand/demandEngine";
 import {
   DEFAULT_WORKSPACE,
   buildInventoryMap,
   formatNumber,
-} from "@/lib/demandHelpers";
+} from "@/components/demand/demandHelpers";
 import baselineData from "@/data/baseline-2025.json";
 import DashboardTab from "@/components/demand/DashboardTab";
 import PlanTable from "@/components/demand/PlanTable";
