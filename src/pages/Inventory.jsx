@@ -406,11 +406,37 @@ export default function Inventory() {
 
       {/* Low Stock Alert */}
       {lowStock.length > 0 && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
-          <div className="flex items-center gap-2 text-red-400">
-            <AlertTriangle className="w-5 h-5" />
-            <span className="font-semibold">{lowStock.length} items below reorder point</span>
-          </div>
+        <div className="bg-red-500/10 border border-red-500/30 rounded-lg overflow-hidden">
+          <button
+            onClick={() => setShowLowStockList(v => !v)}
+            className="w-full flex items-center justify-between gap-2 text-red-400 p-4 hover:bg-red-500/5 transition-colors text-left"
+          >
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5" />
+              <span className="font-semibold">{lowStock.length} items below reorder point</span>
+            </div>
+            <span className="text-xs text-red-400/70">{showLowStockList ? '▲ Hide' : '▼ Show'}</span>
+          </button>
+          {showLowStockList && (
+            <div className="border-t border-red-500/20">
+              {lowStock.map(item => (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between px-4 py-2.5 hover:bg-red-500/5 border-b border-red-500/10 last:border-b-0 cursor-pointer"
+                  onClick={() => openModal(item)}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono text-xs text-orange-400">{item.sku}</span>
+                    <span className="text-sm text-zinc-300">{item.name}</span>
+                  </div>
+                  <div className="text-xs text-right">
+                    <span className="text-red-400 font-semibold">{item.quantity} {item.unit}</span>
+                    <span className="text-zinc-500 ml-1">/ {item.reorder_point} {item.unit} reorder</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
