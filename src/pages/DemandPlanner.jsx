@@ -50,7 +50,7 @@ export default function DemandPlanner() {
   const [loading, setLoading] = useState(true);
 
   // Workspace state
-  const [workspace, setWorkspace] = useState({ ...DEFAULT_WORKSPACE });
+  const [workspace, setWorkspace] = useState({ ...DEFAULT_WORKSPACE, minMonthlyVelocity: 0 });
   const [workspaces, setWorkspaces] = useState([]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState(null);
 
