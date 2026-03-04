@@ -1,4 +1,4 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
 Deno.serve(async (req) => {
   try {
@@ -17,7 +17,28 @@ Deno.serve(async (req) => {
 
     const headers = { 'X-Shopify-Access-Token': token };
 
-    // Step 1: Fetch all active product variants
+    // Step 1: Fetch all Shopify locations and find neob HQ
+    const locRes = await fetch(`https://${store}/admin/api/2026-01/locations.json`, { headers });
+    const locData = await locRes.json();
+    const locations = locData.locations || [];
+
+    // Find neob HQ location - try exact match first, then partial
+    const hqLocation = locations.find(l => l.name === 'neob HQ')
+      || locations.find(l => l.name?.toLowerCase().includes('neob hq'))
+      || locations.find(l => l.name?.toLowerCase().includes('hq'));
+
+    const locationLog = locations.map(l => ({ id: l.id, name: l.name, active: l.active }));
+
+    if (!hqLocation) {
+      return Response.json({
+        error: 'Could not find neob HQ location in Shopify',
+        available_locations: locationLog,
+      }, { status: 400 });
+    }
+
+    const hqLocationId = hqLocation.id;
+
+    // Step 2: Fetch all active product variants
     let allVariants = [];
     let url = `https://${store}/admin/api/2026-01/products.json?limit=250&fields=id,title,status,variants`;
 
@@ -49,23 +70,26 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Step 2: Fetch inventory levels for all inventory_item_ids (batched in groups of 50)
+    // Step 3: Fetch inventory levels filtered to neob HQ location only
     const inventoryItemIds = allVariants.map(v => v.inventory_item_id);
-    const quantityMap = {}; // inventory_item_id -> total quantity across all locations
+    const quantityMap = {}; // inventory_item_id -> quantity at neob HQ only
 
     for (let i = 0; i < inventoryItemIds.length; i += 50) {
       const batch = inventoryItemIds.slice(i, i + 50);
-      const levelsUrl = `https://${store}/admin/api/2026-01/inventory_levels.json?inventory_item_ids=${batch.join(',')}&limit=250`;
+      const levelsUrl = `https://${store}/admin/api/2026-01/inventory_levels.json?inventory_item_ids=${batch.join(',')}&location_ids=${hqLocationId}&limit=250`;
       const res = await fetch(levelsUrl, { headers });
       if (!res.ok) continue;
       const data = await res.json();
       for (const level of data.inventory_levels || []) {
         const id = String(level.inventory_item_id);
-        quantityMap[id] = (quantityMap[id] || 0) + (level.available || 0);
+        // Only use neob HQ levels (should already be filtered, but double-check)
+        if (String(level.location_id) === String(hqLocationId)) {
+          quantityMap[id] = (level.available || 0);
+        }
       }
     }
 
-    // Get existing inventory records
+    // Step 4: Get existing inventory records
     const existingInventory = await base44.asServiceRole.entities.Inventory.list();
     const inventoryBySku = {};
     for (const item of existingInventory) {
@@ -84,6 +108,7 @@ Deno.serve(async (req) => {
         await base44.asServiceRole.entities.Inventory.update(existing.id, {
           name: variant.name,
           quantity,
+          location: 'neob HQ',
           last_shopify_sync: now,
         });
         updated++;
@@ -94,6 +119,7 @@ Deno.serve(async (req) => {
           quantity,
           type: 'finished_product',
           unit: 'units',
+          location: 'neob HQ',
           last_shopify_sync: now,
         });
         created++;
@@ -102,6 +128,8 @@ Deno.serve(async (req) => {
 
     return Response.json({
       success: true,
+      hq_location: { id: hqLocationId, name: hqLocation.name },
+      all_locations: locationLog,
       total_synced: allVariants.length,
       updated,
       created,
