@@ -175,15 +175,16 @@ Deno.serve(async (req) => {
       records_updated: updated,
       duration_seconds: duration,
       triggered_by: user.email,
-      notes: `Synced from neob HQ (location ${hqLocationId})`,
+      notes: `Synced from neob HQ (location ${hqLocationId}). ${skipped} unchanged items skipped.`,
     });
 
     return Response.json({
       success: true,
       hq_location: { id: hqLocationId, name: hqLocation.name },
-      total_synced: allVariants.length,
+      total_variants: allVariants.length,
       updated,
       created,
+      skipped,
       duration_seconds: duration,
     });
 
