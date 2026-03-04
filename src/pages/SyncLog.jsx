@@ -91,6 +91,78 @@ export default function SyncLog() {
         <p className="text-zinc-500 text-sm mt-1">Full history of data sync operations</p>
       </div>
 
+      {/* Automations Status */}
+      <Card className="bg-zinc-900 border-zinc-800">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm text-zinc-400 flex items-center gap-2">
+            <Zap className="w-4 h-4" /> Scheduled Automations
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="divide-y divide-zinc-800">
+            {[
+              { name: "Daily Shopify Orders Sync", fn: "syncShopifyOrders", active: true, lastRun: "2026-03-04T07:00:56.707000", lastStatus: "success", schedule: "Daily @ 7am" },
+              { name: "Nightly Rebuild Demand Summaries", fn: "rebuildDemandSummaries", active: true, lastRun: "2026-03-04T09:03:36.562000", lastStatus: "failed", schedule: "Daily @ 9am" },
+              { name: "Auto-Check Low Inventory", fn: "checkLowInventory", active: true, lastRun: "2026-03-04T20:40:02.120000", lastStatus: "success", schedule: "Every 4h" },
+              { name: "Daily Label Stock Check", fn: "checkLabelStock", active: true, lastRun: "2026-03-04T08:00:29.797000", lastStatus: "success", schedule: "Daily @ 8am" },
+            ].map((auto) => (
+              <div key={auto.fn} className="flex items-center justify-between px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${auto.active ? 'bg-green-400' : 'bg-zinc-600'}`} />
+                  <div>
+                    <p className="text-sm text-zinc-200">{auto.name}</p>
+                    <p className="text-xs text-zinc-500">{auto.schedule}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-right hidden sm:block">
+                    <p className={`text-xs font-medium ${auto.lastStatus === 'success' ? 'text-green-400' : 'text-red-400'}`}>
+                      {auto.lastStatus}
+                    </p>
+                    <p className="text-xs text-zinc-500">{formatDistanceToNow(new Date(auto.lastRun), { addSuffix: true })}</p>
+                  </div>
+                  {STATUS_ICON[auto.lastStatus] || STATUS_ICON.partial}
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Manual Sync */}
+      <Card className="bg-zinc-900 border-zinc-800">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm text-zinc-400 flex items-center gap-2">
+            <Play className="w-4 h-4" /> Manual Sync
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-3 pt-0 pb-4">
+          {MANUAL_SYNCS.map(({ label, fn }) => {
+            const result = syncResults[fn];
+            return (
+              <div key={fn} className="flex flex-col gap-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={runningSync !== null}
+                  onClick={() => runSync(fn, label)}
+                  className="border-zinc-700 text-zinc-300 hover:text-white hover:border-orange-500"
+                >
+                  {runningSync === fn
+                    ? <><RefreshCw className="w-3 h-3 mr-2 animate-spin" /> Running...</>
+                    : <><Play className="w-3 h-3 mr-2" /> {label}</>}
+                </Button>
+                {result && (
+                  <p className={`text-xs ${result.ok ? 'text-green-400' : 'text-red-400'}`}>
+                    {result.ok ? `✓ Done` : `✗ ${result.error}`}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
+
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-zinc-900 border-zinc-800">
