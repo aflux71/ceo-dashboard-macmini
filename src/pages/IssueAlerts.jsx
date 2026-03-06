@@ -12,7 +12,10 @@ import {
   Beaker, 
   ChevronRight,
   Tag,
-  RefreshCw
+  RefreshCw,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Badge from "@/components/ui/Badge";
