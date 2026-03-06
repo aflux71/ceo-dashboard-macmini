@@ -161,18 +161,31 @@ Deno.serve(async (req) => {
         return Response.json({ error: 'aggregation object is required' }, { status: 400 });
       }
       
+      const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+      const retryOp = async (fn, retries = 5) => {
+        for (let i = 0; i < retries; i++) {
+          try { return await fn(); } catch (e) {
+            if (e.status === 429 && i < retries - 1) {
+              await sleep(Math.min(2000 * Math.pow(2, i), 30000));
+            } else throw e;
+          }
+        }
+      };
+      
       const clearExisting = body.clear_existing !== false;
       
       if (clearExisting) {
         // Delete all existing DemandSummary records
-        let offset = 0;
         let deleted = 0;
         while (true) {
-          const batch = await base44.asServiceRole.entities.DemandSummary.list('-created_date', 200, 0);
+          const batch = await retryOp(() => base44.asServiceRole.entities.DemandSummary.list('-created_date', 200, 0));
           if (!batch || batch.length === 0) break;
-          await Promise.all(batch.map(r => base44.asServiceRole.entities.DemandSummary.delete(r.id)));
+          for (const r of batch) {
+            await retryOp(() => base44.asServiceRole.entities.DemandSummary.delete(r.id));
+          }
           deleted += batch.length;
           console.log(`Deleted ${deleted} existing summaries...`);
+          await sleep(500);
         }
       }
       
