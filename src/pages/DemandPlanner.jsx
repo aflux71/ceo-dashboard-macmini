@@ -562,6 +562,55 @@ export default function DemandPlanner() {
           onOverrideInventory={handleOverrideInventory}
         />
       )}
+
+      {/* Push to Planning Confirmation Dialog */}
+      <Dialog open={!!pushConfirmItems} onOpenChange={(open) => { if (!open) setPushConfirmItems(null); }}>
+        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowRight className="w-5 h-5 text-orange-400" />
+              Confirm Push to Planning
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-3 space-y-3">
+            <p className="text-sm text-zinc-400">
+              Push <span className="text-zinc-100 font-semibold">{pushConfirmItems?.length || 0}</span> item{(pushConfirmItems?.length || 0) !== 1 ? "s" : ""} to Production Planning?
+            </p>
+            <div className="max-h-60 overflow-y-auto space-y-1.5">
+              {pushConfirmItems?.map((item) => (
+                <div key={item.sku} className="flex items-center justify-between px-3 py-2 bg-zinc-800/50 rounded-lg text-xs">
+                  <div className="min-w-0">
+                    <span className="font-mono text-zinc-500">{item.sku}</span>
+                    <span className="text-zinc-300 ml-2 truncate">{item.product}</span>
+                  </div>
+                  <span className="text-orange-400 font-semibold shrink-0 ml-2">
+                    {formatNumber(item.productionNeed)}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center justify-between pt-2 border-t border-zinc-800 text-xs">
+              <span className="text-zinc-500">Total units</span>
+              <span className="text-orange-400 font-bold text-sm">
+                {formatNumber(pushConfirmItems?.reduce((s, i) => s + (i.productionNeed || 0), 0) || 0)}
+              </span>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPushConfirmItems(null)} className="border-zinc-700">
+              Cancel
+            </Button>
+            <Button
+              onClick={executePush}
+              disabled={isPushing}
+              className="bg-orange-500 hover:bg-orange-600 text-white"
+            >
+              {isPushing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ArrowRight className="w-4 h-4 mr-2" />}
+              {isPushing ? "Pushing..." : "Confirm Push"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
