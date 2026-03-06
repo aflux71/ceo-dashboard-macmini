@@ -142,8 +142,36 @@ export default function PurchaseOrders() {
   });
 
   const updateStatusMutation = useMutation({
-    mutationFn: ({ id, status }) => base44.entities.PurchaseOrder.update(id, { status }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['purchase_orders'] })
+    mutationFn: async ({ id, status }) => {
+      await base44.entities.PurchaseOrder.update(id, {
+        status,
+        ...(status === 'received' ? { received_date: new Date().toISOString().split('T')[0] } : {})
+      });
+
+      // When marking as received, update inventory quantities
+      if (status === 'received') {
+        const po = purchaseOrders.find(p => p.id === id);
+        if (po?.items?.length) {
+          for (const item of po.items) {
+            // Find matching inventory record by SKU
+            const invItem = inventory.find(i => i.sku === item.sku || i.id === item.inventory_id);
+            if (invItem) {
+              const receivedQty = item.received_qty || item.quantity || 0;
+              await base44.entities.Inventory.update(invItem.id, {
+                quantity: (invItem.quantity || 0) + receivedQty,
+                last_restock_date: new Date().toISOString().split('T')[0]
+              });
+            }
+          }
+        }
+      }
+    },
+    onSuccess: (_, { status }) => {
+      queryClient.invalidateQueries({ queryKey: ['purchase_orders'] });
+      if (status === 'received') {
+        queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      }
+    }
   });
 
   const openNewModal = () => {
