@@ -182,14 +182,14 @@ Deno.serve(async (req) => {
               }
             }
           }
-          await delay(1000);
+          await delay(1500);
         }
 
         // Pagination
         const linkHeader = res.headers.get('Link') || '';
         const nextMatch = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
         url = nextMatch ? nextMatch[1] : null;
-        if (url) await delay(2000);
+        if (url) await delay(3000);
       }
 
       totalOrders += ordersThisDay;
@@ -197,7 +197,7 @@ Deno.serve(async (req) => {
       console.log(`${dateStr}: ${ordersThisDay} orders, running total: ${totalRecordsCreated} created`);
 
       currentDate.setDate(currentDate.getDate() + 1);
-      if (currentDate <= end) await delay(3000);
+      if (currentDate <= end) await delay(4000);
     }
 
     // Log the sync
