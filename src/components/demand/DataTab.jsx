@@ -13,6 +13,7 @@ export default function DataTab({
   shopifyRecordCount,
   lastSync,
   isRebuilding,
+  rebuildProgress,
   onRebuild,
 }) {
   return (
