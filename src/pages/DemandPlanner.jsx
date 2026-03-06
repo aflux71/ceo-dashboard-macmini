@@ -62,6 +62,7 @@ export default function DemandPlanner() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [detailItem, setDetailItem] = useState(null);
   const [isRebuilding, setIsRebuilding] = useState(false);
+  const [rebuildProgress, setRebuildProgress] = useState(null); // { current, total, phase, detail }
   const [initialUrgencyFilter, setInitialUrgencyFilter] = useState(null);
   const [pushConfirmItems, setPushConfirmItems] = useState(null);
   const [isPushing, setIsPushing] = useState(false);
@@ -436,8 +437,9 @@ export default function DemandPlanner() {
       let totalOverlap = 0;
       let totalUnique = 0;
 
-      for (const { year, month } of months) {
-        toast.info(`Aggregating ${year}-${String(month).padStart(2, '0')}...`);
+      for (let mi = 0; mi < months.length; mi++) {
+        const { year, month } = months[mi];
+        setRebuildProgress({ current: mi + 1, total: months.length, phase: "aggregating", detail: `${year}-${String(month).padStart(2, '0')}` });
         const res = await base44.functions.invoke("rebuildDemandSummaries", {
           phase: "aggregate", year, month,
         });
@@ -489,7 +491,7 @@ export default function DemandPlanner() {
       }
 
       const skuCount = Object.keys(merged).length;
-      toast.info(`Writing ${skuCount} summaries to database...`);
+      setRebuildProgress({ current: 0, total: skuCount, phase: "deleting", detail: "Clearing old records..." });
 
       // Delete existing DemandSummary records directly from frontend
       let delCount = 0;
@@ -500,7 +502,7 @@ export default function DemandPlanner() {
           await base44.entities.DemandSummary.delete(r.id);
         }
         delCount += batch.length;
-        toast.info(`Deleting old summaries... ${delCount}`);
+        setRebuildProgress({ current: delCount, total: delCount, phase: "deleting", detail: `Deleted ${delCount} old records...` });
       }
 
       // Build final records from merged aggregation
@@ -525,12 +527,13 @@ export default function DemandPlanner() {
       });
 
       // Bulk create in batches of 10
+      setRebuildProgress({ current: 0, total: records.length, phase: "writing", detail: `Writing 0/${records.length} summaries...` });
       let created = 0;
       for (let i = 0; i < records.length; i += 10) {
         const batch = records.slice(i, i + 10);
         await base44.entities.DemandSummary.bulkCreate(batch);
         created += batch.length;
-        if (created % 50 === 0) toast.info(`Writing summaries... ${created}/${records.length}`);
+        setRebuildProgress({ current: created, total: records.length, phase: "writing", detail: `Writing ${created}/${records.length} summaries...` });
       }
 
       toast.success(`Rebuild complete: ${created} summaries from ${totalUnique} deduplicated records (${totalDupes} dupes + ${totalOverlap} overlaps removed)`);
@@ -553,6 +556,7 @@ export default function DemandPlanner() {
       toast.error("Rebuild failed: " + err.message);
     }
     setIsRebuilding(false);
+    setRebuildProgress(null);
   };
 
   // ── Loading state ─────────────────────────────────────────────────────────
@@ -670,6 +674,7 @@ export default function DemandPlanner() {
             shopifyRecordCount={shopifyRecordCount}
             lastSync={lastSync}
             isRebuilding={isRebuilding}
+            rebuildProgress={rebuildProgress}
             onRebuild={handleRebuild}
           />
         </TabsContent>
