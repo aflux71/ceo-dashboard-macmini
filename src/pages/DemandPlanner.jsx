@@ -316,14 +316,20 @@ export default function DemandPlanner() {
   };
 
   // ── Push to planning ──────────────────────────────────────────────────────
-  const handlePushToPlanning = async (items) => {
+  const handlePushToPlanning = (items) => {
     const toCreate = items.filter((i) => i.productionNeed > 0);
     if (toCreate.length === 0) {
       toast.info("No production needed for selected items");
       return;
     }
+    setPushConfirmItems(toCreate);
+  };
+
+  const executePush = async () => {
+    if (!pushConfirmItems || pushConfirmItems.length === 0) return;
+    setIsPushing(true);
     try {
-      for (const item of toCreate) {
+      for (const item of pushConfirmItems) {
         await base44.entities.ForecastSuggestion.create({
           sku: item.sku,
           product_name: item.product,
@@ -335,11 +341,13 @@ export default function DemandPlanner() {
           notes: `Demand Planner: avg/mo ${Math.round(item.avgMonthly)}, ${item.monthsCover} mo cover, mode: ${workspace.mode}`,
         });
       }
-      toast.success(`${toCreate.length} item${toCreate.length > 1 ? "s" : ""} pushed to Planning`);
+      toast.success(`${pushConfirmItems.length} item${pushConfirmItems.length > 1 ? "s" : ""} pushed to Planning`);
+      setPushConfirmItems(null);
     } catch (err) {
       console.error("Push to planning failed:", err);
       toast.error(`Failed to push to planning: ${err.message}`);
     }
+    setIsPushing(false);
   };
 
   // ── Exclusion management ──────────────────────────────────────────────────
