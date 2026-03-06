@@ -37,6 +37,9 @@ import {
   Edit,
   Trash2,
   TrendingDown,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 
 export default function Labels() {
