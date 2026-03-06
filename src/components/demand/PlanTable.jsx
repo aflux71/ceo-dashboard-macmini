@@ -10,6 +10,7 @@ import {
   ArrowUpDown,
   CheckSquare,
   Square,
+  ClipboardList,
 } from "lucide-react";
 import { URGENCY_COLORS, URGENCY_LABELS, formatNumber, getCategories } from "@/components/demand/demandHelpers";
 import { sortPlanItems } from "@/components/demand/demandEngine";
@@ -18,6 +19,7 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 
 export default function PlanTable({
   plan,
+  plannerSKUs,
   workspace,
   onWorkspaceChange,
   onViewDetail,
@@ -264,7 +266,14 @@ export default function PlanTable({
                   </td>
                   <td className="px-3 py-2 font-mono text-xs text-zinc-400">{item.sku}</td>
                   <td className="px-3 py-2">
-                    <div className="text-zinc-200 text-sm">{item.product}</div>
+                    <div className="text-zinc-200 text-sm flex items-center gap-1.5">
+                      {item.product}
+                      {plannerSKUs?.has(item.sku) && (
+                        <span className="inline-flex items-center gap-0.5 text-[9px] text-blue-400 bg-blue-500/10 border border-blue-500/20 px-1 py-0 rounded-full shrink-0" title="On Production Planner">
+                          <ClipboardList className="w-2.5 h-2.5" /> Planner
+                        </span>
+                      )}
+                    </div>
                     <div className="text-zinc-500 text-xs">{item.category}</div>
                   </td>
                   <td className="px-3 py-2 text-right text-zinc-300 tabular-nums">{formatNumber(item.onHand)}</td>

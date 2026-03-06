@@ -11,6 +11,7 @@ import {
   BarChart3,
   Eye,
   Ban,
+  ClipboardList,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
@@ -19,6 +20,7 @@ import { URGENCY_COLORS, URGENCY_LABELS, formatNumber, getCategoryColor } from "
 
 export default function DashboardTab({
   plan,
+  plannerSKUs,
   onViewDetail,
   onPushToPlanning,
   onExclude,
@@ -132,6 +134,11 @@ export default function DashboardTab({
                         <Badge className={`${uc.bg} ${uc.text} ${uc.border} border text-[10px] px-1.5 py-0`}>
                           {URGENCY_LABELS[item.urgency]}
                         </Badge>
+                        {plannerSKUs?.has(item.sku) && (
+                          <span className="flex items-center gap-0.5 text-[10px] text-blue-400 bg-blue-500/10 border border-blue-500/20 px-1.5 py-0 rounded-full">
+                            <ClipboardList className="w-2.5 h-2.5" /> On Planner
+                          </span>
+                        )}
                         <span className="text-[11px] text-zinc-500 font-mono">SKU {item.sku}</span>
                       </div>
                       <p className="text-sm font-medium text-zinc-200 truncate">{item.product}</p>
