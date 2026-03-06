@@ -7,6 +7,66 @@ function classifyUrgency(monthsCover) {
   return "OK";
 }
 
+/**
+ * Calculate weighted average monthly demand.
+ * Weights last 3 months of actual data 2x vs older months.
+ * Falls back to simple avg if less than 4 months of data.
+ */
+function calcWeightedAvgMonthly(monthly, dataMonths) {
+  if (!Array.isArray(monthly) || monthly.length !== 12) return 0;
+  
+  const now = new Date();
+  const currentMonth = now.getMonth(); // 0-11
+  
+  // Get months with data, ordered from most recent backwards
+  const monthsWithData = [];
+  for (let i = 0; i < 12; i++) {
+    // Walk backwards from current month
+    const idx = (currentMonth - i + 12) % 12;
+    if (monthly[idx] > 0) {
+      monthsWithData.push({ idx, qty: monthly[idx], recency: i });
+    }
+  }
+  
+  if (monthsWithData.length === 0) return 0;
+  
+  // If less than 4 months of data, use simple average
+  if (monthsWithData.length < 4) {
+    const total = monthsWithData.reduce((s, m) => s + m.qty, 0);
+    return Math.round((total / monthsWithData.length) * 10) / 10;
+  }
+  
+  // Weighted: recent 3 months get 2x weight
+  let weightedSum = 0;
+  let totalWeight = 0;
+  for (const m of monthsWithData) {
+    const weight = m.recency < 3 ? 2 : 1;
+    weightedSum += m.qty * weight;
+    totalWeight += weight;
+  }
+  
+  return Math.round((weightedSum / totalWeight) * 10) / 10;
+}
+
+/**
+ * Get seasonal multiplier for a future month based on historical monthly data.
+ * If a month historically sells 2x the average, multiplier = 2.0
+ */
+function getSeasonalMultiplier(monthly, targetMonth) {
+  if (!Array.isArray(monthly) || monthly.length !== 12) return 1;
+  
+  const monthsWithData = monthly.filter(v => v > 0);
+  if (monthsWithData.length < 3) return 1; // Not enough data for seasonal patterns
+  
+  const avg = monthsWithData.reduce((s, v) => s + v, 0) / monthsWithData.length;
+  if (avg <= 0) return 1;
+  
+  const targetQty = monthly[targetMonth];
+  if (targetQty <= 0) return 1; // No historical data for this month
+  
+  return targetQty / avg;
+}
+
 export function generatePlan(summaries, inventoryMap, workspace, events = []) {
   const {
     mode = "forecast",
@@ -15,6 +75,8 @@ export function generatePlan(summaries, inventoryMap, workspace, events = []) {
     safetyPct = 20,
     targetLevels = {},
     inventoryOverrides = {},
+    useSeasonality = true,
+    useWeightedVelocity = true,
   } = workspace;
 
   const now = new Date();
@@ -32,7 +94,6 @@ export function generatePlan(summaries, inventoryMap, workspace, events = []) {
   });
 
   const items = (summaries || []).map(s => {
-    const avgMonthly = s.avgMonthly || 0;
     const totalQty = s.totalQty || 0;
     const totalRevenue = s.totalRevenue || 0;
 
@@ -50,6 +111,11 @@ export function generatePlan(summaries, inventoryMap, workspace, events = []) {
     let byLocation = s.byLocation;
     if (typeof byLocation === "string") { try { byLocation = JSON.parse(byLocation); } catch { byLocation = {}; } }
 
+    // Calculate velocity — use weighted if enabled, else simple
+    const simpleAvg = s.avgMonthly || 0;
+    const weightedAvg = useWeightedVelocity ? calcWeightedAvgMonthly(monthly, s.dataMonths) : simpleAvg;
+    const avgMonthly = Math.max(weightedAvg, simpleAvg); // Use the higher of the two to avoid underforecasting
+
     // Forecast
     let forecastTotal = 0;
     const forecastByMonth = [];
@@ -57,7 +123,16 @@ export function generatePlan(summaries, inventoryMap, workspace, events = []) {
     if (mode === "forecast") {
       for (let i = 0; i < forecastMonths; i++) {
         const monthIdx = (now.getMonth() + i) % 12;
-        const demand = Math.round(avgMonthly * growth);
+        let demand = Math.round(avgMonthly * growth);
+        
+        // Apply seasonal multiplier if enabled and enough data
+        if (useSeasonality && monthly.length === 12) {
+          const seasonal = getSeasonalMultiplier(monthly, monthIdx);
+          if (seasonal > 0) {
+            demand = Math.round(avgMonthly * growth * seasonal);
+          }
+        }
+        
         forecastByMonth.push({ month: monthIdx, demand });
         forecastTotal += demand;
       }
