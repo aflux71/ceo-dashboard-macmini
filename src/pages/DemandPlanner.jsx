@@ -547,6 +547,7 @@ export default function DemandPlanner() {
         await base44.entities.DemandSummary.bulkCreate(batch);
         created += batch.length;
         setRebuildProgress({ current: created, total: records.length, phase: "writing", detail: `Writing ${created}/${records.length} summaries...` });
+        await sleep(500); // Rate limit protection
       }
 
       toast.success(`Rebuild complete: ${created} summaries from ${totalUnique} deduplicated records (${totalDupes} dupes + ${totalOverlap} overlaps removed)`);
