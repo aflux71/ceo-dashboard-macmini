@@ -127,7 +127,7 @@ export default function DemandPlanner() {
       // 4. Load events
       let loadedEvents = [];
       try {
-        loadedEvents = await base44.entities.DemandEvent.list();
+        loadedEvents = await fetchAll(base44.entities.DemandEvent);
       } catch (e) {
         // Entity may not exist
       }
@@ -136,7 +136,7 @@ export default function DemandPlanner() {
       // 5. Load workspaces
       let loadedWorkspaces = [];
       try {
-        loadedWorkspaces = await base44.entities.DemandConfig.list();
+        loadedWorkspaces = await fetchAll(base44.entities.DemandConfig);
       } catch (e) {
         // Entity may not exist
       }
