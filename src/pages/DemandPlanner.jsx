@@ -382,7 +382,7 @@ export default function DemandPlanner() {
         toast.success(result.message || "Summaries rebuilt successfully");
         setLastSync(new Date().toISOString().split("T")[0]);
         // Reload summaries from DB
-        const updated = await base44.entities.DemandSummary.list();
+        const updated = await fetchAll(base44.entities.DemandSummary);
         if (updated?.length > 0) {
           const parsed = updated.map((s) => ({
             ...s,
