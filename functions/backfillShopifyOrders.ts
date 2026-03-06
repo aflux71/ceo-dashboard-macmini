@@ -59,36 +59,38 @@ Deno.serve(async (req) => {
       locationMap[location.id] = location.name;
     }
 
-    // Build existing record set using pagination with retry
+    // Build existing record set (skip if told to, for fresh date ranges)
     const existingSet = new Set();
-    const PAGE_SIZE = 200;
-    let page = 0;
-    while (true) {
-      let batch;
-      for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-          batch = await base44.asServiceRole.entities.ShopifySaleRecord.list(
-            '-created_date', PAGE_SIZE, page * PAGE_SIZE
-          );
-          break;
-        } catch (e) {
-          if (attempt < 2) {
-            console.log(`Dedup page ${page} failed, retrying in ${3000 * (attempt + 1)}ms...`);
-            await delay(3000 * (attempt + 1));
-          } else {
-            throw e;
+    if (!skipDedup) {
+      const PAGE_SIZE = 200;
+      let page = 0;
+      while (true) {
+        let batch;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            batch = await base44.asServiceRole.entities.ShopifySaleRecord.list(
+              '-created_date', PAGE_SIZE, page * PAGE_SIZE
+            );
+            break;
+          } catch (e) {
+            if (attempt < 2) {
+              console.log(`Dedup page ${page} failed, retrying in ${3000 * (attempt + 1)}ms...`);
+              await delay(3000 * (attempt + 1));
+            } else {
+              throw e;
+            }
           }
         }
+        if (!batch || batch.length === 0) break;
+        for (const r of batch) {
+          existingSet.add(`${r.order_id}#${r.sku}`);
+        }
+        if (batch.length < PAGE_SIZE) break;
+        page++;
+        await delay(500);
       }
-      if (!batch || batch.length === 0) break;
-      for (const r of batch) {
-        existingSet.add(`${r.order_id}#${r.sku}`);
-      }
-      if (batch.length < PAGE_SIZE) break;
-      page++;
-      await delay(500);
     }
-    console.log(`Loaded ${existingSet.size} existing records for dedup`);
+    console.log(`Dedup: ${skipDedup ? 'SKIPPED' : `Loaded ${existingSet.size} existing records`}`);
 
     await delay(2000);
 
