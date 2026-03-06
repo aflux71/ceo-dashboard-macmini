@@ -52,6 +52,16 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Log the sync
+    await base44.asServiceRole.entities.SyncLog.create({
+      sync_type: 'low_inventory_check',
+      status: 'success',
+      records_processed: inventory.length,
+      records_created: created.length,
+      triggered_by: 'System (Auto)',
+      notes: `Checked ${inventory.length} items, ${lowStockItems.length} low stock, ${created.length} requisition(s) created`,
+    });
+
     return Response.json({
       success: true,
       checked: inventory.length,
@@ -60,6 +70,15 @@ Deno.serve(async (req) => {
       created: created
     });
   } catch (error) {
+    // Try to log the error
+    try {
+      const base44err = createClientFromRequest(req);
+      await base44err.asServiceRole.entities.SyncLog.create({
+        sync_type: 'low_inventory_check',
+        status: 'error',
+        notes: error.message,
+      });
+    } catch {}
     return Response.json({ error: error.message }, { status: 500 });
   }
 });

@@ -94,6 +94,16 @@ Deno.serve(async (req) => {
       ordersCreated.push(newPO);
     }
 
+    // Log the sync
+    await base44.asServiceRole.entities.SyncLog.create({
+      sync_type: 'label_stock_check',
+      status: 'success',
+      records_processed: labels.length,
+      records_created: ordersCreated.length,
+      triggered_by: 'System (Auto)',
+      notes: `Checked ${labels.length} labels, ${lowStockLabels.length} low stock, ${ordersCreated.length} PO(s) created`,
+    });
+
     return Response.json({
       success: true,
       message: `Created ${ordersCreated.length} purchase order(s)`,
@@ -102,6 +112,15 @@ Deno.serve(async (req) => {
     });
 
   } catch (error) {
+    // Try to log the error
+    try {
+      const base44err = createClientFromRequest(req);
+      await base44err.asServiceRole.entities.SyncLog.create({
+        sync_type: 'label_stock_check',
+        status: 'error',
+        notes: error.message,
+      });
+    } catch {}
     return Response.json({ error: error.message }, { status: 500 });
   }
 });

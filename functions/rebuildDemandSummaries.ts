@@ -308,6 +308,18 @@ Deno.serve(async (req) => {
 
     const elapsed = Date.now() - startTime;
 
+    // Log the sync
+    await base44.asServiceRole.entities.SyncLog.create({
+      sync_type: 'demand_summaries',
+      status: 'success',
+      records_processed: saleRecords.length,
+      records_created: created,
+      records_updated: updated,
+      duration_seconds: Math.round(elapsed / 1000),
+      triggered_by: user.email,
+      notes: `Rebuild complete: ${updated} summaries from ${saleRecords.length} sale records, ${Object.keys(syncData).length} unique SKUs`,
+    });
+
     return Response.json({
       success: true,
       message: `Rebuild complete: ${updated} updated, ${created} created from ${saleRecords.length} sale records`,
@@ -321,6 +333,15 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error('rebuildDemandSummaries error:', error);
+    // Try to log the error
+    try {
+      const base44err = createClientFromRequest(req);
+      await base44err.asServiceRole.entities.SyncLog.create({
+        sync_type: 'demand_summaries',
+        status: 'error',
+        notes: error.message,
+      });
+    } catch {}
     return Response.json({ error: error.message }, { status: 500 });
   }
 });

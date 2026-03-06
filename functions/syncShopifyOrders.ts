@@ -109,6 +109,18 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Log the sync
+    await base44.asServiceRole.entities.SyncLog.create({
+      sync_type: 'shopify_orders',
+      status: 'success',
+      records_processed: orders.length,
+      records_created: created,
+      triggered_by: user.email,
+      notes: `Synced ${targetDate}: ${orders.length} orders, ${created} records created`,
+      date_range_start: targetDate,
+      date_range_end: targetDate,
+    });
+
     return Response.json({
       message: `Synced ${targetDate}: ${orders.length} orders, ${created} records created`,
       date: targetDate,
@@ -116,6 +128,15 @@ Deno.serve(async (req) => {
       records_created: created,
     });
   } catch (error) {
+    // Try to log the error
+    try {
+      const base44err = createClientFromRequest(req);
+      await base44err.asServiceRole.entities.SyncLog.create({
+        sync_type: 'shopify_orders',
+        status: 'error',
+        notes: error.message,
+      });
+    } catch {}
     return Response.json({ error: error.message }, { status: 500 });
   }
 });
