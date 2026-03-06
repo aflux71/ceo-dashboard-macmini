@@ -518,7 +518,7 @@ export default function DemandPlanner() {
         const chunk = Object.fromEntries(skuEntries.slice(i, i + CHUNK_SIZE));
         const isFirst = i === 0;
         
-        const writeResp = await base44.functions.invoke("rebuildDemandSummaries", {
+        const writeResp = await invokeWithRetry({
           phase: "write",
           aggregation: chunk,
           clear_existing: isFirst,
