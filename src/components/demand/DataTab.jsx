@@ -13,7 +13,6 @@ export default function DataTab({
   shopifyRecordCount,
   lastSync,
   isRebuilding,
-  rebuildProgress,
   onRebuild,
 }) {
   return (
@@ -77,9 +76,6 @@ export default function DataTab({
             <RefreshCw className={`w-4 h-4 ${isRebuilding ? "animate-spin" : ""}`} />
             {isRebuilding ? "Rebuilding..." : "Rebuild Summaries"}
           </button>
-          {isRebuilding && rebuildProgress && (
-            <p className="mt-2 text-xs text-orange-400 animate-pulse">{rebuildProgress}</p>
-          )}
         </CardContent>
       </Card>
 
