@@ -1196,79 +1196,25 @@ function BatchQueueTab() {
     queryFn: () => base44.entities.Batch.list("-created_date", 500),
   });
 
-  // Create Batch + update source status
   const scheduleForecastMutation = useMutation({
-    mutationFn: async ({ item, batchData }) => {
-      const batch = await base44.entities.Batch.create(batchData);
-      await base44.entities.ForecastSuggestion.update(item.id, {
-        status: "in_production",
-        scheduled_batch_id: batch.id,
-      });
-      return batch;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["planning_batch_queue_forecasts"] });
-      queryClient.invalidateQueries({ queryKey: ["planning_batches"] });
-      toast.success("Batch scheduled — moved to production");
-    },
+    mutationFn: async ({ item, batchData }) => { const batch = await base44.entities.Batch.create(batchData); await base44.entities.ForecastSuggestion.update(item.id, { status: "in_production", scheduled_batch_id: batch.id }); return batch; },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["planning_batch_queue_forecasts"] }); queryClient.invalidateQueries({ queryKey: ["planning_batches"] }); toast.success("Batch scheduled"); },
     onError: () => toast.error("Failed to schedule batch"),
   });
-
   const scheduleManualMutation = useMutation({
-    mutationFn: async ({ item, batchData }) => {
-      const batch = await base44.entities.Batch.create(batchData);
-      await base44.entities.ProductionRequest.update(item.id, {
-        status: "in_production",
-        batch_id: batch.id,
-      });
-      return batch;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["planning_batch_queue_manual"] });
-      queryClient.invalidateQueries({ queryKey: ["planning_batches"] });
-      toast.success("Batch scheduled — moved to production");
-    },
+    mutationFn: async ({ item, batchData }) => { const batch = await base44.entities.Batch.create(batchData); await base44.entities.ProductionRequest.update(item.id, { status: "in_production", batch_id: batch.id }); return batch; },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["planning_batch_queue_manual"] }); queryClient.invalidateQueries({ queryKey: ["planning_batches"] }); toast.success("Batch scheduled"); },
     onError: () => toast.error("Failed to schedule batch"),
   });
-
   const bqUpdateMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.ProductionRequest.update(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["planning_batch_queue_manual"] });
-      toast.success("Request updated");
-      setBqEditDialogOpen(false);
-      setBqEditForm(emptyForm);
-      setBqEditingId(null);
-    },
-    onError: (err) => {
-      const msg = err?.response?.data?.message || err?.message || String(err);
-      toast.error(`Failed to update: ${msg}`);
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["planning_batch_queue_manual"] }); toast.success("Request updated"); setBqEditDialogOpen(false); setBqEditForm(emptyForm); setBqEditingId(null); },
+    onError: (err) => toast.error(`Failed to update: ${err?.response?.data?.message || err?.message || String(err)}`),
   });
-
   const bqDeleteMutation = useMutation({
-    mutationFn: async (item) => {
-      // Delete associated Batch entities first
-      const relatedBatches = batches.filter(
-        (b) => b.sku === item.sku && b.product_name === item.product_name && ["pending", "draft"].includes(b.status)
-      );
-      await Promise.all(
-        relatedBatches.map((b) => base44.entities.Batch.delete(b.id).catch(() => {}))
-      );
-      // Then delete the ProductionRequest
-      await base44.entities.ProductionRequest.delete(item.id);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["planning_batch_queue_manual"] });
-      queryClient.invalidateQueries({ queryKey: ["planning_batches"] });
-      queryClient.invalidateQueries({ queryKey: ["planning_production_requests"] });
-      toast.success("Request and associated batches deleted");
-      setBqDeleteConfirmId(null);
-    },
-    onError: (err) => {
-      const msg = err?.response?.data?.message || err?.message || String(err);
-      toast.error(`Failed to delete: ${msg}`);
-    },
+    mutationFn: async (item) => { const rel = batches.filter((b) => b.sku === item.sku && b.product_name === item.product_name && ["pending", "draft"].includes(b.status)); await Promise.all(rel.map((b) => base44.entities.Batch.delete(b.id).catch(() => {}))); await base44.entities.ProductionRequest.delete(item.id); },
+    onSuccess: () => { ["planning_batch_queue_manual","planning_batches","planning_production_requests"].forEach(k => queryClient.invalidateQueries({ queryKey: [k] })); toast.success("Request and batches deleted"); setBqDeleteConfirmId(null); },
+    onError: (err) => toast.error(`Failed to delete: ${err?.response?.data?.message || err?.message || String(err)}`),
   });
 
   const findRecipe = useCallback((sku) => {
