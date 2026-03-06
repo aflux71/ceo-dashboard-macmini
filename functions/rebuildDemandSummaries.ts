@@ -226,11 +226,17 @@ Deno.serve(async (req) => {
         };
       });
 
-      // Bulk create in batches of 10 with delays
+      // Bulk create in batches of 10 with retry
       let created = 0;
       for (let i = 0; i < records.length; i += 10) {
         const batch = records.slice(i, i + 10);
-        await base44.asServiceRole.entities.DemandSummary.bulkCreate(batch);
+        try {
+          await base44.asServiceRole.entities.DemandSummary.bulkCreate(batch);
+        } catch (e) {
+          console.log('Rate limited on create, waiting 3s...');
+          await sleep(3000);
+          await base44.asServiceRole.entities.DemandSummary.bulkCreate(batch);
+        }
         created += batch.length;
         console.log(`Created ${created}/${records.length}`);
         await sleep(500);
