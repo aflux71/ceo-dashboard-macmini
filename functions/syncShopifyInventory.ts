@@ -221,7 +221,7 @@ Deno.serve(async (req) => {
       records_updated: updated,
       duration_seconds: duration,
       triggered_by: user.email,
-      notes: `Synced from neob HQ (location ${hqLocationId}). ${skipped} unchanged items skipped.`,
+      notes: `Synced from neob HQ (location ${hqLocationId}). ${skipped} unchanged, ${migrated} SKU migrations.`,
     });
 
     return Response.json({
@@ -231,6 +231,7 @@ Deno.serve(async (req) => {
       updated,
       created,
       skipped,
+      migrated,
       duration_seconds: duration,
     });
 
