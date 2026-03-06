@@ -413,128 +413,131 @@ export default function DemandPlanner() {
     toast.success(`On-hand override set for SKU ${sku}: ${qty}`);
   };
 
-  // ── Rebuild summaries (month-by-month aggregation) ─────────────────────────
-  const [rebuildProgress, setRebuildProgress] = useState("");
-  
+  // ── Rebuild summaries (month-by-month aggregation with dedup) ────────────
   const handleRebuild = async () => {
     setIsRebuilding(true);
-    setRebuildProgress("Starting rebuild...");
     try {
-      // Phase 1: Aggregate each month (Jan 2025 through Feb 2026)
+      // Define months to aggregate: Jan 2025 through current month
+      const now = new Date();
+      const endYear = now.getFullYear() > 2025 ? now.getFullYear() : 2025;
+      const endMonth = now.getFullYear() > 2025 ? now.getMonth() + 1 : 12;
       const months = [];
-      for (let y = 2025; y <= 2026; y++) {
-        const endM = y === 2026 ? 3 : 12;
-        for (let m = 1; m <= endM; m++) months.push({ year: y, month: m });
+      // 2025 all months
+      for (let m = 1; m <= 12; m++) months.push({ year: 2025, month: m });
+      // 2026 months if applicable
+      if (endYear > 2025) {
+        for (let m = 1; m <= endMonth; m++) months.push({ year: 2026, month: m });
       }
 
-      const mergedAggregation = {};
-      let totalRecords = 0;
-
-      const invokeWithRetry = async (params, retries = 3) => {
-        for (let i = 0; i < retries; i++) {
-          try {
-            const r = await base44.functions.invoke("rebuildDemandSummaries", params);
-            return r;
-          } catch (e) {
-            if (i < retries - 1) {
-              const wait = 5000 * (i + 1);
-              setRebuildProgress(`Rate limited, waiting ${wait/1000}s...`);
-              await new Promise(r => setTimeout(r, wait));
-            } else throw e;
-          }
-        }
-      };
+      // Aggregate each month sequentially
+      const merged = {};
+      let totalRaw = 0;
+      let totalDupes = 0;
+      let totalOverlap = 0;
+      let totalUnique = 0;
 
       for (const { year, month } of months) {
-        const label = `${year}-${String(month).padStart(2, '0')}`;
-        setRebuildProgress(`Aggregating ${label}...`);
-        
-        const response = await invokeWithRetry({ phase: "aggregate", year, month });
-        const result = response.data;
-        if (!result?.success) continue;
-        
-        totalRecords += result.records_loaded || 0;
-        const monthIdx = month - 1;
+        toast.info(`Aggregating ${year}-${String(month).padStart(2, '0')}...`);
+        const res = await base44.functions.invoke("rebuildDemandSummaries", {
+          phase: "aggregate", year, month,
+        });
+        const d = res.data;
+        if (!d?.success) continue;
 
-        // Merge this month's aggregation into the master
-        for (const [sku, data] of Object.entries(result.aggregation || {})) {
-          if (!mergedAggregation[sku]) {
-            mergedAggregation[sku] = {
-              sku: data.sku,
-              product: data.product,
+        totalRaw += d.raw_records || 0;
+        totalDupes += d.dupes_removed || 0;
+        totalOverlap += d.csv_overlap_removed || 0;
+        totalUnique += d.unique_records || 0;
+
+        // Merge monthly aggregation into master
+        const monthIdx = month - 1; // 0-indexed
+        for (const [sku, skuAgg] of Object.entries(d.aggregation || {})) {
+          if (!merged[sku]) {
+            merged[sku] = {
+              sku,
+              product: skuAgg.product,
               monthly: [0,0,0,0,0,0,0,0,0,0,0,0],
               byChannel: { online: 0, pos: 0 },
               byLocation: {},
               totalQty: 0,
-              minDate: data.minDate,
-              maxDate: data.maxDate,
+              periodStart: `${year}-${String(month).padStart(2, '0')}-01`,
+              periodEnd: `${year}-${String(month).padStart(2, '0')}-28`,
             };
           }
-          const m = mergedAggregation[sku];
-          m.monthly[monthIdx] += data.qty;
-          m.totalQty += data.qty;
-          m.byChannel.online += data.online || 0;
-          m.byChannel.pos += data.pos || 0;
-          for (const [loc, qty] of Object.entries(data.locations || {})) {
+          const m = merged[sku];
+          m.monthly[monthIdx] += skuAgg.qty || 0;
+          m.totalQty += skuAgg.qty || 0;
+          m.byChannel.online += skuAgg.online || 0;
+          m.byChannel.pos += skuAgg.pos || 0;
+          for (const [loc, qty] of Object.entries(skuAgg.locations || {})) {
             m.byLocation[loc] = (m.byLocation[loc] || 0) + qty;
           }
-          if (data.minDate < m.minDate) m.minDate = data.minDate;
-          if (data.maxDate > m.maxDate) m.maxDate = data.maxDate;
+          const dateKey = `${year}-${String(month).padStart(2, '0')}`;
+          if (dateKey < m.periodStart.substring(0, 7)) m.periodStart = `${dateKey}-01`;
+          if (dateKey > m.periodEnd.substring(0, 7)) m.periodEnd = `${dateKey}-28`;
         }
-        
-        setRebuildProgress(`Aggregated ${label}: ${result.records_loaded} records (${totalRecords} total)`);
       }
 
-      // Compute final fields
-      const finalAggregation = {};
-      for (const [sku, data] of Object.entries(mergedAggregation)) {
-        const start = new Date(data.minDate);
-        const end = new Date(data.maxDate);
-        const dataMonths = Math.max(1,
-          (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1
+      // Calculate dataMonths for each SKU
+      for (const m of Object.values(merged)) {
+        const start = new Date(m.periodStart);
+        const end = new Date(m.periodEnd);
+        m.dataMonths = Math.max(1,
+          (end.getFullYear() - start.getFullYear()) * 12 +
+          (end.getMonth() - start.getMonth()) + 1
         );
-        finalAggregation[sku] = {
-          sku: data.sku,
-          product: data.product,
-          monthly: data.monthly,
-          byChannel: data.byChannel,
-          byLocation: data.byLocation,
-          totalQty: data.totalQty,
-          dataMonths,
-          periodStart: (data.minDate || '').split('T')[0],
-          periodEnd: (data.maxDate || '').split('T')[0],
-        };
       }
 
-      const uniqueSKUs = Object.keys(finalAggregation).length;
-      setRebuildProgress(`Writing ${uniqueSKUs} summaries...`);
+      const skuCount = Object.keys(merged).length;
+      toast.info(`Writing ${skuCount} summaries to database...`);
 
-      // Phase 2: Write to DemandSummary (in chunks to avoid payload limits)
-      const skuEntries = Object.entries(finalAggregation);
-      const CHUNK_SIZE = 200;
-      let totalCreated = 0;
-
-      for (let i = 0; i < skuEntries.length; i += CHUNK_SIZE) {
-        const chunk = Object.fromEntries(skuEntries.slice(i, i + CHUNK_SIZE));
-        const isFirst = i === 0;
-        
-        const writeResp = await invokeWithRetry({
-          phase: "write",
-          aggregation: chunk,
-          clear_existing: isFirst,
-        });
-        
-        if (writeResp.data?.success) {
-          totalCreated += writeResp.data.summaries_created || 0;
-          setRebuildProgress(`Written ${totalCreated}/${uniqueSKUs} summaries...`);
+      // Delete existing DemandSummary records directly from frontend
+      let delCount = 0;
+      while (true) {
+        const batch = await base44.entities.DemandSummary.list('-created_date', 50);
+        if (!batch || batch.length === 0) break;
+        for (const r of batch) {
+          await base44.entities.DemandSummary.delete(r.id);
         }
+        delCount += batch.length;
+        toast.info(`Deleting old summaries... ${delCount}`);
       }
 
-      toast.success(`Rebuild complete: ${totalCreated} summaries from ${totalRecords.toLocaleString()} sale records`);
-      setRebuildProgress("");
-      setLastSync(new Date().toISOString().split("T")[0]);
+      // Build final records from merged aggregation
+      const now = new Date().toISOString();
+      const records = Object.values(merged).map(s => {
+        const dataMonths = Math.max(1, s.dataMonths || 1);
+        return {
+          sku: s.sku,
+          product: s.product,
+          category: categorize(s.product),
+          monthly: JSON.stringify(s.monthly),
+          byChannel: JSON.stringify(s.byChannel),
+          byLocation: JSON.stringify(s.byLocation),
+          totalQty: s.totalQty,
+          avgMonthly: Math.round((s.totalQty / dataMonths) * 10) / 10,
+          totalRevenue: 0,
+          dataMonths,
+          periodStart: s.periodStart || '',
+          periodEnd: s.periodEnd || '',
+          updatedAt: now,
+        };
+      });
 
-      // Reload summaries from DB
+      // Bulk create in batches of 10
+      let created = 0;
+      for (let i = 0; i < records.length; i += 10) {
+        const batch = records.slice(i, i + 10);
+        await base44.entities.DemandSummary.bulkCreate(batch);
+        created += batch.length;
+        if (created % 50 === 0) toast.info(`Writing summaries... ${created}/${records.length}`);
+      }
+
+      toast.success(`Rebuild complete: ${created} summaries from ${totalUnique} deduplicated records (${totalDupes} dupes + ${totalOverlap} overlaps removed)`);
+      setLastSync(new Date().toISOString().split("T")[0]);
+      setShopifyRecordCount(totalUnique);
+
+      // Reload summaries
       const updated = await fetchAll(base44.entities.DemandSummary);
       if (updated?.length > 0) {
         const parsed = updated.map((s) => ({
@@ -545,11 +548,9 @@ export default function DemandPlanner() {
           category: s.category || categorize(s.product),
         }));
         setSummaries(parsed);
-        setShopifyRecordCount(totalRecords);
       }
     } catch (err) {
       toast.error("Rebuild failed: " + err.message);
-      setRebuildProgress("");
     }
     setIsRebuilding(false);
   };
@@ -669,7 +670,6 @@ export default function DemandPlanner() {
             shopifyRecordCount={shopifyRecordCount}
             lastSync={lastSync}
             isRebuilding={isRebuilding}
-            rebuildProgress={rebuildProgress}
             onRebuild={handleRebuild}
           />
         </TabsContent>
