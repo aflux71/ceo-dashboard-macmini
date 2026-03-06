@@ -184,12 +184,17 @@ Deno.serve(async (req) => {
       let retries = 3;
       while (retries > 0) {
         try {
-          await base44.asServiceRole.entities.Inventory.update(item.id, {
+          const updatePayload = {
             name: item.name,
             quantity: item.quantity,
             location: 'neob HQ',
             last_shopify_sync: now,
-          });
+          };
+          // Migrate SKU from variant to barcode if needed
+          if (item.sku) updatePayload.sku = item.sku;
+          if (item.supplier_sku) updatePayload.supplier_sku = item.supplier_sku;
+          
+          await base44.asServiceRole.entities.Inventory.update(item.id, updatePayload);
           updated++;
           break;
         } catch (e) {
