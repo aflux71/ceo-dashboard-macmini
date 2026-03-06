@@ -105,51 +105,24 @@ function RequestsTab() {
   });
 
   const sendForecastMutation = useMutation({
-    mutationFn: (item) =>
-      base44.entities.ForecastSuggestion.update(item.id, { status: "material_check" }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["planning_forecast_suggestions"] });
-      queryClient.invalidateQueries({ queryKey: ["planning_material_check_forecasts"] });
-      toast.success("Sent to Material Check");
-    },
+    mutationFn: (item) => base44.entities.ForecastSuggestion.update(item.id, { status: "material_check" }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["planning_forecast_suggestions"] }); queryClient.invalidateQueries({ queryKey: ["planning_material_check_forecasts"] }); toast.success("Sent to Material Check"); },
     onError: () => toast.error("Failed to send to Material Check"),
   });
-
   const sendManualMutation = useMutation({
-    mutationFn: (item) =>
-      base44.entities.ProductionRequest.update(item.id, { status: "material_check" }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["planning_production_requests"] });
-      queryClient.invalidateQueries({ queryKey: ["planning_material_check_manual"] });
-      toast.success("Sent to Material Check");
-    },
+    mutationFn: (item) => base44.entities.ProductionRequest.update(item.id, { status: "material_check" }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["planning_production_requests"] }); queryClient.invalidateQueries({ queryKey: ["planning_material_check_manual"] }); toast.success("Sent to Material Check"); },
     onError: () => toast.error("Failed to send to Material Check"),
   });
-
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.ProductionRequest.update(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["planning_production_requests"] });
-      toast.success("Request updated");
-      setDialogOpen(false);
-      setForm(emptyForm);
-      setEditingId(null);
-    },
-    onError: (err) => {
-      const msg = err?.response?.data?.message || err?.message || String(err);
-      toast.error(`Failed to update: ${msg}`);
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["planning_production_requests"] }); toast.success("Request updated"); setDialogOpen(false); setForm(emptyForm); setEditingId(null); },
+    onError: (err) => toast.error(`Failed to update: ${err?.response?.data?.message || err?.message || String(err)}`),
   });
-
   const deleteMutation = useMutation({
     mutationFn: ({ id, type }) => type === "forecast" ? base44.entities.ForecastSuggestion.delete(id) : base44.entities.ProductionRequest.delete(id),
-    onSuccess: (_, { type }) => {
-      if (type === "forecast") queryClient.invalidateQueries({ queryKey: ["planning_forecast_suggestions"] });
-      else queryClient.invalidateQueries({ queryKey: ["planning_production_requests"] });
-      toast.success("Request deleted");
-      setDeleteConfirmId(null);
-    },
-    onError: (err) => { toast.error(`Failed to delete: ${err?.message || String(err)}`); },
+    onSuccess: (_, { type }) => { if (type === "forecast") queryClient.invalidateQueries({ queryKey: ["planning_forecast_suggestions"] }); else queryClient.invalidateQueries({ queryKey: ["planning_production_requests"] }); toast.success("Request deleted"); setDeleteConfirmId(null); },
+    onError: (err) => toast.error(`Failed to delete: ${err?.message || String(err)}`),
   });
 
   const allItems = useMemo(() => {
