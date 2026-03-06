@@ -47,6 +47,8 @@ export default function Labels() {
   const [showDialog, setShowDialog] = useState(false);
   const [editingLabel, setEditingLabel] = useState(null);
   const [filter, setFilter] = useState("all");
+  const [sortField, setSortField] = useState(null);
+  const [sortDir, setSortDir] = useState("asc");
   const queryClient = useQueryClient();
 
   const { data: labels = [], isLoading } = useQuery({
