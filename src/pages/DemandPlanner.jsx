@@ -177,12 +177,19 @@ export default function DemandPlanner() {
         setPlannerSKUs(new Set(suggestions.map(s => s.sku)));
       } catch {}
 
-      // 7. Shopify stats + last rebuild date
+      // 7. Last rebuild date + shopify stats
       try {
         const syncLogs = await base44.entities.SyncLog.filter({ sync_type: "demand_summaries" }, "-created_date", 1);
         if (syncLogs.length > 0) {
           setLastSync(syncLogs[0].created_date);
           setShopifyRecordCount(syncLogs[0].records_processed || 0);
+        } else if (loadedSummaries.length > 0) {
+          // Fallback: use the most recent updatedAt from DemandSummary records
+          const latest = loadedSummaries.reduce((best, s) => {
+            const d = s.updatedAt || s.updated_date || "";
+            return d > best ? d : best;
+          }, "");
+          if (latest) setLastSync(latest);
         }
       } catch (e) {
         // ignore
