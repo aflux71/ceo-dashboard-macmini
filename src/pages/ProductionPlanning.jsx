@@ -1183,21 +1183,8 @@ function BatchQueueTab() {
     onError: (err) => toast.error(`Failed to delete: ${err?.response?.data?.message || err?.message || String(err)}`),
   });
 
-  const findRecipe = useCallback((sku) => {
-    if (!sku) return null;
-    return recipes.find(
-      (r) => r.sku?.toLowerCase() === sku.toLowerCase() && r.active !== false
-    );
-  }, [recipes]);
-
-  const generateBatchId = useCallback((sku) => {
-    const prefix = sku?.substring(0, 3)?.toUpperCase() || "BAT";
-    const date = new Date().toISOString().slice(2, 10).replace(/-/g, "");
-    const count = batches.filter(
-      (b) => b.batch_id?.startsWith(`${prefix}-${date}`)
-    ).length + 1;
-    return `${prefix}-${date}-${count}`;
-  }, [batches]);
+  const findRecipe = useCallback((sku) => sku ? recipes.find((r) => r.sku?.toLowerCase() === sku.toLowerCase() && r.active !== false) : null, [recipes]);
+  const generateBatchId = useCallback((sku) => { const prefix = sku?.substring(0, 3)?.toUpperCase() || "BAT"; const date = new Date().toISOString().slice(2, 10).replace(/-/g, ""); return `${prefix}-${date}-${batches.filter((b) => b.batch_id?.startsWith(`${prefix}-${date}`)).length + 1}`; }, [batches]);
 
   // Normalize items
   const allItems = useMemo(() => {
