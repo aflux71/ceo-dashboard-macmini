@@ -134,9 +134,18 @@ export default function IssueAlerts() {
     return issues;
   }, [scheduledItems, recipes, labels]);
 
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDir("asc");
+    }
+  };
+
   // Filter issues
   const filteredIssues = useMemo(() => {
-    return issueItems.filter(issue => {
+    const filtered = issueItems.filter(issue => {
       if (searchQuery && 
           !issue.product_name?.toLowerCase().includes(searchQuery.toLowerCase()) &&
           !issue.sku?.toLowerCase().includes(searchQuery.toLowerCase())) {
@@ -147,7 +156,25 @@ export default function IssueAlerts() {
       }
       return true;
     });
-  }, [issueItems, searchQuery, issueTypeFilter]);
+
+    if (!sortField) return filtered;
+
+    const typeOrder = { out_of_labels: 0, missing_recipe: 1, low_labels: 2 };
+    const dir = sortDir === "asc" ? 1 : -1;
+
+    return [...filtered].sort((a, b) => {
+      let aVal, bVal;
+      switch (sortField) {
+        case "sku": aVal = a.sku || ""; bVal = b.sku || ""; break;
+        case "product": aVal = a.product_name || ""; bVal = b.product_name || ""; break;
+        case "type": aVal = typeOrder[a.type] ?? 9; bVal = typeOrder[b.type] ?? 9; return (aVal - bVal) * dir;
+        case "stock": aVal = a.current_quantity ?? -1; bVal = b.current_quantity ?? -1; return (aVal - bVal) * dir;
+        case "supplier": aVal = a.supplier_name || ""; bVal = b.supplier_name || ""; break;
+        default: return 0;
+      }
+      return aVal.localeCompare(bVal) * dir;
+    });
+  }, [issueItems, searchQuery, issueTypeFilter, sortField, sortDir]);
 
   // Group by issue type for stats
   const issueStats = useMemo(() => {
