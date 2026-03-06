@@ -104,6 +104,51 @@ export default function Labels() {
     return matchesSearch;
   });
 
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDir("asc");
+    }
+  };
+
+  const sortedLabels = [...filteredLabels].sort((a, b) => {
+    if (!sortField) return 0;
+    const dir = sortDir === "asc" ? 1 : -1;
+    let aVal, bVal;
+    switch (sortField) {
+      case "name": aVal = a.name || ""; bVal = b.name || ""; break;
+      case "product": aVal = a.product_name || ""; bVal = b.product_name || ""; break;
+      case "quantity": aVal = a.current_quantity ?? 0; bVal = b.current_quantity ?? 0; break;
+      case "status":
+        const statusOrder = { "Out of Stock": 0, "Low Stock": 1, "In Stock": 2 };
+        aVal = statusOrder[getStockStatus(a).text]; bVal = statusOrder[getStockStatus(b).text]; break;
+      case "bin": aVal = a.bin_location || ""; bVal = b.bin_location || ""; break;
+      case "supplier": aVal = a.supplier_name || ""; bVal = b.supplier_name || ""; break;
+      case "lead_time": aVal = a.lead_time_days ?? 0; bVal = b.lead_time_days ?? 0; break;
+      default: return 0;
+    }
+    if (typeof aVal === "string") return aVal.localeCompare(bVal) * dir;
+    return (aVal - bVal) * dir;
+  });
+
+  const SortHeader = ({ field, children, className = "" }) => (
+    <TableHead
+      className={`text-zinc-400 cursor-pointer select-none hover:text-zinc-200 transition-colors ${className}`}
+      onClick={() => handleSort(field)}
+    >
+      <div className="flex items-center gap-1">
+        {children}
+        {sortField === field ? (
+          sortDir === "asc" ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+        ) : (
+          <ArrowUpDown className="w-3 h-3 opacity-40" />
+        )}
+      </div>
+    </TableHead>
+  );
+
   const stats = {
     total: labels.length,
     lowStock: labels.filter((l) => l.current_quantity <= l.reorder_point && l.current_quantity > 0).length,
