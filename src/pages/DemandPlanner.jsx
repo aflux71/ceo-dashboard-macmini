@@ -152,6 +152,17 @@ export default function DemandPlanner() {
       const defaultWs = loadedWorkspaces.find((w) => w.isDefault);
       if (defaultWs) {
         applyWorkspace(defaultWs);
+      } else if (loadedWorkspaces.length === 0) {
+        // No workspace yet — load default exclusion list from AppSettings
+        try {
+          const defSettings = await base44.entities.AppSettings.filter({ key: "default_exclusion_list" });
+          if (defSettings.length > 0) {
+            const defList = JSON.parse(defSettings[0].value || "[]");
+            if (defList.length > 0) {
+              setWorkspace((prev) => ({ ...prev, exclusionList: defList }));
+            }
+          }
+        } catch {}
       }
 
       // 6. Shopify stats
