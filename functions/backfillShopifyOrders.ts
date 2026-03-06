@@ -162,12 +162,24 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Bulk create in batches of 20
-        for (let i = 0; i < recordsToCreate.length; i += 20) {
-          const batch = recordsToCreate.slice(i, i + 20);
-          await base44.asServiceRole.entities.ShopifySaleRecord.bulkCreate(batch);
-          totalRecordsCreated += batch.length;
-          await delay(500);
+        // Bulk create in batches of 10 with retry
+        for (let i = 0; i < recordsToCreate.length; i += 10) {
+          const batch = recordsToCreate.slice(i, i + 10);
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              await base44.asServiceRole.entities.ShopifySaleRecord.bulkCreate(batch);
+              totalRecordsCreated += batch.length;
+              break;
+            } catch (e) {
+              if (attempt < 2) {
+                console.log(`Bulk create failed, retrying in ${2000 * (attempt + 1)}ms...`);
+                await delay(2000 * (attempt + 1));
+              } else {
+                throw e;
+              }
+            }
+          }
+          await delay(1000);
         }
 
         // Pagination
