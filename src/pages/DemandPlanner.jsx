@@ -5,8 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   BarChart3, Table, Calendar, Database, Settings,
-  Plus, Trash2, Save, Copy, X, Check, Loader2, Upload,
+  Plus, Trash2, Save, Copy, X, Check, Loader2, Upload, ArrowRight,
 } from "lucide-react";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import Papa from "papaparse";
 import { toast } from "sonner";
 import { base44 } from "@/api/base44Client";
