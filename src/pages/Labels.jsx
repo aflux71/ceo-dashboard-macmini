@@ -295,7 +295,7 @@ export default function Labels() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredLabels.map((label) => {
+                sortedLabels.map((label) => {
                   const status = getStockStatus(label);
                   return (
                     <TableRow key={label.id} className="border-zinc-800">
