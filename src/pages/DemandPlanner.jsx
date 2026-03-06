@@ -504,7 +504,7 @@ export default function DemandPlanner() {
       }
 
       // Build final records from merged aggregation
-      const now = new Date().toISOString();
+      const nowISO = new Date().toISOString();
       const records = Object.values(merged).map(s => {
         const dataMonths = Math.max(1, s.dataMonths || 1);
         return {
