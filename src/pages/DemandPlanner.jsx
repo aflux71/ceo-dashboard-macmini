@@ -413,111 +413,143 @@ export default function DemandPlanner() {
     toast.success(`On-hand override set for SKU ${sku}: ${qty}`);
   };
 
-  // ── Rebuild summaries (month-by-month aggregation with dedup) ────────────
+  // ── Rebuild summaries (month-by-month aggregation) ─────────────────────────
+  const [rebuildProgress, setRebuildProgress] = useState("");
+  
   const handleRebuild = async () => {
     setIsRebuilding(true);
+    setRebuildProgress("Starting rebuild...");
     try {
-      // Define months to aggregate: Jan 2025 through current month
-      const now = new Date();
-      const endYear = now.getFullYear() > 2025 ? now.getFullYear() : 2025;
-      const endMonth = now.getFullYear() > 2025 ? now.getMonth() + 1 : 12;
+      // Phase 1: Aggregate each month (Jan 2025 through Feb 2026)
       const months = [];
-      // 2025 all months
-      for (let m = 1; m <= 12; m++) months.push({ year: 2025, month: m });
-      // 2026 months if applicable
-      if (endYear > 2025) {
-        for (let m = 1; m <= endMonth; m++) months.push({ year: 2026, month: m });
+      for (let y = 2025; y <= 2026; y++) {
+        const endM = y === 2026 ? 3 : 12;
+        for (let m = 1; m <= endM; m++) months.push({ year: y, month: m });
       }
 
-      // Aggregate each month sequentially
-      const merged = {};
-      let totalRaw = 0;
-      let totalDupes = 0;
-      let totalOverlap = 0;
-      let totalUnique = 0;
+      const mergedAggregation = {};
+      let totalRecords = 0;
+
+      const invokeWithRetry = async (params, retries = 3) => {
+        for (let i = 0; i < retries; i++) {
+          try {
+            const r = await base44.functions.invoke("rebuildDemandSummaries", params);
+            return r;
+          } catch (e) {
+            if (i < retries - 1) {
+              const wait = 5000 * (i + 1);
+              setRebuildProgress(`Rate limited, waiting ${wait/1000}s...`);
+              await new Promise(r => setTimeout(r, wait));
+            } else throw e;
+          }
+        }
+      };
 
       for (const { year, month } of months) {
-        toast.info(`Aggregating ${year}-${String(month).padStart(2, '0')}...`);
-        const res = await base44.functions.invoke("rebuildDemandSummaries", {
-          phase: "aggregate", year, month,
-        });
-        const d = res.data;
-        if (!d?.success) continue;
+        const label = `${year}-${String(month).padStart(2, '0')}`;
+        setRebuildProgress(`Aggregating ${label}...`);
+        
+        const response = await invokeWithRetry({ phase: "aggregate", year, month });
+        const result = response.data;
+        if (!result?.success) continue;
+        
+        totalRecords += result.records_loaded || 0;
+        const monthIdx = month - 1;
 
-        totalRaw += d.raw_records || 0;
-        totalDupes += d.dupes_removed || 0;
-        totalOverlap += d.csv_overlap_removed || 0;
-        totalUnique += d.unique_records || 0;
-
-        // Merge monthly aggregation into master
-        const monthIdx = month - 1; // 0-indexed
-        for (const [sku, skuAgg] of Object.entries(d.aggregation || {})) {
-          if (!merged[sku]) {
-            merged[sku] = {
-              sku,
-              product: skuAgg.product,
+        // Merge this month's aggregation into the master
+        for (const [sku, data] of Object.entries(result.aggregation || {})) {
+          if (!mergedAggregation[sku]) {
+            mergedAggregation[sku] = {
+              sku: data.sku,
+              product: data.product,
               monthly: [0,0,0,0,0,0,0,0,0,0,0,0],
               byChannel: { online: 0, pos: 0 },
               byLocation: {},
               totalQty: 0,
-              periodStart: `${year}-${String(month).padStart(2, '0')}-01`,
-              periodEnd: `${year}-${String(month).padStart(2, '0')}-28`,
+              minDate: data.minDate,
+              maxDate: data.maxDate,
             };
           }
-          const m = merged[sku];
-          m.monthly[monthIdx] += skuAgg.qty || 0;
-          m.totalQty += skuAgg.qty || 0;
-          m.byChannel.online += skuAgg.online || 0;
-          m.byChannel.pos += skuAgg.pos || 0;
-          for (const [loc, qty] of Object.entries(skuAgg.locations || {})) {
+          const m = mergedAggregation[sku];
+          m.monthly[monthIdx] += data.qty;
+          m.totalQty += data.qty;
+          m.byChannel.online += data.online || 0;
+          m.byChannel.pos += data.pos || 0;
+          for (const [loc, qty] of Object.entries(data.locations || {})) {
             m.byLocation[loc] = (m.byLocation[loc] || 0) + qty;
           }
-          const dateKey = `${year}-${String(month).padStart(2, '0')}`;
-          if (dateKey < m.periodStart.substring(0, 7)) m.periodStart = `${dateKey}-01`;
-          if (dateKey > m.periodEnd.substring(0, 7)) m.periodEnd = `${dateKey}-28`;
+          if (data.minDate < m.minDate) m.minDate = data.minDate;
+          if (data.maxDate > m.maxDate) m.maxDate = data.maxDate;
         }
+        
+        setRebuildProgress(`Aggregated ${label}: ${result.records_loaded} records (${totalRecords} total)`);
       }
 
-      // Calculate dataMonths for each SKU
-      for (const m of Object.values(merged)) {
-        const start = new Date(m.periodStart);
-        const end = new Date(m.periodEnd);
-        m.dataMonths = Math.max(1,
-          (end.getFullYear() - start.getFullYear()) * 12 +
-          (end.getMonth() - start.getMonth()) + 1
+      // Compute final fields
+      const finalAggregation = {};
+      for (const [sku, data] of Object.entries(mergedAggregation)) {
+        const start = new Date(data.minDate);
+        const end = new Date(data.maxDate);
+        const dataMonths = Math.max(1,
+          (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1
         );
+        finalAggregation[sku] = {
+          sku: data.sku,
+          product: data.product,
+          monthly: data.monthly,
+          byChannel: data.byChannel,
+          byLocation: data.byLocation,
+          totalQty: data.totalQty,
+          dataMonths,
+          periodStart: (data.minDate || '').split('T')[0],
+          periodEnd: (data.maxDate || '').split('T')[0],
+        };
       }
 
-      toast.info(`Writing ${Object.keys(merged).length} summaries...`);
+      const uniqueSKUs = Object.keys(finalAggregation).length;
+      setRebuildProgress(`Writing ${uniqueSKUs} summaries...`);
 
-      // Write phase
-      const writeRes = await base44.functions.invoke("rebuildDemandSummaries", {
-        phase: "write",
-        aggregation: merged,
-      });
-      const wd = writeRes.data;
+      // Phase 2: Write to DemandSummary (in chunks to avoid payload limits)
+      const skuEntries = Object.entries(finalAggregation);
+      const CHUNK_SIZE = 200;
+      let totalCreated = 0;
 
-      if (wd?.success) {
-        toast.success(`Rebuild complete: ${wd.created} summaries from ${totalUnique} deduplicated records (${totalDupes} dupes + ${totalOverlap} overlaps removed)`);
-        setLastSync(new Date().toISOString().split("T")[0]);
-        setShopifyRecordCount(totalUnique);
-        // Reload summaries
-        const updated = await fetchAll(base44.entities.DemandSummary);
-        if (updated?.length > 0) {
-          const parsed = updated.map((s) => ({
-            ...s,
-            monthly: typeof s.monthly === "string" ? JSON.parse(s.monthly) : s.monthly,
-            byChannel: typeof s.byChannel === "string" ? JSON.parse(s.byChannel) : s.byChannel,
-            byLocation: typeof s.byLocation === "string" ? JSON.parse(s.byLocation) : s.byLocation,
-            category: s.category || categorize(s.product),
-          }));
-          setSummaries(parsed);
+      for (let i = 0; i < skuEntries.length; i += CHUNK_SIZE) {
+        const chunk = Object.fromEntries(skuEntries.slice(i, i + CHUNK_SIZE));
+        const isFirst = i === 0;
+        
+        const writeResp = await base44.functions.invoke("rebuildDemandSummaries", {
+          phase: "write",
+          aggregation: chunk,
+          clear_existing: isFirst,
+        });
+        
+        if (writeResp.data?.success) {
+          totalCreated += writeResp.data.summaries_created || 0;
+          setRebuildProgress(`Written ${totalCreated}/${uniqueSKUs} summaries...`);
         }
-      } else {
-        toast.error(wd?.error || "Write phase failed");
+      }
+
+      toast.success(`Rebuild complete: ${totalCreated} summaries from ${totalRecords.toLocaleString()} sale records`);
+      setRebuildProgress("");
+      setLastSync(new Date().toISOString().split("T")[0]);
+
+      // Reload summaries from DB
+      const updated = await fetchAll(base44.entities.DemandSummary);
+      if (updated?.length > 0) {
+        const parsed = updated.map((s) => ({
+          ...s,
+          monthly: typeof s.monthly === "string" ? JSON.parse(s.monthly) : s.monthly,
+          byChannel: typeof s.byChannel === "string" ? JSON.parse(s.byChannel) : s.byChannel,
+          byLocation: typeof s.byLocation === "string" ? JSON.parse(s.byLocation) : s.byLocation,
+          category: s.category || categorize(s.product),
+        }));
+        setSummaries(parsed);
+        setShopifyRecordCount(totalRecords);
       }
     } catch (err) {
       toast.error("Rebuild failed: " + err.message);
+      setRebuildProgress("");
     }
     setIsRebuilding(false);
   };
@@ -637,6 +669,7 @@ export default function DemandPlanner() {
             shopifyRecordCount={shopifyRecordCount}
             lastSync={lastSync}
             isRebuilding={isRebuilding}
+            rebuildProgress={rebuildProgress}
             onRebuild={handleRebuild}
           />
         </TabsContent>
