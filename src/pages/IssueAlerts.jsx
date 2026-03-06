@@ -296,6 +296,30 @@ export default function IssueAlerts() {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
+          {/* Sort Headers */}
+          <div className="flex items-center gap-4 px-4 py-2 border-b border-zinc-800 text-xs text-zinc-500">
+            {[
+              { field: "sku", label: "SKU", width: "w-24" },
+              { field: "product", label: "Product", width: "flex-1" },
+              { field: "type", label: "Issue Type", width: "w-28" },
+              { field: "stock", label: "Stock", width: "w-20" },
+              { field: "supplier", label: "Supplier", width: "w-28" },
+            ].map(col => (
+              <button
+                key={col.field}
+                onClick={() => handleSort(col.field)}
+                className={`${col.width} flex items-center gap-1 hover:text-zinc-300 transition-colors cursor-pointer select-none font-medium uppercase tracking-wider`}
+              >
+                {col.label}
+                {sortField === col.field ? (
+                  sortDir === "asc" ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                ) : (
+                  <ArrowUpDown className="w-3 h-3 opacity-40" />
+                )}
+              </button>
+            ))}
+            <div className="w-40" />
+          </div>
           {filteredIssues.length === 0 ? (
             <div className="p-8 text-center text-zinc-500">
               <AlertTriangle className="w-12 h-12 mx-auto mb-3 text-zinc-600" />
