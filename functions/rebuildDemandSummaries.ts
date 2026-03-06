@@ -178,18 +178,31 @@ Deno.serve(async (req) => {
         return Response.json({ error: 'aggregation object required' }, { status: 400 });
       }
 
-      // Delete all existing DemandSummary records (sequential with delays to avoid rate limits)
+      // Delete all existing DemandSummary records with rate limit handling
       const sleep = (ms) => new Promise(r => setTimeout(r, ms));
       let deleted = 0;
       while (true) {
-        const batch = await base44.asServiceRole.entities.DemandSummary.list('-created_date', 50, 0);
+        let batch;
+        try {
+          batch = await base44.asServiceRole.entities.DemandSummary.list('-created_date', 20, 0);
+        } catch (e) {
+          console.log('Rate limited on list, waiting 3s...');
+          await sleep(3000);
+          continue;
+        }
         if (!batch || batch.length === 0) break;
         for (const r of batch) {
-          await base44.asServiceRole.entities.DemandSummary.delete(r.id);
+          try {
+            await base44.asServiceRole.entities.DemandSummary.delete(r.id);
+          } catch (e) {
+            console.log('Rate limited on delete, waiting 2s...');
+            await sleep(2000);
+            await base44.asServiceRole.entities.DemandSummary.delete(r.id);
+          }
         }
         deleted += batch.length;
         console.log(`Deleted ${deleted} existing summaries...`);
-        await sleep(500);
+        await sleep(1000);
       }
 
       // Build final records
