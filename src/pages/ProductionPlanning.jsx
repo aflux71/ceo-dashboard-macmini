@@ -3781,40 +3781,11 @@ function WipCopackTab() {
   );
 }
 
-// ─── Recipe Sheets Tab ────────────────────────────────────────────────────────
+import RecipeSheetsTab from "@/components/planning/RecipeSheetsTab";
 
-const PRINT_STYLES = `
-@media print {
-  body * { visibility: hidden !important; }
-  #recipe-print-area, #recipe-print-area * { visibility: visible !important; }
-  #recipe-print-area {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
-    width: 100% !important;
-    background: white !important;
-    color: black !important;
-    font-size: 11pt !important;
-    line-height: 1.4 !important;
-  }
-  .recipe-sheet-page {
-    page-break-after: always;
-    padding: 0.5in !important;
-  }
-  .recipe-sheet-page:last-child {
-    page-break-after: auto;
-  }
-  .no-print { display: none !important; }
-  table { border-collapse: collapse; width: 100%; }
-  th, td { border: 1px solid #333; padding: 6px 8px; text-align: left; font-size: 10pt; }
-  th { background: #e5e5e5 !important; font-weight: 700; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  h1 { font-size: 16pt; margin-bottom: 4px; }
-  h2 { font-size: 13pt; margin-top: 16px; margin-bottom: 6px; border-bottom: 2px solid #333; padding-bottom: 3px; }
-  .sign-off-line { border-bottom: 1px solid #333; min-width: 200px; display: inline-block; height: 1.2em; }
-}
-`;
+// Extracted RecipeSheetsTab removed — now imported from components/planning/RecipeSheetsTab
 
-function RecipeSheetsTab() {
+function _RecipeSheetsTab_REMOVED() {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState(new Set());
   const [printRecipes, setPrintRecipes] = useState(null); // array of recipes to print
