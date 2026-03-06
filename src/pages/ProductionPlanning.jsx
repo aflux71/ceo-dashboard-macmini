@@ -99,23 +99,9 @@ function RequestsTab() {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (data) => {
-      console.log("Creating ProductionRequest with:", data);
-      const result = await base44.entities.ProductionRequest.create(data);
-      console.log("ProductionRequest created:", result);
-      return result;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["planning_production_requests"] });
-      toast.success("Request created");
-      setDialogOpen(false);
-      setForm(emptyForm);
-    },
-    onError: (err) => {
-      console.error("ProductionRequest create failed:", err);
-      const msg = err?.response?.data?.message || err?.message || String(err);
-      toast.error(`Failed to create request: ${msg}`);
-    },
+    mutationFn: (data) => base44.entities.ProductionRequest.create(data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["planning_production_requests"] }); toast.success("Request created"); setDialogOpen(false); setForm(emptyForm); },
+    onError: (err) => toast.error(`Failed to create request: ${err?.response?.data?.message || err?.message || String(err)}`),
   });
 
   const sendForecastMutation = useMutation({
