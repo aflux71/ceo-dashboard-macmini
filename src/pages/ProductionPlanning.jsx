@@ -40,16 +40,7 @@ import {
 import Badge from "@/components/ui/Badge";
 
 const placeholderTabs = [];
-
-const colorMap = {
-  orange: { bg: "bg-orange-500/10", border: "border-orange-500/20", text: "text-orange-400", iconBg: "bg-orange-500/15", dot: "bg-orange-500" },
-  purple: { bg: "bg-purple-500/10", border: "border-purple-500/20", text: "text-purple-400", iconBg: "bg-purple-500/15", dot: "bg-purple-500" },
-  blue:   { bg: "bg-blue-500/10",   border: "border-blue-500/20",   text: "text-blue-400",   iconBg: "bg-blue-500/15",   dot: "bg-blue-500" },
-  green:  { bg: "bg-green-500/10",  border: "border-green-500/20",  text: "text-green-400",  iconBg: "bg-green-500/15",  dot: "bg-green-500" },
-  amber:  { bg: "bg-amber-500/10",  border: "border-amber-500/20",  text: "text-amber-400",  iconBg: "bg-amber-500/15",  dot: "bg-amber-500" },
-  cyan:   { bg: "bg-cyan-500/10",   border: "border-cyan-500/20",   text: "text-cyan-400",   iconBg: "bg-cyan-500/15",   dot: "bg-cyan-500" },
-  red:    { bg: "bg-red-500/10",    border: "border-red-500/20",    text: "text-red-400",    iconBg: "bg-red-500/15",    dot: "bg-red-500" },
-};
+const colorMap = {};
 
 const urgencyConfig = {
   critical: { variant: "red", label: "Critical" },
