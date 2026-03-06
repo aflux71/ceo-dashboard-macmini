@@ -56,8 +56,14 @@ Deno.serve(async (req) => {
         if (product.status !== 'active') continue;
         for (const variant of product.variants) {
           if (!variant.sku || !variant.sku.trim()) continue;
+          // Use barcode as SKU if available (matches ShopifySaleRecord format from POS),
+          // otherwise fall back to Shopify variant SKU
+          const barcode = variant.barcode ? variant.barcode.trim() : null;
+          const variantSku = variant.sku.trim();
           allVariants.push({
-            sku: variant.sku.trim(),
+            sku: barcode || variantSku,
+            variant_sku: variantSku,
+            barcode: barcode,
             inventory_item_id: String(variant.inventory_item_id),
             name: product.title + (variant.title !== 'Default Title' ? ` - ${variant.title}` : ''),
           });
