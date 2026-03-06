@@ -446,9 +446,12 @@ export default function DemandPlanner() {
       let totalOverlap = 0;
       let totalUnique = 0;
 
+      const sleep = (ms) => new Promise(r => setTimeout(r, ms));
       for (let mi = 0; mi < months.length; mi++) {
         const { year, month } = months[mi];
         setRebuildProgress({ current: mi + 1, total: months.length, phase: "aggregating", detail: `${year}-${String(month).padStart(2, '0')}` });
+        // Delay between months to avoid rate limiting
+        if (mi > 0) await sleep(2000);
         const res = await base44.functions.invoke("rebuildDemandSummaries", {
           phase: "aggregate", year, month,
         });
