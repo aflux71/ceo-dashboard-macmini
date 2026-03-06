@@ -69,13 +69,26 @@ export default function DemandPlanner() {
     loadData();
   }, []);
 
+  const fetchAll = async (entity, sort = '-created_date') => {
+    const results = [];
+    const pageSize = 100;
+    let skip = 0;
+    while (true) {
+      const batch = await entity.list(sort, pageSize, skip);
+      results.push(...batch);
+      if (batch.length < pageSize) break;
+      skip += pageSize;
+    }
+    return results;
+  };
+
   const loadData = async () => {
     setLoading(true);
     try {
       // 1. Try loading DemandSummary entities first
       let loadedSummaries = [];
       try {
-        loadedSummaries = await base44.entities.DemandSummary.list();
+        loadedSummaries = await fetchAll(base44.entities.DemandSummary);
       } catch (e) {
         // Entity may not exist yet
       }
