@@ -63,6 +63,8 @@ export default function DemandPlanner() {
   const [detailItem, setDetailItem] = useState(null);
   const [isRebuilding, setIsRebuilding] = useState(false);
   const [initialUrgencyFilter, setInitialUrgencyFilter] = useState(null);
+  const [pushConfirmItems, setPushConfirmItems] = useState(null);
+  const [isPushing, setIsPushing] = useState(false);
 
   // Data stats for Data tab
   const [shopifyRecordCount, setShopifyRecordCount] = useState(0);
