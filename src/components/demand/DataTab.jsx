@@ -107,8 +107,9 @@ export default function DataTab({
         <AlertCircle className="w-4 h-4 text-zinc-500 mt-0.5 shrink-0" />
         <div className="text-xs text-zinc-500">
           <p className="mb-1">
-            Demand summaries are built from the 2025 baseline data. When Shopify sales records
-            are available after the baseline period, the rebuild will merge them to keep the plan current.
+            Demand summaries are built from ShopifySaleRecord data (~98K records). The rebuild process
+            deduplicates overlapping CSV and API imports, aggregates by SKU per month, and writes clean
+            DemandSummary records for the forecasting engine.
           </p>
           <p>
             Inventory on-hand values are pulled from the Shopify "neob HQ" location. You can override
