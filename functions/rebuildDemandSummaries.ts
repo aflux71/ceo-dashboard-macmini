@@ -182,17 +182,14 @@ Deno.serve(async (req) => {
       const sleep = (ms) => new Promise(r => setTimeout(r, ms));
       let deleted = 0;
       while (true) {
-        const batch = await base44.asServiceRole.entities.DemandSummary.list('-created_date', 100, 0);
+        const batch = await base44.asServiceRole.entities.DemandSummary.list('-created_date', 50, 0);
         if (!batch || batch.length === 0) break;
-        for (let i = 0; i < batch.length; i += 5) {
-          const chunk = batch.slice(i, i + 5);
-          for (const r of chunk) {
-            await base44.asServiceRole.entities.DemandSummary.delete(r.id);
-          }
-          await sleep(200);
+        for (const r of batch) {
+          await base44.asServiceRole.entities.DemandSummary.delete(r.id);
         }
         deleted += batch.length;
         console.log(`Deleted ${deleted} existing summaries...`);
+        await sleep(500);
       }
 
       // Build final records
