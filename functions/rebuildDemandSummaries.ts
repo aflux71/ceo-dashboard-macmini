@@ -91,13 +91,17 @@ Deno.serve(async (req) => {
       }
 
       // ── Deduplication ──────────────────────────────────────────────────
-      // 1. Remove exact duplicate order_ids (CSV imported twice)
-      const seenOrderIds = new Set();
+      // 1. Remove exact duplicate line items (same order_id + sku + location)
+      //    This catches CSV records imported twice. Different SKUs in the same order are NOT duplicates.
+      const seenLineItems = new Set();
       const deduped = [];
       for (const r of allRecords) {
         const oid = r.order_id || r.id;
-        if (seenOrderIds.has(oid)) continue;
-        seenOrderIds.add(oid);
+        const sku = r.sku || '';
+        const loc = r.location_name || '';
+        const key = `${oid}|${sku}|${loc}`;
+        if (seenLineItems.has(key)) continue;
+        seenLineItems.add(key);
         deduped.push(r);
       }
       const dupesRemoved = allRecords.length - deduped.length;
