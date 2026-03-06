@@ -520,7 +520,7 @@ export default function DemandPlanner() {
           dataMonths,
           periodStart: s.periodStart || '',
           periodEnd: s.periodEnd || '',
-          updatedAt: now,
+          updatedAt: nowISO,
         };
       });
 
