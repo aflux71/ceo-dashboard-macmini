@@ -80,7 +80,10 @@ Deno.serve(async (req) => {
       const batch = inventoryItemIds.slice(i, i + 50);
       const levelsUrl = `https://${store}/admin/api/2026-01/inventory_levels.json?inventory_item_ids=${batch.join(',')}&location_ids=${hqLocationId}&limit=250`;
       const res = await fetch(levelsUrl, { headers });
-      if (!res.ok) continue;
+      if (!res.ok) {
+        console.error(`Inventory levels fetch failed: ${res.status} for batch starting at ${i}`);
+        continue;
+      }
       const data = await res.json();
       for (const level of data.inventory_levels || []) {
         const id = String(level.inventory_item_id);
@@ -88,7 +91,11 @@ Deno.serve(async (req) => {
           quantityMap[id] = (level.available || 0);
         }
       }
+      // Respect Shopify rate limits
+      if (i + 50 < inventoryItemIds.length) await sleep(500);
     }
+    console.log(`Fetched inventory levels for ${Object.keys(quantityMap).length} items at neob HQ (location ${hqLocationId})`);
+    console.log(`Total variants: ${allVariants.length}, Items with levels: ${Object.keys(quantityMap).length}`);
 
     // Step 4: Get ALL existing inventory records (paginated)
     const existingInventory = [];
