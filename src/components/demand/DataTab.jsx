@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Database, RefreshCw, Package, ShoppingCart, Check, Clock, AlertCircle,
 } from "lucide-react";
-import { formatNumber } from "@/lib/demandHelpers";
+import { formatNumber } from "@/components/demand/demandHelpers";
 
 export default function DataTab({
   baselineInfo,
