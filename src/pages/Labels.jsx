@@ -271,13 +271,13 @@ export default function Labels() {
           <Table>
             <TableHeader>
               <TableRow className="border-zinc-800 hover:bg-transparent">
-                <TableHead className="text-zinc-400">Label</TableHead>
-                <TableHead className="text-zinc-400">Product</TableHead>
-                <TableHead className="text-zinc-400">Quantity</TableHead>
-                <TableHead className="text-zinc-400">Status</TableHead>
-                <TableHead className="text-zinc-400">Bin Location</TableHead>
-                <TableHead className="text-zinc-400">Supplier</TableHead>
-                <TableHead className="text-zinc-400">Lead Time</TableHead>
+                <SortHeader field="name">Label</SortHeader>
+                <SortHeader field="product">Product</SortHeader>
+                <SortHeader field="quantity">Quantity</SortHeader>
+                <SortHeader field="status">Status</SortHeader>
+                <SortHeader field="bin">Bin Location</SortHeader>
+                <SortHeader field="supplier">Supplier</SortHeader>
+                <SortHeader field="lead_time">Lead Time</SortHeader>
                 <TableHead className="text-zinc-400 text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
