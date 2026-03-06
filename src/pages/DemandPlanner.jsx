@@ -539,8 +539,20 @@ export default function DemandPlanner() {
       }
 
       toast.success(`Rebuild complete: ${created} summaries from ${totalUnique} deduplicated records (${totalDupes} dupes + ${totalOverlap} overlaps removed)`);
-      setLastSync(new Date().toISOString().split("T")[0]);
+      const rebuildDate = new Date().toISOString();
+      setLastSync(rebuildDate);
       setShopifyRecordCount(totalUnique);
+
+      // Log to SyncLog
+      try {
+        await base44.entities.SyncLog.create({
+          sync_type: "demand_summaries",
+          status: "success",
+          records_processed: totalUnique,
+          records_created: created,
+          notes: `Rebuilt ${created} summaries from ${totalRaw} raw records (${totalDupes} dupes, ${totalOverlap} overlaps removed)`,
+        });
+      } catch (e) { /* ignore */ }
 
       // Reload summaries
       const updated = await fetchAll(base44.entities.DemandSummary);
