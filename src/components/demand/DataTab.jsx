@@ -1,10 +1,18 @@
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import {
-  Database, RefreshCw, Package, ShoppingCart, Check, Clock, AlertCircle,
+  Database, RefreshCw, Package, ShoppingCart, Check, Clock, AlertCircle, Loader2,
 } from "lucide-react";
 import { formatNumber } from "@/components/demand/demandHelpers";
+
+function formatDate(dateStr) {
+  if (!dateStr) return "—";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
 
 export default function DataTab({
   baselineInfo,
@@ -13,8 +21,13 @@ export default function DataTab({
   shopifyRecordCount,
   lastSync,
   isRebuilding,
+  rebuildProgress,
   onRebuild,
 }) {
+  const progressPct = rebuildProgress && rebuildProgress.total > 0
+    ? Math.round((rebuildProgress.current / rebuildProgress.total) * 100)
+    : 0;
+
   return (
     <div className="space-y-4 max-w-2xl">
       {/* Baseline */}
@@ -58,23 +71,39 @@ export default function DataTab({
             <DataField label="Active Summaries">
               <span className="text-sm text-zinc-200">{formatNumber(summaryCount)}</span>
             </DataField>
-            <DataField label="Shopify Records">
+            <DataField label="Unique Records">
               <span className="text-sm text-zinc-200">{formatNumber(shopifyRecordCount)}</span>
             </DataField>
             <DataField label="Last Rebuild">
-              <span className="text-sm text-zinc-200">{lastSync || "—"}</span>
+              <span className="text-sm text-zinc-200">{formatDate(lastSync)}</span>
             </DataField>
             <DataField label="Source">
-              <span className="text-sm text-zinc-200">Baseline + Shopify Sync</span>
+              <span className="text-sm text-zinc-200">ShopifySaleRecord</span>
             </DataField>
           </div>
+
+          {/* Progress indicator */}
+          {isRebuilding && rebuildProgress && (
+            <div className="mb-4 p-3 bg-zinc-800/50 border border-zinc-700 rounded-lg space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2 text-orange-400">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span className="font-medium capitalize">{rebuildProgress.phase}</span>
+                </div>
+                <span className="text-zinc-400">{progressPct}%</span>
+              </div>
+              <Progress value={progressPct} className="h-1.5" />
+              <p className="text-[10px] text-zinc-500">{rebuildProgress.detail}</p>
+            </div>
+          )}
+
           <button
             onClick={onRebuild}
             disabled={isRebuilding}
             className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white text-sm font-medium rounded transition-colors"
           >
             <RefreshCw className={`w-4 h-4 ${isRebuilding ? "animate-spin" : ""}`} />
-            {isRebuilding ? "Rebuilding (this takes a few minutes)..." : "Rebuild from ShopifySaleRecord"}
+            {isRebuilding ? "Rebuilding..." : "Rebuild from ShopifySaleRecord"}
           </button>
           <p className="text-[10px] text-zinc-500 mt-2">
             Aggregates all ShopifySaleRecord data month-by-month with deduplication, then writes fresh DemandSummary records.
