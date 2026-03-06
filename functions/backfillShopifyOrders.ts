@@ -1,4 +1,4 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -12,15 +12,15 @@ Deno.serve(async (req) => {
     }
 
     const token = Deno.env.get('SHOPIFY_TOKEN');
-    if (!token) {
-      return Response.json({ error: 'Missing SHOPIFY_TOKEN secret' }, { status: 500 });
+    const store = Deno.env.get('SHOPIFY_STORE');
+    if (!token || !store) {
+      return Response.json({ error: 'Missing SHOPIFY_TOKEN or SHOPIFY_STORE secret' }, { status: 500 });
     }
 
     const payload = await req.json();
     const startDate = payload.start_date;
     const endDate = payload.end_date;
 
-    // Validate date format
     if (!startDate || !endDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
       return Response.json({ error: 'Invalid date format. Use YYYY-MM-DD' }, { status: 400 });
     }
@@ -33,46 +33,55 @@ Deno.serve(async (req) => {
 
     const headers = { 'X-Shopify-Access-Token': token };
 
-    // Fetch locations once with retry
+    // Fetch locations once
     let locationsRes;
     let backoffMs = 3000;
     for (let attempt = 0; attempt <= 5; attempt++) {
       locationsRes = await fetch(
-        'https://09c7e1.myshopify.com/admin/api/2026-01/locations.json',
+        `https://${store}/admin/api/2026-01/locations.json`,
         { headers }
       );
-
       if (locationsRes.status === 429) {
         if (attempt < 5) {
-          console.log(`Rate limited on locations fetch, waiting ${backoffMs}ms (attempt ${attempt + 1})`);
+          console.log(`Rate limited on locations fetch, waiting ${backoffMs}ms`);
           await delay(backoffMs);
           backoffMs *= 2;
           continue;
-        } else {
-          return Response.json({ error: 'Rate limit exceeded while fetching locations' }, { status: 429 });
         }
+        return Response.json({ error: 'Rate limit exceeded while fetching locations' }, { status: 429 });
       }
       break;
     }
-
     const locationsData = await locationsRes.json();
     const locationMap = {};
-    for (const location of locationsData.locations) {
+    for (const location of locationsData.locations || []) {
       locationMap[location.id] = location.name;
     }
 
-    // Wait before starting backfill
-    await delay(5000);
+    // Build existing record set using pagination to avoid rate limits
+    const existingSet = new Set();
+    const PAGE_SIZE = 200;
+    let page = 0;
+    while (true) {
+      const batch = await base44.asServiceRole.entities.ShopifySaleRecord.list(
+        '-created_date', PAGE_SIZE, page * PAGE_SIZE
+      );
+      if (!batch || batch.length === 0) break;
+      for (const r of batch) {
+        existingSet.add(`${r.order_id}#${r.sku}`);
+      }
+      if (batch.length < PAGE_SIZE) break;
+      page++;
+      await delay(300);
+    }
+    console.log(`Loaded ${existingSet.size} existing records for dedup`);
 
-    // Get existing records to prevent duplicates
-    const existingRecords = await base44.asServiceRole.entities.ShopifySaleRecord.list();
-    const existingSet = new Set(existingRecords.map(r => `${r.order_id}#${r.sku}`));
+    await delay(2000);
 
     let totalDaysProcessed = 0;
     let totalOrders = 0;
     let totalRecordsCreated = 0;
 
-    // Loop through each day
     const currentDate = new Date(start);
     while (currentDate <= end) {
       const dateStr = currentDate.toISOString().split('T')[0];
@@ -82,82 +91,98 @@ Deno.serve(async (req) => {
       createdAtMax.setUTCHours(23, 59, 59, 999);
 
       let ordersThisDay = 0;
-
-      // Fetch orders for this day
-      let url = `https://09c7e1.myshopify.com/admin/api/2026-01/orders.json?status=any&created_at_min=${createdAtMin.toISOString()}&created_at_max=${createdAtMax.toISOString()}&limit=250&fields=id,created_at,line_items,location_id`;
+      let url = `https://${store}/admin/api/2026-01/orders.json?status=any&created_at_min=${createdAtMin.toISOString()}&created_at_max=${createdAtMax.toISOString()}&limit=250&fields=id,created_at,line_items,location_id`;
 
       while (url) {
         let res;
-        let backoffMs = 2000;
-        const maxRetries = 5;
-
-        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        let retryMs = 2000;
+        for (let attempt = 0; attempt <= 5; attempt++) {
           res = await fetch(url, { headers });
-
           if (res.status === 429) {
-            if (attempt < maxRetries) {
-              console.log(`Rate limited on ${dateStr}, waiting ${backoffMs}ms (attempt ${attempt + 1})`);
-              await delay(backoffMs);
-              backoffMs *= 2;
+            if (attempt < 5) {
+              console.log(`Rate limited on ${dateStr}, waiting ${retryMs}ms`);
+              await delay(retryMs);
+              retryMs *= 2;
               continue;
-            } else {
-              return Response.json({ error: 'Rate limit exceeded after retries' }, { status: 429 });
             }
+            return Response.json({
+              error: 'Rate limit exceeded after retries',
+              progress: { totalDaysProcessed, totalOrders, totalRecordsCreated }
+            }, { status: 429 });
           }
-
           if (!res.ok) {
             const body = await res.text();
             return Response.json({ error: `Shopify API error on ${dateStr}: ${res.status}`, detail: body }, { status: 500 });
           }
-
           break;
         }
 
         const data = await res.json();
-        for (const order of data.orders) {
-          ordersThisDay++;
-          for (const lineItem of order.line_items) {
-            if (!lineItem.sku || !lineItem.sku.trim()) continue;
+        const recordsToCreate = [];
 
-            const key = `${order.id}#${lineItem.sku.trim()}`;
+        for (const order of data.orders || []) {
+          ordersThisDay++;
+          for (const lineItem of order.line_items || []) {
+            if (!lineItem.sku || !lineItem.sku.trim()) continue;
+            const sku = lineItem.sku.trim();
+            const key = `${order.id}#${sku}`;
             if (existingSet.has(key)) continue;
 
-            await base44.asServiceRole.entities.ShopifySaleRecord.create({
+            const locationId = order.location_id ? String(order.location_id) : null;
+            const locationName = locationId ? (locationMap[order.location_id] || null) : null;
+            const channel = locationId ? 'pos' : 'online';
+            const variantTitle = lineItem.variant_title && lineItem.variant_title !== 'Default Title'
+              ? lineItem.variant_title : null;
+            const productName = variantTitle ? `${lineItem.title} - ${variantTitle}` : lineItem.title;
+
+            recordsToCreate.push({
               order_id: String(order.id),
-              sku: lineItem.sku.trim(),
-              product_name: lineItem.title,
+              sku,
+              product_name: productName,
               quantity: lineItem.quantity,
               order_date: order.created_at,
-              location_id: String(order.location_id || ''),
-              location_name: locationMap[order.location_id] || 'Unknown',
+              location_id: locationId,
+              location_name: locationName,
+              channel,
             });
-
             existingSet.add(key);
-            totalRecordsCreated++;
           }
         }
 
-        // Pagination
-        const linkHeader = res.headers.get('Link');
-        url = null;
-        if (linkHeader) {
-          const match = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
-          if (match) url = match[1];
-          if (url) await delay(3000); // Delay between paginated requests
+        // Bulk create in batches of 20
+        for (let i = 0; i < recordsToCreate.length; i += 20) {
+          const batch = recordsToCreate.slice(i, i + 20);
+          await base44.asServiceRole.entities.ShopifySaleRecord.bulkCreate(batch);
+          totalRecordsCreated += batch.length;
+          await delay(500);
         }
+
+        // Pagination
+        const linkHeader = res.headers.get('Link') || '';
+        const nextMatch = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
+        url = nextMatch ? nextMatch[1] : null;
+        if (url) await delay(2000);
       }
 
       totalOrders += ordersThisDay;
       totalDaysProcessed++;
+      console.log(`${dateStr}: ${ordersThisDay} orders, running total: ${totalRecordsCreated} created`);
 
-      // Move to next day
       currentDate.setDate(currentDate.getDate() + 1);
-
-      // Delay between days
-      if (currentDate <= end) {
-        await delay(5000);
-      }
+      if (currentDate <= end) await delay(3000);
     }
+
+    // Log the sync
+    await base44.asServiceRole.entities.SyncLog.create({
+      sync_type: 'shopify_orders',
+      status: 'success',
+      records_processed: totalOrders,
+      records_created: totalRecordsCreated,
+      triggered_by: user.email,
+      notes: `Backfill ${startDate} to ${endDate}: ${totalDaysProcessed} days, ${totalOrders} orders, ${totalRecordsCreated} records`,
+      date_range_start: startDate,
+      date_range_end: endDate,
+    });
 
     return Response.json({
       success: true,
@@ -169,6 +194,7 @@ Deno.serve(async (req) => {
     });
 
   } catch (error) {
+    console.error('backfillShopifyOrders error:', error);
     return Response.json({ error: error.message }, { status: 500 });
   }
 });
