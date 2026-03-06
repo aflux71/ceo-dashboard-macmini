@@ -316,6 +316,9 @@ export default function Inventory() {
         const a = inventory[i];
         const b = inventory[j];
         
+        // Skip cross-type comparisons (e.g. finished_product vs raw_material)
+        if (a.type !== b.type) continue;
+        
         // Check for similar names (fuzzy match)
         const nameA = normalize(a.name);
         const nameB = normalize(b.name);
