@@ -581,109 +581,39 @@ function MaterialCheckTab() {
     queryFn: () => base44.entities.Inventory.list(),
   });
 
-  // Approve mutations
   const approveForecastMutation = useMutation({
     mutationFn: async ({ item, production_type }) => {
-      console.log("Approving forecast item — creating ProductionRequest:", { item, production_type });
-      // Create a new ProductionRequest from the forecast item
-      const pr = await base44.entities.ProductionRequest.create({
-        sku: item.sku,
-        product_name: item.product_name,
-        quantity_needed: item.order_qty || item.forecast_qty || item.suggested_qty || 0,
-        status: "approved",
-        production_type,
-        source: "forecast",
-        urgency: item.urgency,
-      });
-      console.log("ProductionRequest created:", pr);
-      // Mark the ForecastSuggestion as in_production so it leaves Requests
-      await base44.entities.ForecastSuggestion.update(item.id, {
-        status: "in_production",
-      });
+      const pr = await base44.entities.ProductionRequest.create({ sku: item.sku, product_name: item.product_name, quantity_needed: item.order_qty || item.forecast_qty || item.suggested_qty || 0, status: "approved", production_type, source: "forecast", urgency: item.urgency });
+      await base44.entities.ForecastSuggestion.update(item.id, { status: "in_production" });
       return pr;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["planning_material_check_forecasts"] });
-      queryClient.invalidateQueries({ queryKey: ["planning_forecast_suggestions"] });
-      queryClient.invalidateQueries({ queryKey: ["planning_batch_queue_manual"] });
-      queryClient.invalidateQueries({ queryKey: ["planning_production_requests"] });
-      toast.success("Approved — moved to Batch Queue");
-    },
-    onError: (err) => {
-      console.error("Approve forecast failed:", err);
-      const msg = err?.response?.data?.message || err?.message || String(err);
-      toast.error(`Failed to approve: ${msg}`);
-    },
+    onSuccess: () => { ["planning_material_check_forecasts","planning_forecast_suggestions","planning_batch_queue_manual","planning_production_requests"].forEach(k => queryClient.invalidateQueries({ queryKey: [k] })); toast.success("Approved — moved to Batch Queue"); },
+    onError: (err) => toast.error(`Failed to approve: ${err?.response?.data?.message || err?.message || String(err)}`),
   });
-
   const approveManualMutation = useMutation({
-    mutationFn: ({ id, production_type }) =>
-      base44.entities.ProductionRequest.update(id, {
-        status: "approved",
-        production_type,
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["planning_material_check_manual"] });
-      queryClient.invalidateQueries({ queryKey: ["planning_batch_queue_manual"] });
-      toast.success("Approved — moved to Batch Queue");
-    },
-    onError: (err) => {
-      console.error("Approve manual failed:", err);
-      const msg = err?.response?.data?.message || err?.message || String(err);
-      toast.error(`Failed to approve: ${msg}`);
-    },
+    mutationFn: ({ id, production_type }) => base44.entities.ProductionRequest.update(id, { status: "approved", production_type }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["planning_material_check_manual"] }); queryClient.invalidateQueries({ queryKey: ["planning_batch_queue_manual"] }); toast.success("Approved — moved to Batch Queue"); },
+    onError: (err) => toast.error(`Failed to approve: ${err?.response?.data?.message || err?.message || String(err)}`),
   });
-
-  // Return to requests mutations
   const returnForecastMutation = useMutation({
-    mutationFn: (id) =>
-      base44.entities.ForecastSuggestion.update(id, { status: "suggested" }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["planning_material_check_forecasts"] });
-      queryClient.invalidateQueries({ queryKey: ["planning_forecast_suggestions"] });
-      toast.success("Returned to Requests");
-    },
+    mutationFn: (id) => base44.entities.ForecastSuggestion.update(id, { status: "suggested" }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["planning_material_check_forecasts"] }); queryClient.invalidateQueries({ queryKey: ["planning_forecast_suggestions"] }); toast.success("Returned to Requests"); },
     onError: () => toast.error("Failed to return"),
   });
-
   const returnManualMutation = useMutation({
-    mutationFn: (id) =>
-      base44.entities.ProductionRequest.update(id, { status: "pending" }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["planning_material_check_manual"] });
-      queryClient.invalidateQueries({ queryKey: ["planning_production_requests"] });
-      toast.success("Returned to Requests");
-    },
+    mutationFn: (id) => base44.entities.ProductionRequest.update(id, { status: "pending" }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["planning_material_check_manual"] }); queryClient.invalidateQueries({ queryKey: ["planning_production_requests"] }); toast.success("Returned to Requests"); },
     onError: () => toast.error("Failed to return"),
   });
-
   const mcUpdateMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.ProductionRequest.update(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["planning_material_check_manual"] });
-      toast.success("Request updated");
-      setMcEditDialogOpen(false);
-      setMcEditForm(emptyForm);
-      setMcEditingId(null);
-    },
-    onError: (err) => {
-      const msg = err?.response?.data?.message || err?.message || String(err);
-      toast.error(`Failed to update: ${msg}`);
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["planning_material_check_manual"] }); toast.success("Request updated"); setMcEditDialogOpen(false); setMcEditForm(emptyForm); setMcEditingId(null); },
+    onError: (err) => toast.error(`Failed to update: ${err?.response?.data?.message || err?.message || String(err)}`),
   });
-
   const mcDeleteMutation = useMutation({
     mutationFn: (id) => base44.entities.ProductionRequest.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["planning_material_check_manual"] });
-      queryClient.invalidateQueries({ queryKey: ["planning_production_requests"] });
-      toast.success("Request deleted");
-      setMcDeleteConfirmId(null);
-    },
-    onError: (err) => {
-      const msg = err?.response?.data?.message || err?.message || String(err);
-      toast.error(`Failed to delete: ${msg}`);
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["planning_material_check_manual"] }); queryClient.invalidateQueries({ queryKey: ["planning_production_requests"] }); toast.success("Request deleted"); setMcDeleteConfirmId(null); },
+    onError: (err) => toast.error(`Failed to delete: ${err?.response?.data?.message || err?.message || String(err)}`),
   });
 
   // Normalize items
