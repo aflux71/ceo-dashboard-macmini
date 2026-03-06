@@ -90,8 +90,20 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Step 4: Get existing inventory records
-    const existingInventory = await base44.asServiceRole.entities.Inventory.list();
+    // Step 4: Get ALL existing inventory records (paginated)
+    const existingInventory = [];
+    let invSkip = 0;
+    const invPageSize = 200;
+    while (true) {
+      const batch = await base44.asServiceRole.entities.Inventory.list('-created_date', invPageSize, invSkip);
+      if (!batch || batch.length === 0) break;
+      existingInventory.push(...batch);
+      if (batch.length < invPageSize) break;
+      invSkip += invPageSize;
+      await sleep(300);
+    }
+    console.log(`Loaded ${existingInventory.length} existing inventory records`);
+    
     const inventoryBySku = {};
     for (const item of existingInventory) {
       if (item.sku) inventoryBySku[item.sku.trim()] = item;
