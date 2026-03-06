@@ -515,6 +515,7 @@ export default function DemandPlanner() {
         }
         delCount += batch.length;
         setRebuildProgress({ current: delCount, total: delCount, phase: "deleting", detail: `Deleted ${delCount} old records...` });
+        await sleep(1000); // Rate limit protection
       }
 
       // Build final records from merged aggregation
