@@ -42,19 +42,8 @@ import Badge from "@/components/ui/Badge";
 const placeholderTabs = [];
 const colorMap = {};
 
-const urgencyConfig = {
-  critical: { variant: "red", label: "Critical" },
-  soon:     { variant: "amber", label: "Soon" },
-  ok:       { variant: "green", label: "OK" },
-};
-
-const emptyForm = {
-  product_name: "",
-  sku: "",
-  quantity: "",
-  reason: "",
-  urgency: "ok",
-};
+const urgencyConfig = { critical: { variant: "red", label: "Critical" }, soon: { variant: "amber", label: "Soon" }, ok: { variant: "green", label: "OK" } };
+const emptyForm = { product_name: "", sku: "", quantity: "", reason: "", urgency: "ok" };
 
 // ─── Requests Tab ──────────────────────────────────────────────────────────────
 
