@@ -74,8 +74,11 @@ export default function DataTab({
             className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white text-sm font-medium rounded transition-colors"
           >
             <RefreshCw className={`w-4 h-4 ${isRebuilding ? "animate-spin" : ""}`} />
-            {isRebuilding ? "Rebuilding..." : "Rebuild Summaries"}
+            {isRebuilding ? "Rebuilding (this takes a few minutes)..." : "Rebuild from ShopifySaleRecord"}
           </button>
+          <p className="text-[10px] text-zinc-500 mt-2">
+            Aggregates all ShopifySaleRecord data month-by-month with deduplication, then writes fresh DemandSummary records.
+          </p>
         </CardContent>
       </Card>
 
