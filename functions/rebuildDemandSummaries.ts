@@ -75,12 +75,29 @@ Deno.serve(async (req) => {
 
       console.log(`Aggregating ${year}-${monthStr}`);
 
+      const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+      const retryFilter = async (query, sort, limit, skip, retries = 3) => {
+        for (let attempt = 0; attempt < retries; attempt++) {
+          try {
+            return await base44.asServiceRole.entities.ShopifySaleRecord.filter(query, sort, limit, skip);
+          } catch (e) {
+            if (e.status === 429 && attempt < retries - 1) {
+              const wait = 3000 * (attempt + 1);
+              console.log(`Rate limited on filter, waiting ${wait}ms (attempt ${attempt + 1})...`);
+              await sleep(wait);
+            } else {
+              throw e;
+            }
+          }
+        }
+      };
+
       // Page through all records for this month
       const allRecords = [];
       let skip = 0;
       const pageSize = 200;
       while (true) {
-        const batch = await base44.asServiceRole.entities.ShopifySaleRecord.filter(
+        const batch = await retryFilter(
           { order_date: { $gte: startDate, $lt: endDate } },
           '-order_date', pageSize, skip
         );
@@ -88,6 +105,8 @@ Deno.serve(async (req) => {
         allRecords.push(...batch);
         if (batch.length < pageSize) break;
         skip += pageSize;
+        // Small delay between pages to avoid rate limits
+        if (allRecords.length > 0) await sleep(200);
       }
 
       // ── Deduplication ──────────────────────────────────────────────────
