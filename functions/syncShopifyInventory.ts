@@ -117,14 +117,18 @@ Deno.serve(async (req) => {
     }
     console.log(`Loaded ${existingInventory.length} existing inventory records`);
     
+    // Build lookup maps by both barcode and variant SKU
     const inventoryBySku = {};
     for (const item of existingInventory) {
       if (item.sku) inventoryBySku[item.sku.trim()] = item;
+      // Also index by supplier_sku if present (used to store variant_sku)
+      if (item.supplier_sku) inventoryBySku[item.supplier_sku.trim()] = item;
     }
 
     const now = new Date().toISOString();
     let updated = 0;
     let created = 0;
+    let migrated = 0;
 
     // Separate into creates and updates
     const toCreate = [];
@@ -133,18 +137,29 @@ Deno.serve(async (req) => {
     let skipped = 0;
     for (const variant of allVariants) {
       const quantity = quantityMap[variant.inventory_item_id] ?? 0;
-      const existing = inventoryBySku[variant.sku];
+      // Look up by barcode SKU first, then variant SKU
+      const existing = inventoryBySku[variant.sku] || inventoryBySku[variant.variant_sku];
 
       if (existing) {
-        // Only update if quantity or name actually changed
-        if (existing.quantity !== quantity || existing.name !== variant.name) {
-          toUpdate.push({ id: existing.id, quantity, name: variant.name });
+        // Check if SKU needs migration from variant_sku to barcode
+        const needsSkuMigration = variant.barcode && existing.sku !== variant.barcode;
+        const needsUpdate = existing.quantity !== quantity || existing.name !== variant.name || needsSkuMigration;
+        
+        if (needsUpdate) {
+          const updateData = { id: existing.id, quantity, name: variant.name };
+          if (needsSkuMigration) {
+            updateData.sku = variant.barcode;
+            updateData.supplier_sku = variant.variant_sku;
+            migrated++;
+          }
+          toUpdate.push(updateData);
         } else {
           skipped++;
         }
       } else {
         toCreate.push({
           sku: variant.sku,
+          supplier_sku: variant.variant_sku !== variant.sku ? variant.variant_sku : undefined,
           name: variant.name,
           quantity,
           type: 'finished_product',
@@ -154,6 +169,7 @@ Deno.serve(async (req) => {
         });
       }
     }
+    console.log(`To create: ${toCreate.length}, To update: ${toUpdate.length}, Skipped: ${skipped}, SKU migrations: ${migrated}`);
 
     // Bulk create new items in chunks of 20
     for (let i = 0; i < toCreate.length; i += 20) {
