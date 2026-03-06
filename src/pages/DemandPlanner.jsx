@@ -66,6 +66,9 @@ export default function DemandPlanner() {
   const [pushConfirmItems, setPushConfirmItems] = useState(null);
   const [isPushing, setIsPushing] = useState(false);
 
+  // Planner SKUs (ForecastSuggestion)
+  const [plannerSKUs, setPlannerSKUs] = useState(new Set());
+
   // Data stats for Data tab
   const [shopifyRecordCount, setShopifyRecordCount] = useState(0);
   const [lastSync, setLastSync] = useState(null);
@@ -165,7 +168,15 @@ export default function DemandPlanner() {
         } catch {}
       }
 
-      // 6. Shopify stats
+      // 6. Load planner SKUs (active ForecastSuggestions)
+      try {
+        const suggestions = await base44.entities.ForecastSuggestion.filter({
+          status: { $in: ['suggested', 'scheduled', 'on_hold', 'in_progress'] }
+        });
+        setPlannerSKUs(new Set(suggestions.map(s => s.sku)));
+      } catch {}
+
+      // 7. Shopify stats
       try {
         const records = await base44.entities.ShopifySaleRecord.list("-date", 1);
         setShopifyRecordCount(records.length > 0 ? records.length : 0);
@@ -353,6 +364,11 @@ export default function DemandPlanner() {
         });
       }
       toast.success(`${pushConfirmItems.length} item${pushConfirmItems.length > 1 ? "s" : ""} pushed to Planning`);
+      setPlannerSKUs(prev => {
+        const next = new Set(prev);
+        pushConfirmItems.forEach(i => next.add(i.sku));
+        return next;
+      });
       setPushConfirmItems(null);
     } catch (err) {
       console.error("Push to planning failed:", err);
@@ -501,6 +517,7 @@ export default function DemandPlanner() {
         <TabsContent value="dashboard" className="mt-4">
           <DashboardTab
             plan={plan}
+            plannerSKUs={plannerSKUs}
             onViewDetail={setDetailItem}
             onPushToPlanning={handlePushToPlanning}
             onExclude={handleExclude}
@@ -514,6 +531,7 @@ export default function DemandPlanner() {
         <TabsContent value="plan" className="mt-4">
           <PlanTable
             plan={plan}
+            plannerSKUs={plannerSKUs}
             workspace={workspace}
             onWorkspaceChange={handleWorkspaceChange}
             onViewDetail={setDetailItem}
