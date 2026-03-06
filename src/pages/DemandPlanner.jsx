@@ -656,6 +656,7 @@ export default function DemandPlanner() {
             shopifyRecordCount={shopifyRecordCount}
             lastSync={lastSync}
             isRebuilding={isRebuilding}
+            rebuildProgress={rebuildProgress}
             onRebuild={handleRebuild}
           />
         </TabsContent>
