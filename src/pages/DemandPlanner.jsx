@@ -812,12 +812,106 @@ function SettingsPanel({
         </CardContent>
       </Card>
 
-      {/* Exclusion list */}
+      {/* Default Exclusion List */}
       <Card className="bg-zinc-900 border-zinc-800">
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-zinc-300 flex items-center gap-2">
-              Exclusion List
+              Default Exclusion List
+              <span className="text-xs text-zinc-500 font-normal">
+                ({defaultExclusions.length} SKUs)
+              </span>
+            </h3>
+            <button
+              onClick={loadDefaultsIntoWorkspace}
+              disabled={defaultExclusions.length === 0}
+              className="flex items-center gap-1 px-2 py-1 bg-orange-600 hover:bg-orange-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[10px] rounded transition-colors"
+            >
+              <ArrowRight className="w-3 h-3" /> Load into Workspace
+            </button>
+          </div>
+          <p className="text-[10px] text-zinc-500 mb-3">
+            These SKUs are pre-loaded into new workspaces. Use "Load into Workspace" to apply them to the current workspace.
+          </p>
+
+          {/* Search to add */}
+          <div className="relative mb-3">
+            <Input
+              placeholder="Search product name or SKU to add to defaults..."
+              value={defaultExclusionSearch}
+              onChange={(e) => setDefaultExclusionSearch(e.target.value)}
+              className="h-8 bg-zinc-800 border-zinc-700 text-sm pr-8"
+            />
+            {defaultExclusionSearch && (
+              <button
+                onClick={() => setDefaultExclusionSearch("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+
+          {/* Search results */}
+          {defaultExclusionResults.length > 0 && (
+            <div className="mb-3 border border-zinc-700 rounded-lg overflow-hidden">
+              {defaultExclusionResults.map((s) => (
+                <div
+                  key={s.sku}
+                  className="flex items-center justify-between px-3 py-2 hover:bg-zinc-800/80 cursor-pointer border-b border-zinc-800 last:border-b-0"
+                  onClick={() => addDefaultExclusion(s.sku)}
+                >
+                  <div>
+                    <span className="text-xs text-zinc-200">{s.product}</span>
+                    <span className="text-[10px] text-zinc-500 ml-2 font-mono">SKU {s.sku}</span>
+                  </div>
+                  <span className="text-[10px] text-orange-400 flex items-center gap-1">
+                    <Plus className="w-3 h-3" /> Add
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          {defaultExclusionSearch && defaultExclusionResults.length === 0 && (
+            <p className="text-xs text-zinc-500 mb-3">No matching SKUs found.</p>
+          )}
+
+          {/* Current default list */}
+          {loadingDefaults ? (
+            <p className="text-xs text-zinc-500">Loading...</p>
+          ) : defaultExclusions.length === 0 ? (
+            <p className="text-xs text-zinc-500">No default exclusions set. Search above to add SKUs.</p>
+          ) : (
+            <div className="space-y-1 max-h-72 overflow-y-auto">
+              {defaultExclusions.map((sku) => {
+                const summary = summaries.find((s) => s.sku === sku);
+                return (
+                  <div key={sku} className="flex items-center justify-between px-3 py-1.5 bg-zinc-800/50 rounded text-xs">
+                    <span className="text-zinc-300">
+                      <span className="font-mono text-zinc-500">SKU {sku}</span>
+                      {summary && ` — ${summary.product}`}
+                    </span>
+                    <button
+                      onClick={() => removeDefaultExclusion(sku)}
+                      className="text-zinc-500 hover:text-red-400"
+                      title="Remove from defaults"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Workspace Exclusion list */}
+      <Card className="bg-zinc-900 border-zinc-800">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-zinc-300 flex items-center gap-2">
+              Workspace Exclusion List
               <span className="text-xs text-zinc-500 font-normal">
                 ({workspace.exclusionList.length} SKUs excluded)
               </span>
