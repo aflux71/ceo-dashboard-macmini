@@ -413,33 +413,130 @@ export default function DemandPlanner() {
     toast.success(`On-hand override set for SKU ${sku}: ${qty}`);
   };
 
-  // ── Rebuild summaries ─────────────────────────────────────────────────────
+  // ── Rebuild summaries (month-by-month aggregation) ─────────────────────────
+  const [rebuildProgress, setRebuildProgress] = useState("");
+  
   const handleRebuild = async () => {
     setIsRebuilding(true);
+    setRebuildProgress("Starting rebuild...");
     try {
-      const response = await base44.functions.invoke("rebuildDemandSummaries", {});
-      const result = response.data;
-      if (result?.success || result?.message) {
-        toast.success(result.message || "Summaries rebuilt successfully");
-        setLastSync(new Date().toISOString().split("T")[0]);
-        // Reload summaries from DB
-        const updated = await fetchAll(base44.entities.DemandSummary);
-        if (updated?.length > 0) {
-          const parsed = updated.map((s) => ({
-            ...s,
-            monthly: typeof s.monthly === "string" ? JSON.parse(s.monthly) : s.monthly,
-            byChannel: typeof s.byChannel === "string" ? JSON.parse(s.byChannel) : s.byChannel,
-            byLocation: typeof s.byLocation === "string" ? JSON.parse(s.byLocation) : s.byLocation,
-            category: s.category || categorize(s.product),
-          }));
-          setSummaries(parsed);
-          setShopifyRecordCount(result.sale_records_processed || 0);
+      // Phase 1: Aggregate each month (Jan 2025 through Feb 2026)
+      const months = [];
+      for (let y = 2025; y <= 2026; y++) {
+        const endM = y === 2026 ? 3 : 12;
+        for (let m = 1; m <= endM; m++) months.push({ year: y, month: m });
+      }
+
+      const mergedAggregation = {};
+      let totalRecords = 0;
+
+      for (const { year, month } of months) {
+        const label = `${year}-${String(month).padStart(2, '0')}`;
+        setRebuildProgress(`Aggregating ${label}...`);
+        
+        const response = await base44.functions.invoke("rebuildDemandSummaries", {
+          phase: "aggregate", year, month,
+        });
+        const result = response.data;
+        if (!result?.success) continue;
+        
+        totalRecords += result.records_loaded || 0;
+        const monthIdx = month - 1;
+
+        // Merge this month's aggregation into the master
+        for (const [sku, data] of Object.entries(result.aggregation || {})) {
+          if (!mergedAggregation[sku]) {
+            mergedAggregation[sku] = {
+              sku: data.sku,
+              product: data.product,
+              monthly: [0,0,0,0,0,0,0,0,0,0,0,0],
+              byChannel: { online: 0, pos: 0 },
+              byLocation: {},
+              totalQty: 0,
+              minDate: data.minDate,
+              maxDate: data.maxDate,
+            };
+          }
+          const m = mergedAggregation[sku];
+          m.monthly[monthIdx] += data.qty;
+          m.totalQty += data.qty;
+          m.byChannel.online += data.online || 0;
+          m.byChannel.pos += data.pos || 0;
+          for (const [loc, qty] of Object.entries(data.locations || {})) {
+            m.byLocation[loc] = (m.byLocation[loc] || 0) + qty;
+          }
+          if (data.minDate < m.minDate) m.minDate = data.minDate;
+          if (data.maxDate > m.maxDate) m.maxDate = data.maxDate;
         }
-      } else {
-        toast.error(result?.error || "Rebuild failed");
+        
+        setRebuildProgress(`Aggregated ${label}: ${result.records_loaded} records (${totalRecords} total)`);
+      }
+
+      // Compute final fields
+      const finalAggregation = {};
+      for (const [sku, data] of Object.entries(mergedAggregation)) {
+        const start = new Date(data.minDate);
+        const end = new Date(data.maxDate);
+        const dataMonths = Math.max(1,
+          (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1
+        );
+        finalAggregation[sku] = {
+          sku: data.sku,
+          product: data.product,
+          monthly: data.monthly,
+          byChannel: data.byChannel,
+          byLocation: data.byLocation,
+          totalQty: data.totalQty,
+          dataMonths,
+          periodStart: (data.minDate || '').split('T')[0],
+          periodEnd: (data.maxDate || '').split('T')[0],
+        };
+      }
+
+      const uniqueSKUs = Object.keys(finalAggregation).length;
+      setRebuildProgress(`Writing ${uniqueSKUs} summaries...`);
+
+      // Phase 2: Write to DemandSummary (in chunks to avoid payload limits)
+      const skuEntries = Object.entries(finalAggregation);
+      const CHUNK_SIZE = 200;
+      let totalCreated = 0;
+
+      for (let i = 0; i < skuEntries.length; i += CHUNK_SIZE) {
+        const chunk = Object.fromEntries(skuEntries.slice(i, i + CHUNK_SIZE));
+        const isFirst = i === 0;
+        
+        const writeResp = await base44.functions.invoke("rebuildDemandSummaries", {
+          phase: "write",
+          aggregation: chunk,
+          clear_existing: isFirst,
+        });
+        
+        if (writeResp.data?.success) {
+          totalCreated += writeResp.data.summaries_created || 0;
+          setRebuildProgress(`Written ${totalCreated}/${uniqueSKUs} summaries...`);
+        }
+      }
+
+      toast.success(`Rebuild complete: ${totalCreated} summaries from ${totalRecords.toLocaleString()} sale records`);
+      setRebuildProgress("");
+      setLastSync(new Date().toISOString().split("T")[0]);
+
+      // Reload summaries from DB
+      const updated = await fetchAll(base44.entities.DemandSummary);
+      if (updated?.length > 0) {
+        const parsed = updated.map((s) => ({
+          ...s,
+          monthly: typeof s.monthly === "string" ? JSON.parse(s.monthly) : s.monthly,
+          byChannel: typeof s.byChannel === "string" ? JSON.parse(s.byChannel) : s.byChannel,
+          byLocation: typeof s.byLocation === "string" ? JSON.parse(s.byLocation) : s.byLocation,
+          category: s.category || categorize(s.product),
+        }));
+        setSummaries(parsed);
+        setShopifyRecordCount(totalRecords);
       }
     } catch (err) {
       toast.error("Rebuild failed: " + err.message);
+      setRebuildProgress("");
     }
     setIsRebuilding(false);
   };
