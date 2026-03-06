@@ -633,6 +633,71 @@ function SettingsPanel({
   const [exclusionSearch, setExclusionSearch] = useState("");
   const exclusionCsvRef = React.useRef(null);
 
+  // Default exclusion list from AppSettings
+  const [defaultExclusions, setDefaultExclusions] = useState([]);
+  const [defaultExclusionSearch, setDefaultExclusionSearch] = useState("");
+  const [loadingDefaults, setLoadingDefaults] = useState(true);
+  const [savingDefaults, setSavingDefaults] = useState(false);
+  const [defaultSettingId, setDefaultSettingId] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const settings = await base44.entities.AppSettings.filter({ key: "default_exclusion_list" });
+        if (settings.length > 0) {
+          setDefaultSettingId(settings[0].id);
+          setDefaultExclusions(JSON.parse(settings[0].value || "[]"));
+        }
+      } catch {}
+      setLoadingDefaults(false);
+    })();
+  }, []);
+
+  const saveDefaultExclusions = async (list) => {
+    setSavingDefaults(true);
+    try {
+      const payload = { key: "default_exclusion_list", value: JSON.stringify(list), description: "Default SKU exclusion list for Demand Planner" };
+      if (defaultSettingId) {
+        await base44.entities.AppSettings.update(defaultSettingId, payload);
+      } else {
+        const created = await base44.entities.AppSettings.create(payload);
+        setDefaultSettingId(created.id);
+      }
+      setDefaultExclusions(list);
+      toast.success("Default exclusion list saved");
+    } catch {
+      toast.error("Failed to save default exclusion list");
+    }
+    setSavingDefaults(false);
+  };
+
+  const addDefaultExclusion = (sku) => {
+    if (!defaultExclusions.includes(sku)) {
+      saveDefaultExclusions([...defaultExclusions, sku]);
+    }
+    setDefaultExclusionSearch("");
+  };
+
+  const removeDefaultExclusion = (sku) => {
+    saveDefaultExclusions(defaultExclusions.filter((s) => s !== sku));
+  };
+
+  const loadDefaultsIntoWorkspace = () => {
+    onBulkExclude(defaultExclusions.filter((sku) => !workspace.exclusionList.includes(sku)));
+    toast.success("Default exclusions loaded into workspace");
+  };
+
+  const defaultExclusionResults = useMemo(() => {
+    if (!defaultExclusionSearch.trim()) return [];
+    const q = defaultExclusionSearch.toLowerCase();
+    return summaries
+      .filter((s) =>
+        (s.product?.toLowerCase().includes(q) || s.sku?.toLowerCase().includes(q)) &&
+        !defaultExclusions.includes(s.sku)
+      )
+      .slice(0, 10);
+  }, [defaultExclusionSearch, summaries, defaultExclusions]);
+
   const handleExclusionCSV = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
