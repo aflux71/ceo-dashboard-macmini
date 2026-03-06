@@ -20,6 +20,7 @@ Deno.serve(async (req) => {
     const payload = await req.json();
     const startDate = payload.start_date;
     const endDate = payload.end_date;
+    const skipDedup = payload.skip_dedup || false;
 
     if (!startDate || !endDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
       return Response.json({ error: 'Invalid date format. Use YYYY-MM-DD' }, { status: 400 });
