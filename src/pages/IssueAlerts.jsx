@@ -44,6 +44,8 @@ const ISSUE_TYPES = {
 export default function IssueAlerts() {
   const [searchQuery, setSearchQuery] = useState("");
   const [issueTypeFilter, setIssueTypeFilter] = useState("all");
+  const [sortField, setSortField] = useState(null);
+  const [sortDir, setSortDir] = useState("asc");
   const queryClient = useQueryClient();
 
   // Fetch scheduled items
