@@ -1,8 +1,9 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
-function categorize(name) {
+// ── Category Detection (must match demandEngine.js) ────────────────────────
+function categorize(name: string): string {
   const n = (name || '').toLowerCase();
-  const rules = [
+  const rules: [RegExp, string][] = [
     [/bath bomb|(?<!\w)bomb(?!\w)/, 'Bath Bombs'],
     [/shower puck|shower steamer/, 'Bath Bombs'],
     [/glycerine|soap bar|bathing bar|pet wash bar|exfoliat.*bar/, 'Soap Bars'],
@@ -43,173 +44,304 @@ function categorize(name) {
   return 'Other';
 }
 
-function getMonthIndex(dateStr) {
+// ── Parse date string to month index (0-11) ────────────────────────────────
+function getMonthIndex(dateStr: string): number {
+  // Handle formats: "2025-03-15", "2025-03-15T00:00:00Z", etc.
   const match = dateStr?.match(/(\d{4})-(\d{2})/);
   if (!match) return -1;
-  return parseInt(match[2], 10) - 1;
+  return parseInt(match[2], 10) - 1; // 0-indexed
 }
 
-// Phase 1: Aggregate one month of data and return aggregation
-// Phase 2: Write aggregated summaries to DemandSummary entity
+function getYear(dateStr: string): number {
+  const match = dateStr?.match(/(\d{4})/);
+  return match ? parseInt(match[1], 10) : 0;
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
+
     if (user?.role !== 'admin') {
-      return Response.json({ error: 'Forbidden' }, { status: 403 });
+      return Response.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
     }
 
-    const body = await req.json().catch(() => ({}));
-    const phase = body.phase || 'aggregate';
+    const startTime = Date.now();
+
+    // ── Step 1: Load existing DemandSummary records ──────────────────────
+    const existingSummaries = await base44.asServiceRole.entities.DemandSummary.list();
+    const summaryMap: Record<string, any> = {};
+    const summaryIdMap: Record<string, string> = {}; // sku → record id for updates
     
-    if (phase === 'aggregate') {
-      // Aggregate records for a specific year-month
-      const year = body.year || 2025;
-      const month = body.month; // 1-12
-      if (!month) {
-        return Response.json({ error: 'month is required (1-12)' }, { status: 400 });
-      }
-      
-      const monthStr = String(month).padStart(2, '0');
-      const startDate = `${year}-${monthStr}-01`;
-      const nextMonth = month === 12 ? 1 : month + 1;
-      const nextYear = month === 12 ? year + 1 : year;
-      const endDate = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`;
-      
-      console.log(`Aggregating ${year}-${monthStr}: filtering order_date >= ${startDate} and < ${endDate}`);
-      
-      // Load all records for this month via pagination
-      const syncData = {};
-      let totalLoaded = 0;
-      let skip = 0;
-      const pageSize = 200;
-      
-      while (true) {
-        const batch = await base44.asServiceRole.entities.ShopifySaleRecord.filter(
-          { order_date: { $gte: startDate, $lt: endDate } },
-          '-order_date', pageSize, skip
-        );
-        
-        if (!batch || batch.length === 0) break;
-        
-        for (const record of batch) {
-          const sku = record.sku?.trim();
-          if (!sku) continue;
-          const qty = record.quantity || 0;
-          if (qty <= 0) continue;
-          
-          const channel = record.channel || (record.location_id ? 'pos' : 'online');
-          const location = record.location_name || (channel === 'online' ? 'Online' : 'Unknown');
-          
-          if (!syncData[sku]) {
-            syncData[sku] = {
-              sku,
-              product: record.product_name || sku,
-              qty: 0,
-              online: 0,
-              pos: 0,
-              locations: {},
-              minDate: record.order_date,
-              maxDate: record.order_date,
-            };
-          }
-          
-          const s = syncData[sku];
-          s.qty += qty;
-          if (channel === 'pos') s.pos += qty; else s.online += qty;
-          s.locations[location] = (s.locations[location] || 0) + qty;
-          if (record.order_date < s.minDate) s.minDate = record.order_date;
-          if (record.order_date > s.maxDate) s.maxDate = record.order_date;
-        }
-        
-        totalLoaded += batch.length;
-        if (batch.length < pageSize) break;
-        skip += pageSize;
-      }
-      
-      console.log(`${year}-${monthStr}: ${totalLoaded} records, ${Object.keys(syncData).length} unique SKUs`);
-      
+    for (const s of existingSummaries) {
+      summaryMap[s.sku] = {
+        sku: s.sku,
+        product: s.product,
+        category: s.category,
+        monthly: JSON.parse(s.monthly || '[0,0,0,0,0,0,0,0,0,0,0,0]'),
+        byChannel: JSON.parse(s.byChannel || '{"online":0,"pos":0}'),
+        byLocation: JSON.parse(s.byLocation || '{}'),
+        totalQty: s.totalQty || 0,
+        totalRevenue: s.totalRevenue || 0,
+        dataMonths: s.dataMonths || 12,
+        periodStart: s.periodStart || '2025-01-01',
+        periodEnd: s.periodEnd || '2025-12-31',
+      };
+      summaryIdMap[s.sku] = s.id;
+    }
+
+    console.log(`Loaded ${existingSummaries.length} existing DemandSummary records`);
+
+    // ── Step 2: Load ALL ShopifySaleRecord records with pagination ───────
+    const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+    const PAGE_SIZE = 200;
+    let saleRecords: any[] = [];
+    let page = 0;
+    while (true) {
+      const batch = await base44.asServiceRole.entities.ShopifySaleRecord.list(
+        '-order_date', PAGE_SIZE, page * PAGE_SIZE
+      );
+      if (!batch || batch.length === 0) break;
+      saleRecords = saleRecords.concat(batch);
+      if (batch.length < PAGE_SIZE) break;
+      page++;
+      await sleep(500);
+    }
+    console.log(`Loaded ${saleRecords.length} ShopifySaleRecord records`);
+
+    if (saleRecords.length === 0) {
       return Response.json({
-        success: true,
-        year,
-        month,
-        records_loaded: totalLoaded,
-        unique_skus: Object.keys(syncData).length,
-        aggregation: syncData,
+        message: 'No ShopifySaleRecord records found. Summaries unchanged.',
+        existing_summaries: existingSummaries.length,
+        elapsed_ms: Date.now() - startTime,
       });
     }
+
+    // ── Step 3: Aggregate ShopifySaleRecord by SKU ───────────────────────
+    // Build a separate sync layer so we can merge cleanly with baseline
+    const syncData: Record<string, {
+      sku: string;
+      product: string;
+      monthly: number[];
+      byChannel: { online: number; pos: number };
+      byLocation: Record<string, number>;
+      totalQty: number;
+      minDate: string;
+      maxDate: string;
+    }> = {};
+
+    for (const record of saleRecords) {
+      const sku = record.sku?.trim();
+      if (!sku) continue;
+
+      const qty = record.quantity || 0;
+      if (qty <= 0) continue;
+
+      const dateStr = record.order_date || '';
+      const monthIdx = getMonthIndex(dateStr);
+      if (monthIdx < 0) continue;
+
+      const channel = record.channel || (record.location_id ? 'pos' : 'online');
+      const location = record.location_name || (channel === 'online' ? 'Online' : 'Unknown');
+
+      if (!syncData[sku]) {
+        syncData[sku] = {
+          sku,
+          product: record.product_name || sku,
+          monthly: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          byChannel: { online: 0, pos: 0 },
+          byLocation: {},
+          totalQty: 0,
+          minDate: dateStr,
+          maxDate: dateStr,
+        };
+      }
+
+      const s = syncData[sku];
+      s.monthly[monthIdx] += qty;
+      s.totalQty += qty;
+      s.byChannel[channel === 'pos' ? 'pos' : 'online'] += qty;
+      s.byLocation[location] = (s.byLocation[location] || 0) + qty;
+      
+      if (dateStr < s.minDate) s.minDate = dateStr;
+      if (dateStr > s.maxDate) s.maxDate = dateStr;
+    }
+
+    console.log(`Aggregated ${Object.keys(syncData).length} SKUs from ShopifySaleRecord`);
+
+    // ── Step 4: Build full merged summary list ───────────────────────────
+    const now = new Date().toISOString();
     
-    if (phase === 'write') {
-      // Receive merged aggregation from frontend and write to DemandSummary
-      const aggregation = body.aggregation;
-      if (!aggregation || typeof aggregation !== 'object') {
-        return Response.json({ error: 'aggregation object is required' }, { status: 400 });
-      }
-      
-      const clearExisting = body.clear_existing !== false;
-      
-      if (clearExisting) {
-        // Delete all existing DemandSummary records
-        let offset = 0;
-        let deleted = 0;
-        while (true) {
-          const batch = await base44.asServiceRole.entities.DemandSummary.list('-created_date', 200, 0);
-          if (!batch || batch.length === 0) break;
-          await Promise.all(batch.map(r => base44.asServiceRole.entities.DemandSummary.delete(r.id)));
-          deleted += batch.length;
-          console.log(`Deleted ${deleted} existing summaries...`);
+    // Start with all existing summaries, update any that have new sync data
+    const finalSummaries: Record<string, any> = {};
+    
+    // Copy all existing as-is first
+    for (const [sku, existing] of Object.entries(summaryMap)) {
+      finalSummaries[sku] = {
+        sku,
+        product: existing.product,
+        category: categorize(existing.product),
+        monthly: JSON.stringify(existing.monthly),
+        byChannel: JSON.stringify(existing.byChannel),
+        byLocation: JSON.stringify(existing.byLocation),
+        totalQty: existing.totalQty,
+        avgMonthly: existing.avgMonthly || 0,
+        totalRevenue: existing.totalRevenue || 0,
+        dataMonths: existing.dataMonths || 12,
+        periodStart: existing.periodStart || '2025-01-01',
+        periodEnd: existing.periodEnd || '2025-12-31',
+        updatedAt: existing.updatedAt || now,
+      };
+    }
+
+    // Merge sync data
+    for (const [sku, sync] of Object.entries(syncData)) {
+      const existing = summaryMap[sku];
+
+      if (existing) {
+        const syncYear = getYear(sync.minDate);
+        const baselineEndYear = getYear(existing.periodEnd);
+        const mergedMonthly = [...existing.monthly];
+
+        if (syncYear > baselineEndYear) {
+          for (let i = 0; i < 12; i++) {
+            if (sync.monthly[i] > 0) {
+              mergedMonthly[i] = mergedMonthly[i] > 0
+                ? Math.round((mergedMonthly[i] + sync.monthly[i]) / 2)
+                : sync.monthly[i];
+            }
+          }
+          const mergedChannel = {
+            online: existing.byChannel.online + sync.byChannel.online,
+            pos: existing.byChannel.pos + sync.byChannel.pos,
+          };
+          const mergedLocation = { ...existing.byLocation };
+          for (const [loc, qty] of Object.entries(sync.byLocation)) {
+            mergedLocation[loc] = (mergedLocation[loc] || 0) + qty;
+          }
+          const totalQty = existing.totalQty + sync.totalQty;
+          const periodEnd = sync.maxDate > existing.periodEnd ? sync.maxDate : existing.periodEnd;
+          const startDate = new Date(existing.periodStart);
+          const endDate = new Date(periodEnd);
+          const monthsSpan = Math.max(1,
+            (endDate.getFullYear() - startDate.getFullYear()) * 12 +
+            (endDate.getMonth() - startDate.getMonth()) + 1
+          );
+          finalSummaries[sku] = {
+            ...finalSummaries[sku],
+            product: sync.product || existing.product,
+            category: categorize(sync.product || existing.product),
+            monthly: JSON.stringify(mergedMonthly),
+            byChannel: JSON.stringify(mergedChannel),
+            byLocation: JSON.stringify(mergedLocation),
+            totalQty,
+            avgMonthly: Math.round((totalQty / monthsSpan) * 10) / 10,
+            dataMonths: monthsSpan,
+            periodEnd,
+            updatedAt: now,
+          };
+        } else {
+          for (let i = 0; i < 12; i++) {
+            if (sync.monthly[i] > 0) mergedMonthly[i] = Math.max(mergedMonthly[i], sync.monthly[i]);
+          }
+          const totalQty = mergedMonthly.reduce((s, v) => s + v, 0);
+          const dataMonths = existing.dataMonths || 12;
+          finalSummaries[sku] = {
+            ...finalSummaries[sku],
+            monthly: JSON.stringify(mergedMonthly),
+            totalQty,
+            avgMonthly: Math.round((totalQty / dataMonths) * 10) / 10,
+            category: categorize(existing.product),
+            updatedAt: now,
+          };
         }
-      }
-      
-      // Build final records from aggregation
-      const now = new Date().toISOString();
-      const allFinal = Object.values(aggregation).map(s => {
-        const monthsSpan = Math.max(1, s.dataMonths || 1);
-        return {
-          sku: s.sku,
-          product: s.product,
-          category: categorize(s.product),
-          monthly: typeof s.monthly === 'string' ? s.monthly : JSON.stringify(s.monthly),
-          byChannel: typeof s.byChannel === 'string' ? s.byChannel : JSON.stringify(s.byChannel),
-          byLocation: typeof s.byLocation === 'string' ? s.byLocation : JSON.stringify(s.byLocation),
-          totalQty: s.totalQty,
-          avgMonthly: Math.round((s.totalQty / monthsSpan) * 10) / 10,
+      } else {
+        // New SKU not in baseline
+        const monthsSpan = Math.max(1, (() => {
+          const start = new Date(sync.minDate);
+          const end = new Date(sync.maxDate);
+          return (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
+        })());
+        finalSummaries[sku] = {
+          sku,
+          product: sync.product,
+          category: categorize(sync.product),
+          monthly: JSON.stringify(sync.monthly),
+          byChannel: JSON.stringify(sync.byChannel),
+          byLocation: JSON.stringify(sync.byLocation),
+          totalQty: sync.totalQty,
+          avgMonthly: Math.round((sync.totalQty / monthsSpan) * 10) / 10,
           totalRevenue: 0,
           dataMonths: monthsSpan,
-          periodStart: s.periodStart || '',
-          periodEnd: s.periodEnd || '',
+          periodStart: sync.minDate.split('T')[0],
+          periodEnd: sync.maxDate.split('T')[0],
           updatedAt: now,
         };
-      });
-      
-      // Bulk create in batches of 20
-      let created = 0;
-      for (let i = 0; i < allFinal.length; i += 20) {
-        const batch = allFinal.slice(i, i + 20);
-        await base44.asServiceRole.entities.DemandSummary.bulkCreate(batch);
-        created += batch.length;
-        console.log(`Created ${created}/${allFinal.length} summaries`);
       }
-      
-      // Log sync
-      await base44.asServiceRole.entities.SyncLog.create({
-        sync_type: 'demand_summaries',
-        status: 'success',
-        records_created: created,
-        triggered_by: user.email,
-        notes: `Full rebuild: ${created} summaries written`,
-      });
-      
-      return Response.json({
-        success: true,
-        summaries_created: created,
-      });
     }
-    
-    return Response.json({ error: 'Invalid phase. Use "aggregate" or "write".' }, { status: 400 });
-    
+
+    // ── Step 5: Delete all existing, then bulk create ────────────────────
+    // This avoids rate-limited individual updates
+
+    // Delete existing records sequentially with delay to avoid rate limits
+    const existingIds = Object.values(summaryIdMap);
+    const DEL_BATCH = 5;
+    for (let i = 0; i < existingIds.length; i += DEL_BATCH) {
+      const batch = existingIds.slice(i, i + DEL_BATCH);
+      for (const id of batch) {
+        await base44.asServiceRole.entities.DemandSummary.delete(id);
+      }
+      await sleep(1000);
+    }
+
+    // Bulk create all final summaries
+    const allFinal = Object.values(finalSummaries);
+    const CREATE_BATCH = 20;
+    let created = 0;
+    const updated = allFinal.length;
+    for (let i = 0; i < allFinal.length; i += CREATE_BATCH) {
+      const batch = allFinal.slice(i, i + CREATE_BATCH);
+      await base44.asServiceRole.entities.DemandSummary.bulkCreate(batch);
+      created += batch.length;
+      await sleep(1000);
+    }
+
+    const elapsed = Date.now() - startTime;
+
+    // Log the sync
+    await base44.asServiceRole.entities.SyncLog.create({
+      sync_type: 'demand_summaries',
+      status: 'success',
+      records_processed: saleRecords.length,
+      records_created: created,
+      records_updated: updated,
+      duration_seconds: Math.round(elapsed / 1000),
+      triggered_by: user.email,
+      notes: `Rebuild complete: ${updated} summaries from ${saleRecords.length} sale records, ${Object.keys(syncData).length} unique SKUs`,
+    });
+
+    return Response.json({
+      success: true,
+      message: `Rebuild complete: ${updated} updated, ${created} created from ${saleRecords.length} sale records`,
+      existing_summaries: existingSummaries.length,
+      sale_records_processed: saleRecords.length,
+      unique_skus_in_sync: Object.keys(syncData).length,
+      summaries_updated: updated,
+      summaries_created: created,
+      elapsed_ms: elapsed,
+    });
+
   } catch (error) {
     console.error('rebuildDemandSummaries error:', error);
+    // Try to log the error
+    try {
+      const base44err = createClientFromRequest(req);
+      await base44err.asServiceRole.entities.SyncLog.create({
+        sync_type: 'demand_summaries',
+        status: 'error',
+        notes: error.message,
+      });
+    } catch {}
     return Response.json({ error: error.message }, { status: 500 });
   }
 });
