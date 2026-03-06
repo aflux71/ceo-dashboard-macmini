@@ -202,26 +202,6 @@ function RequestsTab() {
   });
 
   const allItems = useMemo(() => {
-    // Debug: log raw entity fields to identify correct quantity field names
-    if (forecastItems.length > 0) {
-      console.log("[RequestsTab] Raw ForecastSuggestion sample:", JSON.stringify(forecastItems[0], null, 2));
-      console.log("[RequestsTab] ForecastSuggestion qty fields:", {
-        order_qty: forecastItems[0].order_qty,
-        forecast_qty: forecastItems[0].forecast_qty,
-        suggested_qty: forecastItems[0].suggested_qty,
-        quantity: forecastItems[0].quantity,
-        quantity_needed: forecastItems[0].quantity_needed,
-      });
-    }
-    if (manualItems.length > 0) {
-      console.log("[RequestsTab] Raw ProductionRequest sample:", JSON.stringify(manualItems[0], null, 2));
-      console.log("[RequestsTab] ProductionRequest qty fields:", {
-        quantity: manualItems[0].quantity,
-        quantity_needed: manualItems[0].quantity_needed,
-        order_qty: manualItems[0].order_qty,
-      });
-    }
-
     const forecast = forecastItems.map((item) => {
       const qty = item.order_qty || item.forecast_qty || item.suggested_qty || 0;
       return {
