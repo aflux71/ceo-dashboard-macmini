@@ -124,13 +124,17 @@ Deno.serve(async (req) => {
 
     console.log(`Found ${merges.length} merges, ${toDelete.length} records to delete`);
 
-    // 5. Execute merges
+    // 5. Execute merges (with aggressive rate limiting)
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     let mergeCount = 0;
     for (const merge of merges) {
       await base44.asServiceRole.entities.DemandSummary.update(merge.longId, merge.update);
       mergeCount++;
-      if (mergeCount % 5 === 0) await sleep(500);
+      await sleep(300);
+      if (mergeCount % 10 === 0) {
+        console.log(`Merged ${mergeCount}/${merges.length}`);
+        await sleep(2000);
+      }
     }
 
     // 6. Delete short-SKU duplicates
@@ -138,14 +142,17 @@ Deno.serve(async (req) => {
     for (const del of toDelete) {
       await base44.asServiceRole.entities.DemandSummary.delete(del.id);
       deleteCount++;
-      if (deleteCount % 5 === 0) await sleep(500);
+      await sleep(300);
+      if (deleteCount % 10 === 0) {
+        console.log(`Deleted ${deleteCount}/${toDelete.length}`);
+        await sleep(2000);
+      }
     }
 
     // 7. Auto-create approved SKU mappings for future syncs
     let mappingCount = 0;
     for (const m of mappingsCreated) {
       try {
-        // Check if mapping already exists
         const existing = await base44.asServiceRole.entities.SKUMapping.filter({
           old_sku: m.old_sku, new_sku: m.new_sku
         });
@@ -162,6 +169,7 @@ Deno.serve(async (req) => {
           });
           mappingCount++;
         }
+        await sleep(300);
       } catch (e) {
         console.log(`Failed to create mapping ${m.old_sku} -> ${m.new_sku}: ${e.message}`);
       }
