@@ -61,6 +61,7 @@ const settingsItems = [
         { name: "Line Capacity", icon: Factory, page: "LineCapacity" },
         { name: "Recipe Templates", icon: FileInput, page: "RecipeTemplates" },
         { name: "Bulk Upload", icon: FileText, page: "BulkUpload" },
+        { name: "Product Categories", icon: Tag, page: "CategorySettings" },
         { name: "Measurement Units", icon: Package, page: "MeasurementSettings" },
         { name: "Audit Log", icon: ClipboardList, page: "AuditLog" },
         { name: "Sync Log", icon: History, page: "SyncLog" },

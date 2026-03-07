@@ -53,23 +53,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import { useProductCategories, DEFAULT_CATEGORY_PREFIXES } from "@/components/utils/useProductCategories";
 
-const CATEGORIES = ["Bath Bombs", "Body Wash", "Scrubs", "Lotions", "Oils", "Soaps", "Shampoo Bars", "Candles", "Other"];
 const SEASONS = ["Spring", "Summer", "Fall", "Winter"];
 const HOLIDAYS = ["Christmas", "Valentine's Day", "Easter", "Mother's Day", "Halloween", "Thanksgiving", "New Year", "Other"];
-
-// Category prefixes for auto-SKU
-const CATEGORY_PREFIXES = {
-  "Bath Bombs": "BB",
-  "Body Wash": "BW",
-  "Scrubs": "SC",
-  "Lotions": "LO",
-  "Oils": "OI",
-  "Soaps": "SP",
-  "Shampoo Bars": "SB",
-  "Candles": "CA",
-  "Other": "OT"
-};
 
 // Expandable Recipe Row Component
 function RecipeRow({ recipe, inventory, getCategoryColor, onView, onEdit, onDuplicate, onSaveTemplate, onDelete, canDelete }) {
