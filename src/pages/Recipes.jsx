@@ -194,13 +194,14 @@ export default function Recipes() {
   const [templateName, setTemplateName] = useState("");
   
   const { hasPermission, floorUser } = useFloorPin();
+  const { categories: CATEGORIES } = useProductCategories();
   
   // Check if user can delete (owner or admin role)
   const canDeleteRecipe = floorUser?.role === 'owner' || floorUser?.role === 'admin';
 
   // Auto-generate SKU based on category
   const generateSku = (category) => {
-    const prefix = CATEGORY_PREFIXES[category] || "OT";
+    const prefix = DEFAULT_CATEGORY_PREFIXES[category] || category?.substring(0, 2)?.toUpperCase() || "OT";
     const existingSkus = recipes.filter(r => r.sku?.startsWith(prefix + "-"));
     const numbers = existingSkus.map(r => {
       const match = r.sku.match(new RegExp(`^${prefix}-(\\d+)`));
