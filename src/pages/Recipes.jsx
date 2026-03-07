@@ -40,6 +40,7 @@ import CompatibleUnitSelect from "@/components/recipes/CompatibleUnitSelect";
 import PrintRecipesDialog from "@/components/recipes/PrintRecipesDialog";
 import PackagingSkuSelect from "@/components/recipes/PackagingSkuSelect";
 import IngredientConversionHint from "@/components/recipes/IngredientConversionHint";
+import RecipeSkuSearch from "@/components/recipes/RecipeSkuSearch.jsx";
 import { useFloorPin } from "@/components/auth/FloorPinContext";
 import {
   AlertDialog,
@@ -685,12 +686,17 @@ export default function Recipes() {
             {/* Basic Info */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>SKU <span className="text-xs text-zinc-500">(auto-generated if empty)</span></Label>
-                <Input
+                <Label>SKU <span className="text-xs text-zinc-500">(search or auto-generated if empty)</span></Label>
+                <RecipeSkuSearch
+                  inventory={inventory}
                   value={formData.sku}
-                  onChange={(e) => setFormData({...formData, sku: e.target.value})}
-                  placeholder={`e.g., ${CATEGORY_PREFIXES[formData.category] || "OT"}-001`}
-                  className="bg-zinc-800 border-zinc-700"
+                  onChange={(v) => setFormData({...formData, sku: v})}
+                  onSelect={(item) => setFormData(prev => ({
+                    ...prev,
+                    sku: item.supplier_sku || item.sku,
+                    name: prev.name || item.name,
+                  }))}
+                  placeholder={`Search or type ${CATEGORY_PREFIXES[formData.category] || "OT"}-001`}
                 />
               </div>
               <div className="space-y-2">
