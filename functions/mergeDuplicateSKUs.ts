@@ -1,5 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
-
+// v2: aggressive rate limiting
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
