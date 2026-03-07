@@ -125,6 +125,26 @@ Deno.serve(async (req) => {
       if (item.supplier_sku) inventoryBySku[item.supplier_sku.trim()] = item;
     }
 
+    // Step 5: Load approved SKU mappings for alias resolution
+    const skuMappings = [];
+    let mapSkip = 0;
+    while (true) {
+      const batch = await base44.asServiceRole.entities.SKUMapping.filter(
+        { status: 'approved' }, '-created_date', 100, mapSkip
+      );
+      if (!batch || batch.length === 0) break;
+      skuMappings.push(...batch);
+      if (batch.length < 100) break;
+      mapSkip += 100;
+    }
+    // Build lookup: old_sku -> new_sku and new_sku -> old_sku (bidirectional)
+    const skuAliasMap = {};
+    for (const m of skuMappings) {
+      if (m.old_sku) skuAliasMap[m.old_sku.trim()] = m.new_sku?.trim();
+      if (m.new_sku) skuAliasMap[m.new_sku.trim()] = m.old_sku?.trim();
+    }
+    console.log(`Loaded ${skuMappings.length} approved SKU mappings`);
+
     const now = new Date().toISOString();
     let updated = 0;
     let created = 0;
@@ -137,8 +157,19 @@ Deno.serve(async (req) => {
     let skipped = 0;
     for (const variant of allVariants) {
       const quantity = quantityMap[variant.inventory_item_id] ?? 0;
-      // Look up by barcode SKU first, then variant SKU
-      const existing = inventoryBySku[variant.sku] || inventoryBySku[variant.variant_sku];
+      // Look up by barcode SKU first, then variant SKU, then check SKU alias mappings
+      let existing = inventoryBySku[variant.sku] || inventoryBySku[variant.variant_sku];
+      
+      // If not found directly, check approved SKU mappings (alias table)
+      if (!existing) {
+        const aliasedSku = skuAliasMap[variant.sku] || skuAliasMap[variant.variant_sku];
+        if (aliasedSku) {
+          existing = inventoryBySku[aliasedSku];
+          if (existing) {
+            console.log(`SKU alias match: ${variant.sku} -> ${aliasedSku} (record ${existing.id})`);
+          }
+        }
+      }
 
       if (existing) {
         // Check if SKU needs migration from variant_sku to barcode

@@ -26,6 +26,7 @@ import PlanTable from "@/components/demand/PlanTable";
 import SKUDetail from "@/components/demand/SKUDetail";
 import EventsTab from "@/components/demand/EventsTab";
 import DataTab from "@/components/demand/DataTab";
+import SKUMappingSettings from "@/components/demand/SKUMappingSettings";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const baselineToSummaries = (data) =>
@@ -706,20 +707,23 @@ export default function DemandPlanner() {
         </TabsContent>
 
         <TabsContent value="settings" className="mt-4">
-          <SettingsPanel
-            workspace={workspace}
-            workspaces={workspaces}
-            activeWorkspaceId={activeWorkspaceId}
-            onWorkspaceChange={handleWorkspaceChange}
-            onSave={saveWorkspace}
-            onDuplicate={duplicateWorkspace}
-            onDelete={deleteWorkspace}
-            onApply={applyWorkspace}
-            onRemoveExclusion={handleRemoveExclusion}
-            summaries={summaries}
-            onExclude={handleExclude}
-            onBulkExclude={handleBulkExclude}
-          />
+          <div className="space-y-6">
+            <SKUMappingSettings />
+            <SettingsPanel
+              workspace={workspace}
+              workspaces={workspaces}
+              activeWorkspaceId={activeWorkspaceId}
+              onWorkspaceChange={handleWorkspaceChange}
+              onSave={saveWorkspace}
+              onDuplicate={duplicateWorkspace}
+              onDelete={deleteWorkspace}
+              onApply={applyWorkspace}
+              onRemoveExclusion={handleRemoveExclusion}
+              summaries={summaries}
+              onExclude={handleExclude}
+              onBulkExclude={handleBulkExclude}
+            />
+          </div>
         </TabsContent>
       </Tabs>
 

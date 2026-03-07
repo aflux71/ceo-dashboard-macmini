@@ -24,6 +24,7 @@ import RequisitionAlerts from "@/components/dashboard/RequisitionAlerts";
 import SyncLogMini from "@/components/dashboard/SyncLogMini";
 import Badge from "@/components/ui/Badge";
 import PinLoginScreen from "@/components/auth/PinLoginScreen";
+import SKUMappingAlert from "@/components/dashboard/SKUMappingAlert";
 
 export default function Dashboard() {
   const [showPinScreen, setShowPinScreen] = useState(false);
@@ -171,6 +172,9 @@ export default function Dashboard() {
           </Card>
         </Link>
       </div>
+
+      {/* SKU Mapping Alerts */}
+      <SKUMappingAlert />
 
       {/* Requisition Alerts */}
       <RequisitionAlerts requisitions={requisitions} />
