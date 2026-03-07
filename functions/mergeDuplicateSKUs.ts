@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
-// v2: aggressive rate limiting
+
+// v3 - merge duplicate short-SKU demand summaries into barcode-based records
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -7,6 +8,8 @@ Deno.serve(async (req) => {
     if (user?.role !== 'admin') {
       return Response.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
     }
+
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
     // 1. Load all finished_product inventory to build supplier_sku -> barcode_sku mapping
     const allInventory = [];
@@ -18,9 +21,9 @@ Deno.serve(async (req) => {
       allInventory.push(...batch);
       if (batch.length < 100) break;
       skip += 100;
+      await sleep(500);
     }
 
-    // Build mapping: supplier_sku (short) -> barcode sku (long)
     const shortToLong = {};
     for (const inv of allInventory) {
       if (inv.supplier_sku && inv.sku && inv.supplier_sku !== inv.sku) {
@@ -37,6 +40,7 @@ Deno.serve(async (req) => {
       allSummaries.push(...batch);
       if (batch.length < 100) break;
       skip += 100;
+      await sleep(500);
     }
     console.log(`Loaded ${allSummaries.length} DemandSummary records`);
 
@@ -46,112 +50,96 @@ Deno.serve(async (req) => {
       bySku[s.sku] = s;
     }
 
-    // 4. Find duplicates: short SKU that has a matching barcode SKU in DemandSummary
+    // 4. Find duplicates
     const merges = [];
     const toDelete = [];
-    const mappingsCreated = [];
+    const mappingsToCreate = [];
 
     for (const [shortSku, longSku] of Object.entries(shortToLong)) {
-      const shortRecord = bySku[shortSku];
-      const longRecord = bySku[longSku];
+      const shortRec = bySku[shortSku];
+      const longRec = bySku[longSku];
 
-      if (shortRecord && longRecord) {
-        // Both exist — merge short into long
-        const shortMonthly = typeof shortRecord.monthly === 'string' ? JSON.parse(shortRecord.monthly) : (shortRecord.monthly || []);
-        const longMonthly = typeof longRecord.monthly === 'string' ? JSON.parse(longRecord.monthly) : (longRecord.monthly || []);
-        const shortByChannel = typeof shortRecord.byChannel === 'string' ? JSON.parse(shortRecord.byChannel) : (shortRecord.byChannel || {});
-        const longByChannel = typeof longRecord.byChannel === 'string' ? JSON.parse(longRecord.byChannel) : (longRecord.byChannel || {});
-        const shortByLocation = typeof shortRecord.byLocation === 'string' ? JSON.parse(shortRecord.byLocation) : (shortRecord.byLocation || {});
-        const longByLocation = typeof longRecord.byLocation === 'string' ? JSON.parse(longRecord.byLocation) : (longRecord.byLocation || {});
+      if (shortRec && longRec) {
+        // Both exist — merge short sales data into long record
+        const parse = (v) => typeof v === 'string' ? JSON.parse(v) : (v || {});
+        const sM = parse(shortRec.monthly) || [];
+        const lM = parse(longRec.monthly) || [];
+        const sC = parse(shortRec.byChannel);
+        const lC = parse(longRec.byChannel);
+        const sL = parse(shortRec.byLocation);
+        const lL = parse(longRec.byLocation);
 
-        // Merge monthly arrays (sum element-wise)
-        const mergedMonthly = longMonthly.map((v, i) => (v || 0) + (shortMonthly[i] || 0));
+        const mergedMonthly = lM.map((v, i) => (v || 0) + (sM[i] || 0));
+        const mergedByChannel = { ...lC };
+        for (const [k, v] of Object.entries(sC)) mergedByChannel[k] = (mergedByChannel[k] || 0) + v;
+        const mergedByLocation = { ...lL };
+        for (const [k, v] of Object.entries(sL)) mergedByLocation[k] = (mergedByLocation[k] || 0) + v;
 
-        // Merge channels
-        const mergedByChannel = { ...longByChannel };
-        for (const [ch, qty] of Object.entries(shortByChannel)) {
-          mergedByChannel[ch] = (mergedByChannel[ch] || 0) + qty;
-        }
-
-        // Merge locations
-        const mergedByLocation = { ...longByLocation };
-        for (const [loc, qty] of Object.entries(shortByLocation)) {
-          mergedByLocation[loc] = (mergedByLocation[loc] || 0) + qty;
-        }
-
-        const mergedTotalQty = (longRecord.totalQty || 0) + (shortRecord.totalQty || 0);
-        const mergedDataMonths = Math.max(longRecord.dataMonths || 1, shortRecord.dataMonths || 1);
-        const mergedAvgMonthly = Math.round((mergedTotalQty / mergedDataMonths) * 10) / 10;
-
-        // Use the wider date range
-        const periodStart = (shortRecord.periodStart && shortRecord.periodStart < (longRecord.periodStart || '9999'))
-          ? shortRecord.periodStart : longRecord.periodStart;
-        const periodEnd = (shortRecord.periodEnd && shortRecord.periodEnd > (longRecord.periodEnd || '0000'))
-          ? shortRecord.periodEnd : longRecord.periodEnd;
+        const totalQty = (longRec.totalQty || 0) + (shortRec.totalQty || 0);
+        const dataMonths = Math.max(longRec.dataMonths || 1, shortRec.dataMonths || 1);
 
         merges.push({
-          longId: longRecord.id,
+          id: longRec.id,
           shortSku,
           longSku,
-          product: longRecord.product,
+          product: longRec.product,
           update: {
             monthly: JSON.stringify(mergedMonthly),
             byChannel: JSON.stringify(mergedByChannel),
             byLocation: JSON.stringify(mergedByLocation),
-            totalQty: mergedTotalQty,
-            avgMonthly: mergedAvgMonthly,
-            dataMonths: mergedDataMonths,
-            periodStart,
-            periodEnd,
-            totalRevenue: (longRecord.totalRevenue || 0) + (shortRecord.totalRevenue || 0),
+            totalQty,
+            avgMonthly: Math.round((totalQty / dataMonths) * 10) / 10,
+            dataMonths,
+            periodStart: shortRec.periodStart < (longRec.periodStart || '9999') ? shortRec.periodStart : longRec.periodStart,
+            periodEnd: shortRec.periodEnd > (longRec.periodEnd || '') ? shortRec.periodEnd : longRec.periodEnd,
+            totalRevenue: (longRec.totalRevenue || 0) + (shortRec.totalRevenue || 0),
             updatedAt: new Date().toISOString(),
           },
         });
-        toDelete.push({ id: shortRecord.id, sku: shortSku, product: shortRecord.product });
-        mappingsCreated.push({ old_sku: shortSku, new_sku: longSku, product: longRecord.product });
-      } else if (shortRecord && !longRecord) {
-        // Only short SKU exists — rename it to the barcode SKU
+        toDelete.push({ id: shortRec.id, sku: shortSku });
+        mappingsToCreate.push({ old_sku: shortSku, new_sku: longSku, product: longRec.product });
+      } else if (shortRec && !longRec) {
+        // Only short exists — just rename SKU
         merges.push({
-          longId: shortRecord.id,
+          id: shortRec.id,
           shortSku,
           longSku,
-          product: shortRecord.product,
+          product: shortRec.product,
           update: { sku: longSku },
         });
-        mappingsCreated.push({ old_sku: shortSku, new_sku: longSku, product: shortRecord.product });
+        mappingsToCreate.push({ old_sku: shortSku, new_sku: longSku, product: shortRec.product });
       }
     }
 
-    console.log(`Found ${merges.length} merges, ${toDelete.length} records to delete`);
+    console.log(`Found ${merges.length} merges, ${toDelete.length} deletes`);
 
-    // 5. Execute merges (with aggressive rate limiting)
-    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-    let mergeCount = 0;
-    for (const merge of merges) {
-      await base44.asServiceRole.entities.DemandSummary.update(merge.longId, merge.update);
-      mergeCount++;
-      await sleep(300);
-      if (mergeCount % 10 === 0) {
-        console.log(`Merged ${mergeCount}/${merges.length}`);
-        await sleep(2000);
+    // 5. Execute updates (one at a time with delays)
+    let updated = 0;
+    for (const m of merges) {
+      await base44.asServiceRole.entities.DemandSummary.update(m.id, m.update);
+      updated++;
+      await sleep(400);
+      if (updated % 10 === 0) {
+        console.log(`Updated ${updated}/${merges.length}`);
+        await sleep(3000);
       }
     }
 
-    // 6. Delete short-SKU duplicates
-    let deleteCount = 0;
-    for (const del of toDelete) {
-      await base44.asServiceRole.entities.DemandSummary.delete(del.id);
-      deleteCount++;
-      await sleep(300);
-      if (deleteCount % 10 === 0) {
-        console.log(`Deleted ${deleteCount}/${toDelete.length}`);
-        await sleep(2000);
+    // 6. Delete old short-SKU records
+    let deleted = 0;
+    for (const d of toDelete) {
+      await base44.asServiceRole.entities.DemandSummary.delete(d.id);
+      deleted++;
+      await sleep(400);
+      if (deleted % 10 === 0) {
+        console.log(`Deleted ${deleted}/${toDelete.length}`);
+        await sleep(3000);
       }
     }
 
-    // 7. Auto-create approved SKU mappings for future syncs
-    let mappingCount = 0;
-    for (const m of mappingsCreated) {
+    // 7. Auto-create approved SKU mappings
+    let mappings = 0;
+    for (const m of mappingsToCreate) {
       try {
         const existing = await base44.asServiceRole.entities.SKUMapping.filter({
           old_sku: m.old_sku, new_sku: m.new_sku
@@ -165,33 +153,33 @@ Deno.serve(async (req) => {
             detected_by: "auto",
             approved_by: user.email,
             approved_date: new Date().toISOString(),
-            notes: "Auto-detected from supplier_sku match during duplicate merge",
+            notes: "Auto-detected from supplier_sku during duplicate merge",
           });
-          mappingCount++;
+          mappings++;
         }
-        await sleep(300);
+        await sleep(400);
       } catch (e) {
-        console.log(`Failed to create mapping ${m.old_sku} -> ${m.new_sku}: ${e.message}`);
+        console.log(`Mapping fail: ${e.message}`);
       }
     }
 
-    // 8. Log
+    // 8. Log sync
     try {
       await base44.asServiceRole.entities.SyncLog.create({
         sync_type: "demand_summaries",
         status: "success",
         records_processed: merges.length,
-        records_updated: mergeCount,
-        notes: `Merged ${mergeCount} duplicate SKUs, deleted ${deleteCount} short-SKU records, created ${mappingCount} SKU mappings`,
+        records_updated: updated,
+        notes: `Merged ${updated} duplicate SKUs, deleted ${deleted} short-SKU records, created ${mappings} SKU mappings`,
         triggered_by: user.email,
       });
-    } catch (e) { /* ignore */ }
+    } catch (e) { /* ok */ }
 
     return Response.json({
       success: true,
-      merges_performed: mergeCount,
-      records_deleted: deleteCount,
-      mappings_created: mappingCount,
+      merges_performed: updated,
+      records_deleted: deleted,
+      mappings_created: mappings,
       details: merges.map(m => ({
         short_sku: m.shortSku,
         barcode_sku: m.longSku,
