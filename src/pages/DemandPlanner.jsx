@@ -131,6 +131,11 @@ export default function DemandPlanner() {
           if (item.sku) {
             inventoryMap[item.sku] = (inventoryMap[item.sku] || 0) + (item.quantity || 0);
           }
+          // Also index by supplier_sku (Shopify variant SKU) so DemandSummary records
+          // using the old variant SKU can still find the inventory quantity
+          if (item.supplier_sku && item.supplier_sku !== item.sku) {
+            inventoryMap[item.supplier_sku] = (inventoryMap[item.supplier_sku] || 0) + (item.quantity || 0);
+          }
         });
       } catch (e) {
         // No inventory data available
