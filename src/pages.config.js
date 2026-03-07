@@ -84,6 +84,7 @@ import RunPlanner from './pages/RunPlanner';
 import Suppliers from './pages/Suppliers';
 import SyncLog from './pages/SyncLog';
 import UserManagement from './pages/UserManagement';
+import CategorySettings from './pages/CategorySettings';
 import __Layout from './Layout.jsx';
 
 
@@ -125,6 +126,7 @@ export const PAGES = {
     "Suppliers": Suppliers,
     "SyncLog": SyncLog,
     "UserManagement": UserManagement,
+    "CategorySettings": CategorySettings,
 }
 
 export const pagesConfig = {
