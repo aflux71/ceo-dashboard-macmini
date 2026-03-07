@@ -179,8 +179,10 @@ Deno.serve(async (req) => {
       if (i + 20 < toCreate.length) await sleep(500);
     }
 
-    // Update existing items one at a time with retry logic
-    for (const item of toUpdate) {
+    // Update existing items with retry logic and batched timing
+    let updateErrors = 0;
+    for (let ui = 0; ui < toUpdate.length; ui++) {
+      const item = toUpdate[ui];
       let retries = 3;
       while (retries > 0) {
         try {
@@ -190,7 +192,6 @@ Deno.serve(async (req) => {
             location: 'neob HQ',
             last_shopify_sync: now,
           };
-          // Migrate SKU from variant to barcode if needed
           if (item.sku) updatePayload.sku = item.sku;
           if (item.supplier_sku) updatePayload.supplier_sku = item.supplier_sku;
           
@@ -200,15 +201,21 @@ Deno.serve(async (req) => {
         } catch (e) {
           retries--;
           if (retries === 0) {
-            console.error(`Failed to update ${item.id} after 3 retries: ${e.message}`);
+            console.error(`Failed to update ${item.id}: ${e.message}`);
+            updateErrors++;
           } else {
-            // Back off longer on rate limit
-            await sleep(2000);
+            await sleep(e.status === 429 ? 3000 : 1000);
           }
         }
       }
-      await sleep(500);
+      // Smaller delay, but pause longer every 20 items to avoid rate limits
+      if ((ui + 1) % 20 === 0) {
+        await sleep(1000);
+      } else {
+        await sleep(100);
+      }
     }
+    if (updateErrors > 0) console.log(`${updateErrors} update errors`);
 
     const duration = Math.round((Date.now() - startTime) / 1000);
 
