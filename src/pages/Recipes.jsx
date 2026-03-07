@@ -684,7 +684,7 @@ export default function Recipes() {
                     sku: item.supplier_sku || item.sku,
                     name: prev.name || item.name,
                   }))}
-                  placeholder={`Search or type ${CATEGORY_PREFIXES[formData.category] || "OT"}-001`}
+                  placeholder={`Search or type ${DEFAULT_CATEGORY_PREFIXES[formData.category] || formData.category?.substring(0, 2)?.toUpperCase() || "OT"}-001`}
                 />
               </div>
               <div className="space-y-2">
