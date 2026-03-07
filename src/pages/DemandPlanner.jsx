@@ -59,8 +59,10 @@ export default function DemandPlanner() {
   const [workspaces, setWorkspaces] = useState([]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState(null);
 
-  // UI state
-  const [activeTab, setActiveTab] = useState("dashboard");
+  // UI state — check URL for tab param
+  const urlParams = new URLSearchParams(window.location.search);
+  const initialTab = urlParams.get("tab") || "dashboard";
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [detailItem, setDetailItem] = useState(null);
   const [isRebuilding, setIsRebuilding] = useState(false);
   const [rebuildProgress, setRebuildProgress] = useState(null); // { current, total, phase, detail }
