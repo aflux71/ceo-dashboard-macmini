@@ -15,9 +15,9 @@ const STAGE_CONFIG = {
   complete: { label: "Complete", bg: "bg-zinc-700/40", border: "border-zinc-600/30", text: "text-zinc-400", dot: "bg-zinc-500", fill: "bg-zinc-500" },
 };
 
-function addDays(dateStr, days) { if (!dateStr) return ""; const d = new Date(dateStr); d.setDate(d.getDate() + days); return d.toISOString().split("T")[0]; }
-function formatDate(dateStr) { if (!dateStr) return "—"; return new Date(dateStr + "T00:00:00").toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric" }); }
-function getMonday(d) { const date = new Date(d); const day = date.getDay(); const diff = day === 0 ? -6 : 1 - day; date.setDate(date.getDate() + diff); return date.toISOString().split("T")[0]; }
+function addDays(dateStr, days) { if (!dateStr) return ""; const d = new Date(dateStr + "T12:00:00"); d.setDate(d.getDate() + days); return d.toISOString().split("T")[0]; }
+function formatDate(dateStr) { if (!dateStr) return "—"; return new Date(dateStr + "T12:00:00").toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric" }); }
+function getMonday(d) { const date = new Date(d + "T12:00:00"); const day = date.getDay(); const diff = day === 0 ? -6 : 1 - day; date.setDate(date.getDate() + diff); return date.toISOString().split("T")[0]; }
 function generateDays(startDate, count) { const days = []; for (let i = 0; i < count; i++) days.push(addDays(startDate, i)); return days; }
 function batchStage(b) { const s = b.status; if (s === "added_to_inventory") return "complete"; if (s === "approved") return "filling"; if (s === "pending_qc" || s === "on_hold") return "qc_hold"; return "batching"; }
 function parseBatchDates(b) { const batchDate = b.production_date ? b.production_date.split("T")[0] : null; let qcDate = null, fillDate = null; const notes = b.notes || ""; const qcM = notes.match(/QC hold date:\s*(\d{4}-\d{2}-\d{2})/); if (qcM) qcDate = qcM[1]; const fM = notes.match(/Fill date:\s*(\d{4}-\d{2}-\d{2})/); if (fM) fillDate = fM[1]; if (batchDate && !qcDate) qcDate = addDays(batchDate, 3); if (qcDate && !fillDate) fillDate = addDays(qcDate, 1); return { batchDate, qcDate, fillDate }; }
