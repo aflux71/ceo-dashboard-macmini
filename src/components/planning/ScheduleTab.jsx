@@ -22,6 +22,7 @@ function generateDays(startDate, count) { const days = []; for (let i = 0; i < c
 function batchStage(b) { const s = b.status; if (s === "added_to_inventory") return "complete"; if (s === "approved") return "filling"; if (s === "pending_qc" || s === "on_hold") return "qc_hold"; return "batching"; }
 function parseBatchDates(b) { const batchDate = b.production_date ? b.production_date.split("T")[0] : null; let qcDate = null, fillDate = null; const notes = b.notes || ""; const qcM = notes.match(/QC hold date:\s*(\d{4}-\d{2}-\d{2})/); if (qcM) qcDate = qcM[1]; const fM = notes.match(/Fill date:\s*(\d{4}-\d{2}-\d{2})/); if (fM) fillDate = fM[1]; if (batchDate && !qcDate) qcDate = addDays(batchDate, 3); if (qcDate && !fillDate) fillDate = addDays(qcDate, 1); return { batchDate, qcDate, fillDate }; }
 function parseBatchLine(b) { const l = b.production_line; if (l === 1) return "Line 1"; if (l === 2) return "Line 2"; if (l === 3) return "Melter 1"; if (l === 4) return "Melter 2"; return `Line ${l || "?"}`; }
+function parseBatchLine(b) { const l = b.production_line; if (l === 1) return "Line 1"; if (l === 2) return "Line 2"; if (l === 3) return "Melter 1"; if (l === 4) return "Melter 2"; return `Line ${l || "?"}`; }
 
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
