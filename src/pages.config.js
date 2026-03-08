@@ -53,6 +53,7 @@ import AuditLog from './pages/AuditLog';
 import BatchHistory from './pages/BatchHistory';
 import BugReports from './pages/BugReports';
 import BulkUpload from './pages/BulkUpload';
+import CategorySettings from './pages/CategorySettings';
 import Copackers from './pages/Copackers';
 import Dashboard from './pages/Dashboard';
 import DemandPlanner from './pages/DemandPlanner';
@@ -84,7 +85,6 @@ import RunPlanner from './pages/RunPlanner';
 import Suppliers from './pages/Suppliers';
 import SyncLog from './pages/SyncLog';
 import UserManagement from './pages/UserManagement';
-import CategorySettings from './pages/CategorySettings';
 import __Layout from './Layout.jsx';
 
 
@@ -95,6 +95,7 @@ export const PAGES = {
     "BatchHistory": BatchHistory,
     "BugReports": BugReports,
     "BulkUpload": BulkUpload,
+    "CategorySettings": CategorySettings,
     "Copackers": Copackers,
     "Dashboard": Dashboard,
     "DemandPlanner": DemandPlanner,
@@ -126,7 +127,6 @@ export const PAGES = {
     "Suppliers": Suppliers,
     "SyncLog": SyncLog,
     "UserManagement": UserManagement,
-    "CategorySettings": CategorySettings,
 }
 
 export const pagesConfig = {

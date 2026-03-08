@@ -54,6 +54,7 @@ const navItems = [
         { name: "Co-packers", icon: Building2, page: "Copackers" },
         { name: "Demand Planner", icon: BarChart3, page: "DemandPlanner" },
         { name: "Planning", icon: Factory, page: "ProductionPlanning" },
+        { name: "Bug Reports", icon: AlertOctagon, page: "BugReports" },
       ];
 
 const settingsItems = [
