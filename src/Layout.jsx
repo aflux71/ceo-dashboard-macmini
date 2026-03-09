@@ -369,6 +369,12 @@ export default function Layout({ children, currentPageName }) {
                                                                                                                                             {lowLabelCount}
                                                                                                                                           </span>
                                                                                                                                         )}
+                                                                                                                                        {isAddToInventoryItem && hasApprovedBatches && (
+                                                                                                                                          <span className="flex items-center gap-1 text-xs text-green-400">
+                                                                                                                                            <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></span>
+                                                                                                                                            {approvedBatchCount}
+                                                                                                                                          </span>
+                                                                                                                                        )}
                                                                                                                                       {isQueueItem && queueHasItems && (
                                                                   <div className="flex items-center gap-1">
                                                                     {productionQueueCount.started > 0 && (
