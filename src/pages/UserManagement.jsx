@@ -323,6 +323,17 @@ export default function UserManagement() {
     }
   };
 
+  const handleDeletePendingInvite = async (user) => {
+    if (!confirm(`Remove pending invitation for "${user.email}"?`)) return;
+    try {
+      await base44.entities.PendingInvite.delete(user._invite_id);
+      toast.success("Pending invitation removed");
+      refetchPendingInvites();
+    } catch (error) {
+      toast.error(error.message || "Failed to remove invitation");
+    }
+  };
+
   const handleDeleteDashboardUser = async (user) => {
     if (user.id === appUser?.id) {
       toast.error("Cannot delete yourself");
