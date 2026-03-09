@@ -136,6 +136,20 @@ export default function Layout({ children, currentPageName }) {
     fetchConsumablesCount();
   }, [currentPageName]);
 
+  // Fetch approved batch count for Add to Inventory
+  const [approvedBatchCount, setApprovedBatchCount] = useState(0);
+  useEffect(() => {
+    const fetchApprovedCount = async () => {
+      try {
+        const batches = await base44.entities.Batch.filter({ status: 'approved' });
+        setApprovedBatchCount(batches.length);
+      } catch (err) {
+        setApprovedBatchCount(0);
+      }
+    };
+    fetchApprovedCount();
+  }, [currentPageName]);
+
   // Fetch low label count
   const [lowLabelCount, setLowLabelCount] = useState(0);
   useEffect(() => {
