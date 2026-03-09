@@ -185,7 +185,12 @@ export default function WipInHouseTab() {
                             </div>
                             {daysLeft !== null && b.stage !== "complete" && <div className={`flex items-center gap-1 text-xs ${daysLeft < 0 ? "text-red-400" : daysLeft === 0 ? "text-amber-400" : "text-zinc-500"}`}><Timer className="w-3 h-3" />{daysLeft < 0 ? `${Math.abs(daysLeft)}d overdue` : daysLeft === 0 ? "Due today" : `${daysLeft}d to next stage`}</div>}
                             {b.stage === "complete" && b.actual_yield_units != null && <div className="flex items-center justify-between text-xs pt-1 border-t border-zinc-800"><span className="text-zinc-500">Yield</span><span className={`font-medium ${b.actual_yield_units >= b.quantity ? "text-green-400" : "text-amber-400"}`}>{b.actual_yield_units?.toLocaleString()} / {b.quantity?.toLocaleString()}<span className="text-zinc-600 ml-1">({b.quantity ? Math.round((b.actual_yield_units / b.quantity) * 100) : 0}%)</span></span></div>}
-                            {action && b.stage !== "complete" && <Button size="sm" variant="outline" onClick={() => handleAdvance(b)} disabled={advanceMutation.isPending} className={`w-full text-xs mt-1 ${b.stage === "batching" ? "border-amber-500/30 text-amber-400 hover:bg-amber-500/10" : b.stage === "qc_hold" ? "border-green-500/30 text-green-400 hover:bg-green-500/10" : "border-zinc-600 text-zinc-300 hover:bg-zinc-800"}`}>{advanceMutation.isPending ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> : <ArrowRight className="w-3 h-3 mr-1.5" />}{action}</Button>}
+                            {b.stage !== "complete" && (
+                              <div className="flex items-center gap-1.5 mt-1">
+                                {action && <Button size="sm" variant="outline" onClick={() => handleAdvance(b)} disabled={advanceMutation.isPending} className={`flex-1 text-xs ${b.stage === "batching" ? "border-amber-500/30 text-amber-400 hover:bg-amber-500/10" : b.stage === "qc_hold" ? "border-green-500/30 text-green-400 hover:bg-green-500/10" : "border-zinc-600 text-zinc-300 hover:bg-zinc-800"}`}>{advanceMutation.isPending ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> : <ArrowRight className="w-3 h-3 mr-1.5" />}{action}</Button>}
+                                <Button size="sm" variant="ghost" onClick={() => setDeleteConfirm(b)} className="h-8 w-8 p-0 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 shrink-0" title="Delete batch"><Trash2 className="w-3.5 h-3.5" /></Button>
+                              </div>
+                            )}
                           </CardContent>
                         </Card>
                       );
