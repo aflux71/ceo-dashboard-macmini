@@ -658,7 +658,7 @@ export default function UserManagement() {
             ) : (
               <div className="space-y-3">
                 {dashboardUsers.map((user) => {
-                  const isPending = !user.full_name;
+                  const isPending = user._isPending || !user.full_name;
                   return (<div
                     key={user.id}
                     className={`flex items-center justify-between p-4 rounded-lg border ${
