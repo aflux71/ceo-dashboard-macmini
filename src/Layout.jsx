@@ -345,7 +345,7 @@ export default function Layout({ children, currentPageName }) {
                                                                 `}
                                                               >
                                                                 <div className="flex items-center gap-3">
-                                                                  <item.icon className={`w-5 h-5 ${showAlertStyle ? 'text-red-400' : isRepairItem && hasNewRepairs ? 'text-amber-400' : isConsumablesItem && hasPendingConsumables ? 'text-orange-400' : isLabelsItem && hasLowLabels ? 'text-amber-400' : ''}`} />
+                                                                  <item.icon className={`w-5 h-5 ${showAlertStyle ? 'text-red-400' : isRepairItem && hasNewRepairs ? 'text-amber-400' : isConsumablesItem && hasPendingConsumables ? 'text-orange-400' : isLabelsItem && hasLowLabels ? 'text-amber-400' : isAddToInventoryItem && hasApprovedBatches ? 'text-green-400' : ''}`} />
                                                                   {item.name}
                                                                 </div>
                                                                 {item.badge && pendingQcCount > 0 && (
