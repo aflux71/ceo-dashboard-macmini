@@ -693,18 +693,23 @@ export default function UserManagement() {
                       <span className="text-xs text-zinc-500">
                         {isPending ? "Invited" : "Joined"}: {new Date(user.created_date).toLocaleDateString()}
                       </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => openEditDashboardUser(user)}
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </Button>
+                      {user._invitedBy && (
+                        <span className="text-xs text-zinc-600">by {user._invitedBy}</span>
+                      )}
+                      {!user._isPending && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openEditDashboardUser(user)}
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                      )}
                       {user.id !== appUser?.id && (
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleDeleteDashboardUser(user)}
+                          onClick={() => user._isPending ? handleDeletePendingInvite(user) : handleDeleteDashboardUser(user)}
                           className="text-red-400 hover:text-red-300"
                         >
                           <Trash2 className="w-4 h-4" />
