@@ -313,6 +313,8 @@ export default function Layout({ children, currentPageName }) {
                                                                                                                                                                           const hasPendingConsumables = pendingConsumablesCount > 0;
                                                                                                                                                                           const isLabelsItem = item.isLabelsLink;
                                                                                                                                                                           const hasLowLabels = lowLabelCount > 0;
+                                                                                                                                                                          const isAddToInventoryItem = item.isAddToInventoryLink;
+                                                                                                                                                                          const hasApprovedBatches = approvedBatchCount > 0;
 
                                                             return (
                                                               <Link
