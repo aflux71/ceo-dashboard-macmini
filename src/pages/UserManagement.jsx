@@ -103,9 +103,40 @@ export default function UserManagement() {
     enabled: appUser?.role === "admin"
   });
 
+  // Fetch pending invites
+  const { data: pendingInvites = [], refetch: refetchPendingInvites } = useQuery({
+    queryKey: ["pending_invites"],
+    queryFn: () => base44.entities.PendingInvite.filter({ status: "pending" }),
+    enabled: appUser?.role === "admin"
+  });
+
   useEffect(() => {
-    setDashboardUsers(fetchedDashboardUsers);
-  }, [fetchedDashboardUsers]);
+    // Merge registered users with pending invites (that haven't registered yet)
+    const registeredEmails = new Set(fetchedDashboardUsers.map(u => u.email?.toLowerCase()));
+    
+    // Mark any pending invites as registered if the user now exists
+    pendingInvites.forEach(async (invite) => {
+      if (registeredEmails.has(invite.email?.toLowerCase())) {
+        await base44.entities.PendingInvite.update(invite.id, { status: "registered" });
+      }
+    });
+
+    // Build combined list: registered users + still-pending invites
+    const stillPending = pendingInvites
+      .filter(inv => !registeredEmails.has(inv.email?.toLowerCase()))
+      .map(inv => ({
+        id: `invite_${inv.id}`,
+        _invite_id: inv.id,
+        email: inv.email,
+        full_name: null,
+        role: inv.role,
+        created_date: inv.created_date,
+        _isPending: true,
+        _invitedBy: inv.invited_by
+      }));
+
+    setDashboardUsers([...fetchedDashboardUsers, ...stillPending]);
+  }, [fetchedDashboardUsers, pendingInvites]);
 
   // Load session timeout and role permissions from settings
   React.useEffect(() => {
