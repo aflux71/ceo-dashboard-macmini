@@ -597,6 +597,9 @@ export default function UserManagement() {
             <CardTitle className="text-base flex items-center gap-2">
               <Mail className="w-5 h-5" />
               Dashboard Users ({dashboardUsers.length})
+              {dashboardUsers.filter(u => !u.full_name).length > 0 && (
+                <Badge variant="amber">{dashboardUsers.filter(u => !u.full_name).length} pending</Badge>
+              )}
             </CardTitle>
             <Button 
               onClick={() => setShowInviteDialog(true)} 
