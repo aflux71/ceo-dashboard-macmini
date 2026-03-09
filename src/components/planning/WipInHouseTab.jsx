@@ -97,6 +97,12 @@ export default function WipInHouseTab() {
     onError: (err) => toast.error(`Failed to update: ${err?.message || String(err)}`),
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: (id) => base44.entities.Batch.delete(id),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["planning_wip_inhouse_batches"] }); queryClient.invalidateQueries({ queryKey: ["planning_schedule_batches"] }); queryClient.invalidateQueries({ queryKey: ["planning_batches"] }); toast.success("Batch deleted"); setDeleteConfirm(null); },
+    onError: (err) => toast.error(`Failed to delete: ${err?.message || String(err)}`),
+  });
+
   const handleAdvance = (batch) => {
     const stage = batchStage(batch);
     if (stage === "batching") advanceMutation.mutate({ id: batch.id, newStatus: "pending_qc", extraFields: {} });
