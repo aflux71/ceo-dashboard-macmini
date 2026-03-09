@@ -135,7 +135,22 @@ export default function AddToInventory() {
                   </div>
                   <div>
                     <span className="text-xs text-zinc-500 uppercase block">Quantity</span>
-                    <span className="text-lg font-bold text-orange-400">{batch.quantity} {batch.quantity > 1 ? 'units' : 'unit'}</span>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <Input
+                        type="number"
+                        min={1}
+                        value={editingQty[batch.id] ?? batch.quantity}
+                        onChange={(e) => setEditingQty(prev => ({ ...prev, [batch.id]: parseInt(e.target.value) || 0 }))}
+                        onBlur={() => {
+                          const val = editingQty[batch.id];
+                          if (val !== undefined && val !== batch.quantity && val > 0) {
+                            updateQtyMutation.mutate({ batchId: batch.id, quantity: val });
+                          }
+                        }}
+                        className="w-24 h-8 bg-zinc-800 border-zinc-700 text-orange-400 font-bold text-lg px-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                      <span className="text-sm text-zinc-400">units</span>
+                    </div>
                   </div>
                   <div>
                     <span className="text-xs text-zinc-500 uppercase block">Batch Date</span>
