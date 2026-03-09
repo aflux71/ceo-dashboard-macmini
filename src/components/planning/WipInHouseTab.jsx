@@ -224,6 +224,28 @@ export default function WipInHouseTab() {
           )}
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!deleteConfirm} onOpenChange={(open) => { if (!open) setDeleteConfirm(null); }}>
+        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 max-w-sm">
+          <DialogHeader><DialogTitle>Delete Batch</DialogTitle></DialogHeader>
+          {deleteConfirm && (
+            <div className="py-2">
+              <p className="text-sm text-zinc-400 mb-2">
+                Are you sure you want to delete batch <span className="text-zinc-200 font-mono">{deleteConfirm.batch_id}</span>?
+              </p>
+              <p className="text-sm text-zinc-500">{deleteConfirm.product_name} — {deleteConfirm.quantity?.toLocaleString()} units</p>
+              <p className="text-xs text-red-400/70 mt-2">This action cannot be undone.</p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirm(null)} className="border-zinc-700">Cancel</Button>
+            <Button onClick={() => deleteMutation.mutate(deleteConfirm.id)} disabled={deleteMutation.isPending} className="bg-red-600 hover:bg-red-700 text-white">
+              {deleteMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
