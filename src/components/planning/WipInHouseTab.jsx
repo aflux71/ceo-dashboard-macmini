@@ -61,6 +61,7 @@ export default function WipInHouseTab() {
   const [showCompleted, setShowCompleted] = useState(false);
   const [yieldDialog, setYieldDialog] = useState(null);
   const [yieldUnits, setYieldUnits] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   const { data: batches = [], isLoading } = useQuery({ queryKey: ["planning_wip_inhouse_batches"], queryFn: () => base44.entities.Batch.list("-created_date", 500) });
 
