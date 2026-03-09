@@ -43,7 +43,7 @@ const navItems = [
         { name: "Label Usage", icon: Tag, page: "LabelUsage" },
         { name: "Label POs", icon: ShoppingCart, page: "LabelPurchaseOrders" },
         { name: "Review Queue", icon: ClipboardList, page: "ReviewQueue", badge: true },
-        { name: "Add to Inventory", icon: ShoppingCart, page: "AddToInventory", badge: true },
+        { name: "Add to Inventory", icon: ShoppingCart, page: "AddToInventory", badge: true, isAddToInventoryLink: true },
         { name: "Batch History", icon: History, page: "BatchHistory" },
         { name: "Inventory", icon: Package, page: "Inventory" },
         { name: "Recipes", icon: Beaker, page: "Recipes" },
