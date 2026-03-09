@@ -9,6 +9,7 @@ import { toast } from "sonner";
 
 export default function AddToInventory() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [editingQty, setEditingQty] = useState({}); // { [batchId]: qty }
   const queryClient = useQueryClient();
 
   // Fetch approved batches
