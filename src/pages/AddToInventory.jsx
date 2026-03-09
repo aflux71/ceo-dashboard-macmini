@@ -27,15 +27,33 @@ export default function AddToInventory() {
     queryFn: () => base44.entities.Label.list()
   });
 
+  // Mutation to save edited quantity
+  const updateQtyMutation = useMutation({
+    mutationFn: async ({ batchId, quantity }) => {
+      return base44.entities.Batch.update(batchId, { quantity });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["approvedBatches"] });
+      toast.success("Quantity updated");
+    }
+  });
+
   // Mutation to mark batch as added to inventory and deduct labels
   const updateBatchMutation = useMutation({
     mutationFn: async (batch) => {
+      const finalQty = editingQty[batch.id] ?? batch.quantity;
+      
+      // Save quantity if it was edited
+      if (editingQty[batch.id] !== undefined && editingQty[batch.id] !== batch.quantity) {
+        await base44.entities.Batch.update(batch.id, { quantity: finalQty });
+      }
+
       // Find matching label by product SKU
       const matchingLabel = labels.find(l => l.product_sku === batch.sku);
       
       // Deduct label count if found
       if (matchingLabel) {
-        const newQty = Math.max(0, matchingLabel.current_quantity - batch.quantity);
+        const newQty = Math.max(0, matchingLabel.current_quantity - finalQty);
         await base44.entities.Label.update(matchingLabel.id, { 
           current_quantity: newQty 
         });
