@@ -336,7 +336,9 @@ export default function Layout({ children, currentPageName }) {
                                                                                                                                                       ? 'text-orange-400 hover:text-orange-300 hover:bg-orange-500/10'
                                                                                                                                                       : isLabelsItem && hasLowLabels
                                                                                                                                                         ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
-                                                                                                                                                        : isQueueItem
+                                                                                                                                                        : isAddToInventoryItem && hasApprovedBatches
+                                                                                                                                                          ? 'text-green-400 hover:text-green-300 hover:bg-green-500/10'
+                                                                                                                                                          : isQueueItem
                                                                           ? 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 ml-4 border-l-2 border-zinc-700'
                                                                           : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
                                                                   }
