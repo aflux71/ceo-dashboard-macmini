@@ -618,17 +618,31 @@ export default function UserManagement() {
               <p className="text-zinc-500 text-center py-4">No dashboard users yet.</p>
             ) : (
               <div className="space-y-3">
-                {dashboardUsers.map((user) => (
+                {dashboardUsers.map((user) => {
+                  const isPending = !user.full_name;
+                  return (
                   <div
                     key={user.id}
-                    className="flex items-center justify-between p-4 rounded-lg border bg-zinc-800/50 border-zinc-700"
+                    className={`flex items-center justify-between p-4 rounded-lg border ${
+                      isPending 
+                        ? "bg-amber-500/5 border-amber-500/20" 
+                        : "bg-zinc-800/50 border-zinc-700"
+                    }`}
                   >
                     <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
-                        <Mail className="w-5 h-5 text-blue-400" />
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                        isPending ? "bg-amber-500/20" : "bg-blue-500/20"
+                      }`}>
+                        {isPending 
+                          ? <Clock className="w-5 h-5 text-amber-400" />
+                          : <Mail className="w-5 h-5 text-blue-400" />
+                        }
                       </div>
                       <div>
-                        <p className="font-medium text-zinc-200">{user.full_name || user.email}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-zinc-200">{user.full_name || user.email}</p>
+                          {isPending && <Badge variant="amber">Pending</Badge>}
+                        </div>
                         <div className="flex items-center gap-2 mt-1">
                           <span className="text-xs text-zinc-500">{user.email}</span>
                           <Badge variant={user.role === "admin" ? "blue" : "green"}>
@@ -639,7 +653,7 @@ export default function UserManagement() {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-zinc-500">
-                        Joined: {new Date(user.created_date).toLocaleDateString()}
+                        {isPending ? "Invited" : "Joined"}: {new Date(user.created_date).toLocaleDateString()}
                       </span>
                       <Button
                         variant="ghost"
