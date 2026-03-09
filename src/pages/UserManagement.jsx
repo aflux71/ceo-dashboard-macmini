@@ -487,6 +487,13 @@ export default function UserManagement() {
     setInviting(true);
     try {
       await base44.users.inviteUser(inviteForm.email, inviteForm.role);
+      // Track the pending invite
+      await base44.entities.PendingInvite.create({
+        email: inviteForm.email,
+        role: inviteForm.role,
+        status: "pending",
+        invited_by: appUser?.full_name || appUser?.email || "Admin"
+      });
       toast.success(`Invitation sent to ${inviteForm.email}`);
       logAuditAction({
         action: "dashboard_user_invited",
@@ -499,6 +506,7 @@ export default function UserManagement() {
       setShowInviteDialog(false);
       setInviteForm({ email: "", role: "user" });
       refetchDashboardUsers();
+      refetchPendingInvites();
     } catch (error) {
       toast.error(error.message || "Failed to invite user");
     } finally {
