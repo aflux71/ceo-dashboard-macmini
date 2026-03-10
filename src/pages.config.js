@@ -85,6 +85,7 @@ import RunPlanner from './pages/RunPlanner';
 import Suppliers from './pages/Suppliers';
 import SyncLog from './pages/SyncLog';
 import UserManagement from './pages/UserManagement';
+import SKUDeduplication from './pages/SKUDeduplication';
 import __Layout from './Layout.jsx';
 
 
@@ -127,6 +128,7 @@ export const PAGES = {
     "Suppliers": Suppliers,
     "SyncLog": SyncLog,
     "UserManagement": UserManagement,
+    "SKUDeduplication": SKUDeduplication,
 }
 
 export const pagesConfig = {
