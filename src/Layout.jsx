@@ -30,7 +30,8 @@ import {
   PackageOpen,
   Droplets,
   Tag,
-  Building2
+  Building2,
+  GitMerge
 } from "lucide-react";
 
 const navItems = [
@@ -54,6 +55,7 @@ const navItems = [
         { name: "Co-packers", icon: Building2, page: "Copackers" },
         { name: "Demand Planner", icon: BarChart3, page: "DemandPlanner" },
         { name: "Planning", icon: Factory, page: "ProductionPlanning" },
+        { name: "SKU Dedup", icon: GitMerge, page: "SKUDeduplication" },
         { name: "Bug Reports", icon: AlertOctagon, page: "BugReports" },
       ];
 
