@@ -913,9 +913,10 @@ export default function Recipes() {
                               <div className="col-span-4">
                                 <Label className="text-xs">Packaging Item</Label>
                                 <PackagingSkuSelect
-                                  inventory={inventory}
-                                  value={pkg.sku}
-                                  onChange={(sku, item) => handlePackagingSelect(idx, sku, item)}
+                                 inventory={inventory}
+                                 labels={labels}
+                                 value={pkg.sku}
+                                 onChange={(sku, item) => handlePackagingSelect(idx, sku, item)}
                                 />
                               </div>
                               <div className="col-span-3">
