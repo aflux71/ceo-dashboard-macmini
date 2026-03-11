@@ -569,6 +569,7 @@ export default function Recipes() {
   };
 
   const filtered = recipes.filter(recipe => {
+    if (recipe.active === false) return false;
     const matchesSearch = !search || 
       recipe.name?.toLowerCase().includes(search.toLowerCase()) ||
       recipe.sku?.toLowerCase().includes(search.toLowerCase());
