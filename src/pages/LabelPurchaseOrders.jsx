@@ -403,6 +403,15 @@ export default function LabelPurchaseOrders() {
         </CardContent>
       </Card>
 
+      {/* Create Manual PO Modal */}
+      <ManualPODialog
+        open={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        labels={labels}
+        onCreate={(data) => createMutation.mutate(data)}
+        isPending={createMutation.isPending}
+      />
+
       {/* Detail Dialog */}
       <Dialog open={!!selectedPO} onOpenChange={() => setSelectedPO(null)}>
         <DialogContent className="bg-zinc-900 border-zinc-800 max-w-2xl">
