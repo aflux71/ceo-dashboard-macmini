@@ -28,9 +28,9 @@ import {
 } from "@/components/ui/table";
 import Badge from "@/components/ui/Badge";
 import {
-Search,
-Tag,
-Plus,
+  Search,
+  Tag,
+  Plus,
   ShoppingCart,
   Check,
   X,

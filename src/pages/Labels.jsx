@@ -159,6 +159,20 @@ export default function Labels() {
     totalValue: labels.reduce((sum, l) => sum + (l.current_quantity * (l.cost_per_unit || 0)), 0),
   };
 
+  const handleSendToLabelPO = (label) => {
+    setQueuedLabels((prev) => {
+      const next = new Set(prev);
+      if (next.has(label.id)) {
+        next.delete(label.id);
+        toast("Removed from Label PO queue");
+      } else {
+        next.add(label.id);
+        toast.success(`${label.name} added to Label PO queue`);
+      }
+      return next;
+    });
+  };
+
   const handleSave = (formData) => {
     if (editingLabel) {
       updateMutation.mutate({ id: editingLabel.id, data: formData });
