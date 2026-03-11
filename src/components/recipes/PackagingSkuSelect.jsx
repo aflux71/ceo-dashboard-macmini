@@ -1,20 +1,26 @@
 import React, { useState } from "react";
 import { Input } from "@/components/ui/input";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Tag } from "lucide-react";
 
-export default function PackagingSkuSelect({ inventory, value, onChange }) {
+export default function PackagingSkuSelect({ inventory, labels = [], value, onChange }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   
   // Filter for packaging items only
   const packagingItems = inventory.filter(i => i.type === 'packaging');
+
+  // Combine packaging inventory + labels into one list
+  const allItems = [
+    ...packagingItems.map(i => ({ ...i, _source: 'inventory' })),
+    ...labels.map(l => ({ sku: l.sku, name: l.name, quantity: l.current_quantity, unit: 'labels', _source: 'label', _label: true })),
+  ];
   
-  const filtered = packagingItems.filter(item =>
+  const filtered = allItems.filter(item =>
     item.sku?.toLowerCase().includes(search.toLowerCase()) ||
     item.name?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const selected = packagingItems.find(i => i.sku === value);
+  const selected = allItems.find(i => i.sku === value);
 
   return (
     <div className="relative">
