@@ -49,9 +49,9 @@ export default function PackagingSkuSelect({ inventory, labels = [], value, onCh
             {filtered.length === 0 ? (
               <div className="px-3 py-2 text-sm text-zinc-500">No packaging items found</div>
             ) : (
-              filtered.map((item) => (
+              filtered.map((item, idx) => (
                 <div
-                  key={item.id}
+                  key={item.sku + idx}
                   className="px-3 py-2 cursor-pointer hover:bg-zinc-700 flex justify-between items-center"
                   onClick={() => {
                     onChange(item.sku, item);
@@ -59,11 +59,15 @@ export default function PackagingSkuSelect({ inventory, labels = [], value, onCh
                     setSearch("");
                   }}
                 >
-                  <div>
+                  <div className="flex items-center gap-2">
+                    {item._label && <Tag className="w-3 h-3 text-orange-400 shrink-0" />}
                     <span className="font-mono text-sm text-orange-400">{item.sku}</span>
-                    <span className="text-zinc-300 ml-2">{item.name}</span>
+                    <span className="text-zinc-300 ml-1">{item.name}</span>
                   </div>
-                  <span className="text-xs text-zinc-500">{item.quantity} {item.unit}</span>
+                  <div className="flex items-center gap-1.5">
+                    {item._label && <span className="text-xs px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-400">Label</span>}
+                    <span className="text-xs text-zinc-500">{item.quantity} {item.unit}</span>
+                  </div>
                 </div>
               ))
             )}
