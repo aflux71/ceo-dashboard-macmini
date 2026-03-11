@@ -505,3 +505,223 @@ export default function LabelPurchaseOrders() {
     </div>
   );
 }
+
+function ManualPODialog({ open, onClose, labels, onCreate, isPending }) {
+  const [search, setSearch] = useState("");
+  const [supplierName, setSupplierName] = useState("");
+  const [expectedDate, setExpectedDate] = useState("");
+  const [notes, setNotes] = useState("");
+  const [items, setItems] = useState([]);
+
+  useEffect(() => {
+    if (!open) {
+      setSearch("");
+      setSupplierName("");
+      setExpectedDate("");
+      setNotes("");
+      setItems([]);
+    }
+  }, [open]);
+
+  const filteredLabels = useMemo(() => {
+    if (!search.trim()) return labels.slice(0, 20);
+    const q = search.toLowerCase();
+    return labels.filter(
+      (l) =>
+        l.name?.toLowerCase().includes(q) ||
+        l.sku?.toLowerCase().includes(q) ||
+        l.product_name?.toLowerCase().includes(q)
+    ).slice(0, 20);
+  }, [labels, search]);
+
+  const addItem = (label) => {
+    if (items.find((i) => i.label_id === label.id)) return;
+    setItems((prev) => [
+      ...prev,
+      {
+        label_id: label.id,
+        label_name: label.name,
+        label_sku: label.sku,
+        quantity: label.reorder_qty || 500,
+        unit_cost: label.cost_per_unit || 0,
+        total_cost: (label.reorder_qty || 500) * (label.cost_per_unit || 0),
+      },
+    ]);
+  };
+
+  const updateItem = (labelId, field, value) => {
+    setItems((prev) =>
+      prev.map((item) => {
+        if (item.label_id !== labelId) return item;
+        const updated = { ...item, [field]: Number(value) };
+        updated.total_cost = updated.quantity * updated.unit_cost;
+        return updated;
+      })
+    );
+  };
+
+  const removeItem = (labelId) => {
+    setItems((prev) => prev.filter((i) => i.label_id !== labelId));
+  };
+
+  const total = items.reduce((sum, i) => sum + (i.total_cost || 0), 0);
+
+  const handleCreate = () => {
+    const poNumber = `LPO-${Date.now().toString().slice(-6)}`;
+    onCreate({
+      po_number: poNumber,
+      supplier_name: supplierName,
+      status: "pending_approval",
+      expected_delivery_date: expectedDate || null,
+      notes,
+      items,
+      total,
+      auto_generated: false,
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="bg-zinc-900 border-zinc-800 max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="text-white flex items-center gap-2">
+            <Plus className="w-5 h-5 text-orange-400" />
+            Create Manual Label PO
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto space-y-5 py-2 pr-1">
+          {/* PO Details */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs text-zinc-400 mb-1 block">Supplier Name</label>
+              <Input value={supplierName} onChange={(e) => setSupplierName(e.target.value)} placeholder="e.g. Ruasma Printing" className="bg-zinc-800 border-zinc-700 h-9 text-sm" />
+            </div>
+            <div>
+              <label className="text-xs text-zinc-400 mb-1 block">Expected Delivery Date</label>
+              <Input type="date" value={expectedDate} onChange={(e) => setExpectedDate(e.target.value)} className="bg-zinc-800 border-zinc-700 h-9 text-sm" />
+            </div>
+          </div>
+
+          {/* Label Search */}
+          <div>
+            <label className="text-xs text-zinc-400 mb-1 block">Search & Add Labels</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by label name, SKU, or product..."
+                className="bg-zinc-800 border-zinc-700 h-9 text-sm pl-9"
+              />
+            </div>
+            {search.trim() && (
+              <div className="mt-1 border border-zinc-700 rounded-lg overflow-hidden max-h-40 overflow-y-auto bg-zinc-800">
+                {filteredLabels.length === 0 ? (
+                  <p className="text-zinc-500 text-xs p-3">No labels found</p>
+                ) : (
+                  filteredLabels.map((label) => {
+                    const alreadyAdded = items.find((i) => i.label_id === label.id);
+                    return (
+                      <button
+                        key={label.id}
+                        onClick={() => addItem(label)}
+                        disabled={!!alreadyAdded}
+                        className="w-full text-left px-3 py-2 hover:bg-zinc-700 flex items-center justify-between transition-colors disabled:opacity-40"
+                      >
+                        <div>
+                          <p className="text-sm text-zinc-200">{label.name}</p>
+                          <p className="text-xs text-zinc-500">{label.sku}{label.product_name ? ` · ${label.product_name}` : ""}</p>
+                        </div>
+                        {alreadyAdded ? (
+                          <span className="text-xs text-zinc-500">Added</span>
+                        ) : (
+                          <Plus className="w-4 h-4 text-orange-400" />
+                        )}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Items Table */}
+          {items.length > 0 && (
+            <div>
+              <label className="text-xs text-zinc-400 mb-2 block">Order Items ({items.length})</label>
+              <div className="border border-zinc-800 rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-zinc-800">
+                      <TableHead className="text-zinc-400 text-xs">Label</TableHead>
+                      <TableHead className="text-zinc-400 text-xs text-right">Qty</TableHead>
+                      <TableHead className="text-zinc-400 text-xs text-right">Unit Cost</TableHead>
+                      <TableHead className="text-zinc-400 text-xs text-right">Total</TableHead>
+                      <TableHead className="w-8" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {items.map((item) => (
+                      <TableRow key={item.label_id} className="border-zinc-800">
+                        <TableCell>
+                          <p className="text-white text-sm">{item.label_name}</p>
+                          <p className="text-xs text-zinc-500">{item.label_sku}</p>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Input
+                            type="number"
+                            value={item.quantity}
+                            onChange={(e) => updateItem(item.label_id, "quantity", e.target.value)}
+                            className="bg-zinc-800 border-zinc-700 h-7 text-sm w-20 text-right ml-auto"
+                          />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Input
+                            type="number"
+                            step="0.001"
+                            value={item.unit_cost}
+                            onChange={(e) => updateItem(item.label_id, "unit_cost", e.target.value)}
+                            className="bg-zinc-800 border-zinc-700 h-7 text-sm w-24 text-right ml-auto"
+                          />
+                        </TableCell>
+                        <TableCell className="text-right text-white text-sm font-medium">
+                          ${item.total_cost.toFixed(2)}
+                        </TableCell>
+                        <TableCell>
+                          <button onClick={() => removeItem(item.label_id)} className="text-zinc-500 hover:text-red-400">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                <div className="flex justify-end px-4 py-2 border-t border-zinc-800">
+                  <span className="text-sm text-zinc-400 mr-2">Total:</span>
+                  <span className="text-white font-bold">${total.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label className="text-xs text-zinc-400 mb-1 block">Notes</label>
+            <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional notes..." className="bg-zinc-800 border-zinc-700 h-9 text-sm" />
+          </div>
+        </div>
+
+        <DialogFooter className="pt-2 border-t border-zinc-800">
+          <Button variant="outline" onClick={onClose} className="border-zinc-700">Cancel</Button>
+          <Button
+            onClick={handleCreate}
+            disabled={items.length === 0 || isPending}
+            className="bg-orange-500 hover:bg-orange-600"
+          >
+            {isPending ? "Creating..." : `Create PO (${items.length} item${items.length !== 1 ? "s" : ""})`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
