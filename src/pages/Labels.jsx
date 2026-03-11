@@ -51,6 +51,7 @@ export default function Labels() {
   const [filter, setFilter] = useState("all");
   const [sortField, setSortField] = useState(null);
   const [sortDir, setSortDir] = useState("asc");
+  const [queuedLabels, setQueuedLabels] = useState(new Set());
   const queryClient = useQueryClient();
 
   const { data: labels = [], isLoading } = useQuery({
