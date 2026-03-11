@@ -58,7 +58,23 @@ export default function LabelPurchaseOrders() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedPO, setSelectedPO] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
   const queryClient = useQueryClient();
+
+  const { data: labels = [] } = useQuery({
+    queryKey: ["labels"],
+    queryFn: () => base44.entities.Label.list(),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (data) => base44.entities.LabelPurchaseOrder.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["labelPurchaseOrders"] });
+      setCreateModalOpen(false);
+      toast.success("Manual PO created successfully");
+    },
+    onError: (err) => toast.error("Failed to create PO: " + err.message),
+  });
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["labelPurchaseOrders"],

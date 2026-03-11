@@ -82,10 +82,10 @@ import Recipes from './pages/Recipes';
 import Reports from './pages/Reports';
 import ReviewQueue from './pages/ReviewQueue';
 import RunPlanner from './pages/RunPlanner';
+import SKUDeduplication from './pages/SKUDeduplication';
 import Suppliers from './pages/Suppliers';
 import SyncLog from './pages/SyncLog';
 import UserManagement from './pages/UserManagement';
-import SKUDeduplication from './pages/SKUDeduplication';
 import __Layout from './Layout.jsx';
 
 
@@ -125,10 +125,10 @@ export const PAGES = {
     "Reports": Reports,
     "ReviewQueue": ReviewQueue,
     "RunPlanner": RunPlanner,
+    "SKUDeduplication": SKUDeduplication,
     "Suppliers": Suppliers,
     "SyncLog": SyncLog,
     "UserManagement": UserManagement,
-    "SKUDeduplication": SKUDeduplication,
 }
 
 export const pagesConfig = {

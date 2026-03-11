@@ -27,6 +27,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import Badge from "@/components/ui/Badge";
+import { toast } from "sonner";
 import {
   Plus,
   Search,
@@ -40,6 +41,7 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  ShoppingCart,
 } from "lucide-react";
 
 export default function Labels() {
