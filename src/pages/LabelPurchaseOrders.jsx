@@ -182,18 +182,28 @@ export default function LabelPurchaseOrders() {
           </h1>
           <p className="text-zinc-400 mt-1">Manage and approve label reorder requests</p>
         </div>
-        <Button
-          onClick={handleGenerateOrders}
-          disabled={isGenerating}
-          className="bg-orange-500 hover:bg-orange-600"
-        >
-          {isGenerating ? (
-            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-          ) : (
-            <Zap className="w-4 h-4 mr-2" />
-          )}
-          Check Low Stock
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setCreateModalOpen(true)}
+            className="border-zinc-700 text-zinc-200 hover:text-white"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Create Manual PO
+          </Button>
+          <Button
+            onClick={handleGenerateOrders}
+            disabled={isGenerating}
+            className="bg-orange-500 hover:bg-orange-600"
+          >
+            {isGenerating ? (
+              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Zap className="w-4 h-4 mr-2" />
+            )}
+            Check Low Stock
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
