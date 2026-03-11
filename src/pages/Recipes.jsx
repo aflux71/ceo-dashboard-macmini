@@ -228,6 +228,11 @@ export default function Recipes() {
     queryFn: () => base44.entities.RecipeTemplate.list()
   });
 
+  const { data: labels = [] } = useQuery({
+    queryKey: ['labels'],
+    queryFn: () => base44.entities.Label.list(),
+  });
+
   // Check for incoming item from Issue Alerts
   React.useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
