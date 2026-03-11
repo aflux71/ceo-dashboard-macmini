@@ -342,6 +342,15 @@ export default function Labels() {
                           <Button
                             variant="ghost"
                             size="icon"
+                            onClick={() => handleSendToLabelPO(label)}
+                            className={queuedLabels.has(label.id) ? "text-orange-400 hover:text-orange-300" : "text-zinc-400 hover:text-orange-400"}
+                            title={queuedLabels.has(label.id) ? "Remove from Label PO queue" : "Send to Label PO"}
+                          >
+                            <ShoppingCart className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             onClick={() => { setEditingLabel(label); setShowDialog(true); }}
                             className="text-zinc-400 hover:text-white"
                           >
