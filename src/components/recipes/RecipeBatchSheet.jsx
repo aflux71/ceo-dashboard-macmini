@@ -85,6 +85,10 @@ export default function RecipeBatchSheet({ recipes, showVerifyCheckboxes = true 
           background: #f3f4f6;
           font-weight: bold;
         }
+        .ingredients-table tr {
+          page-break-inside: avoid;
+          break-inside: avoid;
+        }
         .recipe-page {
           margin-bottom: 32px;
         }
