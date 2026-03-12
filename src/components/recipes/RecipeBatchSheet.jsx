@@ -183,6 +183,51 @@ export default function RecipeBatchSheet({ recipes, showVerifyCheckboxes = true 
             </div>
           )}
 
+          {/* Packaging Components Section */}
+          {recipe.packaging?.length > 0 && (
+            <div className="mb-6">
+              <h2 className="section-title">PACKAGING COMPONENTS</h2>
+              <table className="ingredients-table">
+                <thead>
+                  <tr>
+                    {showVerifyCheckboxes && <th className="w-12">✓</th>}
+                    <th>SKU</th>
+                    <th>Item</th>
+                    <th className="w-32">Qty / Unit</th>
+                    <th className="w-32">Qty / Batch</th>
+                    {showVerifyCheckboxes && <th className="w-32">Verified By</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {recipe.packaging.map((pkg, idx) => (
+                    <tr key={idx}>
+                      {showVerifyCheckboxes && (
+                        <td className="text-center">
+                          <div className="checkbox mx-auto"></div>
+                        </td>
+                      )}
+                      <td className="font-mono text-sm">{pkg.sku}</td>
+                      <td>{pkg.name}</td>
+                      <td className="text-right font-bold">{pkg.qty_per_unit}</td>
+                      <td className="text-right font-bold">{pkg.qty_per_batch ?? (pkg.qty_per_unit * recipe.batch_size)}</td>
+                      {showVerifyCheckboxes && <td></td>}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {showVerifyCheckboxes && (
+                <div className="verify-section">
+                  <strong>Packaging Verification:</strong> All packaging components checked and quantities confirmed.
+                  <br />
+                  <span className="mt-2 inline-block">
+                    Signature: <span className="signature-line"></span>
+                    &nbsp;&nbsp;&nbsp;Date: <span className="signature-line" style={{minWidth: '100px'}}></span>
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Manufacturing Procedures Section */}
           {recipe.procedures?.length > 0 && (
             <div className="mb-6">
