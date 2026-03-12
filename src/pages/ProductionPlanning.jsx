@@ -561,18 +561,39 @@ function MaterialCheckTab() {
     queryFn: () => base44.entities.Inventory.list(),
   });
 
+  const createCopackOrder = async (item) => {
+    await base44.entities.CopackOrder.create({
+      product_name: item.product_name,
+      sku: item.sku,
+      quantity: item.order_qty || item.forecast_qty || item.suggested_qty || item.quantity_needed || item.quantity || 0,
+      co_packer_name: "",
+      status: "draft",
+      notes: `Auto-created from Production Planning approval`,
+    });
+  };
+
   const approveForecastMutation = useMutation({
     mutationFn: async ({ item, production_type }) => {
       const pr = await base44.entities.ProductionRequest.create({ sku: item.sku, product_name: item.product_name, quantity_needed: item.order_qty || item.forecast_qty || item.suggested_qty || 0, status: "approved", production_type, source: "forecast", urgency: item.urgency });
       await base44.entities.ForecastSuggestion.update(item.id, { status: "in_production" });
+      if (production_type === "copacked") await createCopackOrder(item);
       return pr;
     },
-    onSuccess: () => { ["planning_material_check_forecasts","planning_forecast_suggestions","planning_batch_queue_manual","planning_production_requests"].forEach(k => queryClient.invalidateQueries({ queryKey: [k] })); toast.success("Approved — moved to Batch Queue"); },
+    onSuccess: (_, { production_type }) => {
+      ["planning_material_check_forecasts","planning_forecast_suggestions","planning_batch_queue_manual","planning_production_requests","planning_copack_orders"].forEach(k => queryClient.invalidateQueries({ queryKey: [k] }));
+      toast.success(production_type === "copacked" ? "Approved — Co-pack order created in WIP Co-pack" : "Approved — moved to Batch Queue");
+    },
     onError: (err) => toast.error(`Failed to approve: ${err?.response?.data?.message || err?.message || String(err)}`),
   });
   const approveManualMutation = useMutation({
-    mutationFn: ({ id, production_type }) => base44.entities.ProductionRequest.update(id, { status: "approved", production_type }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["planning_material_check_manual"] }); queryClient.invalidateQueries({ queryKey: ["planning_batch_queue_manual"] }); toast.success("Approved — moved to Batch Queue"); },
+    mutationFn: async ({ id, production_type, item }) => {
+      await base44.entities.ProductionRequest.update(id, { status: "approved", production_type });
+      if (production_type === "copacked") await createCopackOrder(item._raw || item);
+    },
+    onSuccess: (_, { production_type }) => {
+      ["planning_material_check_manual","planning_batch_queue_manual","planning_copack_orders"].forEach(k => queryClient.invalidateQueries({ queryKey: [k] }));
+      toast.success(production_type === "copacked" ? "Approved — Co-pack order created in WIP Co-pack" : "Approved — moved to Batch Queue");
+    },
     onError: (err) => toast.error(`Failed to approve: ${err?.response?.data?.message || err?.message || String(err)}`),
   });
   const returnForecastMutation = useMutation({
