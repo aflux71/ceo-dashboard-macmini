@@ -285,7 +285,7 @@ export default function RecipeBatchSheet({ recipes, showVerifyCheckboxes = true 
 
           {/* QC Checkpoints Section */}
           {recipe.qc_checks?.length > 0 && (
-            <div className="mb-6">
+            <div className="mb-6 section-block">
               <h2 className="section-title">QUALITY CONTROL CHECKPOINTS</h2>
               <table className="ingredients-table">
                 <thead>
