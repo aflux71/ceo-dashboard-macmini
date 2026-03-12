@@ -175,7 +175,7 @@ export default function RecipeBatchSheet({ recipes, showVerifyCheckboxes = true 
 
           {/* Ingredients Section */}
           {recipe.ingredients?.length > 0 && (
-            <div className="mb-6 section-block">
+            <div className="mb-6">
               <h2 className="section-title">INGREDIENTS / BILL OF MATERIALS</h2>
               <table className="ingredients-table">
                 <thead>
