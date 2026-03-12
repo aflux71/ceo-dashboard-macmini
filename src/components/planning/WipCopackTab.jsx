@@ -250,6 +250,11 @@ export default function WipCopackTab() {
                             {order.notes && <p className="text-xs text-zinc-500 italic truncate">{order.notes}</p>}
                             {order.status === "returned" && <Button size="sm" variant="outline" onClick={() => handleCreateQcCheck(order)} className="w-full text-xs border-purple-500/30 text-purple-400 hover:bg-purple-500/10"><ExternalLink className="w-3 h-3 mr-1.5" />Create QC Check</Button>}
                             {advance && <Button size="sm" variant="outline" onClick={() => handleAdvance(order)} disabled={advanceMutation.isPending} className={`w-full text-xs ${order.status === "draft" ? "border-blue-500/30 text-blue-400 hover:bg-blue-500/10" : order.status === "sent" ? "border-amber-500/30 text-amber-400 hover:bg-amber-500/10" : order.status === "in_production" ? "border-purple-500/30 text-purple-400 hover:bg-purple-500/10" : order.status === "qc_hold" ? "border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10" : "border-green-500/30 text-green-400 hover:bg-green-500/10"}`}>{advanceMutation.isPending ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> : (() => { const AdvIcon = advance.icon; return <AdvIcon className="w-3 h-3 mr-1.5" />; })()}{advance.label}</Button>}
+                            {order.status !== "complete" && (
+                              <Button size="sm" variant="outline" onClick={() => handleOpenPoDialog(order)} className="w-full text-xs border-orange-500/30 text-orange-400 hover:bg-orange-500/10">
+                                <ShoppingCart className="w-3 h-3 mr-1.5" />Add to P.O.
+                              </Button>
+                            )}
                           </CardContent>
                         </Card>
                       );
