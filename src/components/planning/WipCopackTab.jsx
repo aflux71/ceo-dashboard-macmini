@@ -289,6 +289,69 @@ export default function WipCopackTab() {
         </DialogContent>
       </Dialog>
 
+      {/* Add to P.O. Dialog */}
+      <Dialog open={!!poDialog} onOpenChange={(open) => { if (!open) { setPoDialog(null); setSelectedPoId("new"); setNewPoSupplier(""); setNewPoExpectedDate(""); } }}>
+        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 max-w-md">
+          {poDialog && (
+            <>
+              <DialogHeader><DialogTitle>Add to Purchase Order</DialogTitle></DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-sm">
+                  <p className="text-zinc-200 font-medium">{poDialog.product_name}</p>
+                  <p className="text-zinc-500 text-xs mt-0.5">{poDialog.sku} · {poDialog.quantity?.toLocaleString()} units · {poDialog.co_packer_name}</p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-zinc-400 text-xs">Purchase Order</Label>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 p-3 rounded-lg border border-zinc-700 cursor-pointer hover:border-zinc-600 transition-colors">
+                      <input type="radio" name="po_select" value="new" checked={selectedPoId === "new"} onChange={() => setSelectedPoId("new")} className="accent-orange-500" />
+                      <div>
+                        <p className="text-sm text-zinc-200">Create new P.O.</p>
+                      </div>
+                    </label>
+                    {draftPOs.map((po) => (
+                      <label key={po.id} className="flex items-center gap-2 p-3 rounded-lg border border-zinc-700 cursor-pointer hover:border-zinc-600 transition-colors">
+                        <input type="radio" name="po_select" value={po.id} checked={selectedPoId === po.id} onChange={() => setSelectedPoId(po.id)} className="accent-orange-500" />
+                        <div>
+                          <p className="text-sm text-zinc-200">{po.po_number}</p>
+                          <p className="text-xs text-zinc-500">{po.supplier} · {(po.items || []).length} item{(po.items || []).length !== 1 ? "s" : ""}</p>
+                        </div>
+                        <FileText className="w-3.5 h-3.5 text-zinc-600 ml-auto" />
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {selectedPoId === "new" && (
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-zinc-400 text-xs">Supplier / Co-packer *</Label>
+                      <Input value={newPoSupplier} onChange={(e) => setNewPoSupplier(e.target.value)} placeholder="Acme Fill Co." className="bg-zinc-800 border-zinc-700 text-zinc-100 h-9 text-sm" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-zinc-400 text-xs">Expected Date</Label>
+                      <Input type="date" value={newPoExpectedDate} onChange={(e) => setNewPoExpectedDate(e.target.value)} className="bg-zinc-800 border-zinc-700 text-zinc-100 h-9 text-sm" />
+                    </div>
+                  </div>
+                )}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setPoDialog(null)} className="border-zinc-700">Cancel</Button>
+                <Button
+                  onClick={() => addPoMutation.mutate({ order: poDialog, poId: selectedPoId, supplier: newPoSupplier, expectedDate: newPoExpectedDate })}
+                  disabled={addPoMutation.isPending || (selectedPoId === "new" && !newPoSupplier)}
+                  className="bg-orange-500 hover:bg-orange-600 text-white"
+                >
+                  {addPoMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ShoppingCart className="w-4 h-4 mr-2" />}
+                  {selectedPoId === "new" ? "Create P.O." : "Add to P.O."}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!returnDialog} onOpenChange={(open) => { if (!open) { setReturnDialog(null); setReturnDate(""); } }}>
         <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 max-w-sm">
           {returnDialog && (
