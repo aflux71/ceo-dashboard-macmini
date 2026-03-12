@@ -267,7 +267,7 @@ export default function RecipeBatchSheet({ recipes, showVerifyCheckboxes = true 
 
           {/* Manufacturing Procedures Section */}
           {recipe.procedures?.length > 0 && (
-            <div className="mb-6 section-block">
+            <div className="mb-6">
               <h2 className="section-title">MANUFACTURING PROCEDURES (SOP)</h2>
               {recipe.procedures.map((proc, idx) => (
                 <div key={idx} className="checkbox-row">
