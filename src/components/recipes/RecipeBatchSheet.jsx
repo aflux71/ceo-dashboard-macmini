@@ -102,9 +102,28 @@ export default function RecipeBatchSheet({ recipes, showVerifyCheckboxes = true 
           page-break-inside: avoid;
           break-inside: avoid;
         }
+        .section-header-keep {
+          page-break-after: avoid;
+          break-after: avoid;
+        }
         .checkbox-row {
           page-break-inside: avoid;
           break-inside: avoid;
+        }
+        .ingredients-table thead {
+          display: table-header-group;
+        }
+        .ingredients-table tbody tr {
+          page-break-inside: avoid;
+          break-inside: avoid;
+        }
+        .verify-section {
+          page-break-inside: avoid;
+          break-inside: avoid;
+        }
+        h2.section-title {
+          page-break-after: avoid;
+          break-after: avoid;
         }
       `}</style>
 
