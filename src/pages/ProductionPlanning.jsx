@@ -722,9 +722,9 @@ function MaterialCheckTab() {
 
   const handleApprove = (item, productionType) => {
     if (item.type === "forecast") {
-      approveForecastMutation.mutate({ item, production_type: productionType });
+      approveForecastMutation.mutate({ item: item._raw, production_type: productionType });
     } else {
-      approveManualMutation.mutate({ id: item.id, production_type: productionType });
+      approveManualMutation.mutate({ id: item.id, production_type: productionType, item });
     }
   };
 
