@@ -88,6 +88,14 @@ export default function RecipeBatchSheet({ recipes, showVerifyCheckboxes = true 
         .recipe-page {
           margin-bottom: 32px;
         }
+        .section-block {
+          page-break-inside: avoid;
+          break-inside: avoid;
+        }
+        .checkbox-row {
+          page-break-inside: avoid;
+          break-inside: avoid;
+        }
       `}</style>
 
       {recipes.map((recipe, recipeIdx) => (
