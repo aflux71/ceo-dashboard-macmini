@@ -1113,13 +1113,9 @@ function MaterialCheckTab() {
   );
 }
 
-// ─── Batch Queue Tab ───────────────────────────────────────────────────────────
+// ─── Batch Queue Tab extracted to components/planning/BatchQueueTab.jsx ────────
 
-function addDays(dateStr, days) { if (!dateStr) return ""; const d = new Date(dateStr); d.setDate(d.getDate() + days); return d.toISOString().split("T")[0]; }
-function formatDate(dateStr) { if (!dateStr) return "—"; return new Date(dateStr + "T00:00:00").toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric" }); }
-const defaultSchedule = { batch_date: new Date().toISOString().split("T")[0], operator: "", production_line: "1", batch_size: "", qc_override: false, qc_date_override: "", qc_notes: "", fill_date: "", fill_operator: "", fill_line: "1" };
-
-function BatchQueueTab() {
+function _BatchQueueTabPlaceholder() {
   const queryClient = useQueryClient();
   const [expandedId, setExpandedId] = useState(null);
   const [schedules, setSchedules] = useState({});
