@@ -66,6 +66,11 @@ export default function WipCopackTab() {
     queryFn: () => base44.entities.CopackOrder.list("-created_date", 500),
   });
 
+  const { data: draftPOs = [] } = useQuery({
+    queryKey: ["draft_purchase_orders"],
+    queryFn: () => base44.entities.PurchaseOrder.filter({ status: "draft" }, "-created_date"),
+  });
+
   const today = new Date().toISOString().split("T")[0];
   const sevenDaysOut = addDays(today, 7);
 
