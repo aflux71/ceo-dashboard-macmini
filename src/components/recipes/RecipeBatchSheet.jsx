@@ -11,6 +11,10 @@ export default function RecipeBatchSheet({ recipes, showVerifyCheckboxes = true 
     <div className="print-batch-sheet bg-white text-black p-8">
       <style>{`
         @media print {
+          @page {
+            margin: 0.6in 0.5in;
+            size: letter;
+          }
           body * { visibility: hidden; }
           .print-batch-sheet, .print-batch-sheet * { visibility: visible; }
           .print-batch-sheet { 
@@ -18,6 +22,8 @@ export default function RecipeBatchSheet({ recipes, showVerifyCheckboxes = true 
             left: 0; 
             top: 0; 
             width: 100%;
+            padding: 0 !important;
+            margin: 0 !important;
             background: white !important;
             color: black !important;
             -webkit-print-color-adjust: exact;
