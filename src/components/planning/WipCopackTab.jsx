@@ -136,6 +136,53 @@ export default function WipCopackTab() {
 
   const daysUntilShipBy = (order) => { if (!order.ship_by) return null; return Math.ceil((new Date(order.ship_by) - new Date(today)) / 86400000); };
 
+  const addPoMutation = useMutation({
+    mutationFn: async ({ order, poId, supplier, expectedDate }) => {
+      const lineItem = {
+        sku: order.sku,
+        name: order.product_name,
+        quantity: order.quantity || 0,
+        unit: "units",
+        unit_cost: 0,
+        total_cost: 0,
+        received_qty: 0,
+      };
+      if (poId === "new") {
+        const poNumber = `PO-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`;
+        await base44.entities.PurchaseOrder.create({
+          po_number: poNumber,
+          supplier: supplier || order.co_packer_name,
+          status: "draft",
+          order_date: today,
+          expected_date: expectedDate || null,
+          items: [lineItem],
+          notes: `Created from co-pack order: ${order.product_name}`,
+        });
+      } else {
+        const existing = draftPOs.find((p) => p.id === poId);
+        if (!existing) throw new Error("PO not found");
+        const updatedItems = [...(existing.items || []), lineItem];
+        await base44.entities.PurchaseOrder.update(poId, { items: updatedItems });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["draft_purchase_orders"] });
+      toast.success("Added to Purchase Order");
+      setPoDialog(null);
+      setSelectedPoId("new");
+      setNewPoSupplier("");
+      setNewPoExpectedDate("");
+    },
+    onError: (err) => toast.error(`Failed: ${err?.message || String(err)}`),
+  });
+
+  const handleOpenPoDialog = (order) => {
+    setPoDialog(order);
+    setSelectedPoId(draftPOs.length > 0 ? draftPOs[0].id : "new");
+    setNewPoSupplier(order.co_packer_name || "");
+    setNewPoExpectedDate("");
+  };
+
   return (
     <div className="space-y-4">
       {(urgentShipments.length > 0 || overdueShipments.length > 0) && (
