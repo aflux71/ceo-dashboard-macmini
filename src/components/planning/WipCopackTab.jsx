@@ -56,6 +56,10 @@ export default function WipCopackTab() {
   const [returnDialog, setReturnDialog] = useState(null);
   const [returnDate, setReturnDate] = useState("");
   const [showCompleted, setShowCompleted] = useState(false);
+  const [poDialog, setPoDialog] = useState(null); // the copack order being added to a PO
+  const [selectedPoId, setSelectedPoId] = useState("new");
+  const [newPoSupplier, setNewPoSupplier] = useState("");
+  const [newPoExpectedDate, setNewPoExpectedDate] = useState("");
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["planning_copack_orders"],
