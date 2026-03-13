@@ -299,7 +299,7 @@ export default function WipCopackTab() {
       </Dialog>
 
       {/* Add to P.O. Dialog */}
-      <Dialog open={!!poDialog} onOpenChange={(open) => { if (!open) { setPoDialog(null); setSelectedPoId("new"); setNewPoSupplier(""); setNewPoExpectedDate(""); } }}>
+      <Dialog open={!!poDialog} onOpenChange={(open) => { if (!open) { setPoDialog(null); setSelectedPoId("new"); setNewPoSupplier(""); setNewPoExpectedDate(""); setSupplierSearch(""); setSupplierDropdownOpen(false); } }}>
         <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 max-w-md">
           {poDialog && (
             <>
