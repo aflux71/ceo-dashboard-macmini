@@ -604,112 +604,108 @@ export default function PurchaseOrders() {
               </div>
               
               <div className="space-y-2">
-              {formData.items.map((item, idx) => {
-                const q = (itemSearches[idx] ?? "").toLowerCase();
-                const filtered = q
-                  ? inventory.filter(inv =>
-                      inv.sku?.toLowerCase().includes(q) ||
-                      inv.name?.toLowerCase().includes(q) ||
-                      inv.supplier_sku?.toLowerCase().includes(q)
-                    )
-                  : inventory;
-
-                return (
-                <div key={idx} className="grid grid-cols-12 gap-2 items-end p-3 bg-zinc-800/50 rounded-lg">
-                  <div className="col-span-4 relative">
-                    <Label className="text-xs">Item</Label>
-                    <div
-                      className="flex items-center bg-zinc-800 border border-zinc-700 rounded-md px-3 h-9 cursor-pointer"
-                      onClick={() => setOpenItemDropdown(openItemDropdown === idx ? null : idx)}
-                    >
-                      <span className={`flex-1 truncate text-sm ${item.name ? "text-zinc-100" : "text-zinc-500"}`}>
-                        {item.name ? `${item.sku} - ${item.name}` : "Select item"}
-                      </span>
-                      <Search className="w-3.5 h-3.5 text-zinc-500 ml-2 flex-shrink-0" />
-                    </div>
-                    {openItemDropdown === idx && (
-                      <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl overflow-hidden">
-                        <div className="p-2 border-b border-zinc-700">
-                          <Input
-                            autoFocus
-                            value={itemSearches[idx] ?? ""}
-                            onChange={(e) => setItemSearches(prev => ({ ...prev, [idx]: e.target.value }))}
-                            placeholder="Search SKU or name…"
-                            className="bg-zinc-900 border-zinc-600 text-zinc-100 h-8 text-sm"
-                            onClick={(e) => e.stopPropagation()}
-                          />
+                {formData.items.map((item, idx) => {
+                  const q = (itemSearches[idx] ?? "").toLowerCase();
+                  const filteredInv = q
+                    ? inventory.filter(inv =>
+                        inv.sku?.toLowerCase().includes(q) ||
+                        inv.name?.toLowerCase().includes(q) ||
+                        (inv.supplier_sku || "").toLowerCase().includes(q)
+                      )
+                    : inventory;
+                  return (
+                    <div key={idx} className="grid grid-cols-12 gap-2 items-end p-3 bg-zinc-800/50 rounded-lg">
+                      <div className="col-span-4 relative">
+                        <Label className="text-xs">Item</Label>
+                        <div
+                          className="flex items-center bg-zinc-800 border border-zinc-700 rounded-md px-3 h-9 cursor-pointer"
+                          onClick={() => setOpenItemDropdown(openItemDropdown === idx ? null : idx)}
+                        >
+                          <span className={"flex-1 truncate text-sm " + (item.name ? "text-zinc-100" : "text-zinc-500")}>
+                            {item.name ? (item.sku + " - " + item.name) : "Select item"}
+                          </span>
+                          <Search className="w-3.5 h-3.5 text-zinc-500 ml-2 flex-shrink-0" />
                         </div>
-                        <div className="max-h-52 overflow-y-auto">
-                          {filtered.length === 0 ? (
-                            <p className="text-xs text-zinc-500 text-center py-3">No items found</p>
-                          ) : filtered.map(inv => (
-                            <button
-                              key={inv.id}
-                              type="button"
-                              className="w-full text-left px-3 py-2 text-sm hover:bg-zinc-700 transition-colors"
-                              onClick={() => {
-                                updateItem(idx, 'inventory_id', inv.id);
-                                setOpenItemDropdown(null);
-                                setItemSearches(prev => ({ ...prev, [idx]: "" }));
-                              }}
-                            >
-                              <span className="text-orange-400 font-mono text-xs">{inv.sku}</span>
-                              <span className="text-zinc-300 ml-2">{inv.name}</span>
-                              {inv.supplier && <span className="text-zinc-500 text-xs ml-1">· {inv.supplier}</span>}
-                            </button>
-                          ))}
-                        </div>
+                        {openItemDropdown === idx && (
+                          <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl overflow-hidden">
+                            <div className="p-2 border-b border-zinc-700">
+                              <Input
+                                autoFocus
+                                value={itemSearches[idx] ?? ""}
+                                onChange={(e) => setItemSearches(prev => ({ ...prev, [idx]: e.target.value }))}
+                                placeholder="Search SKU or name…"
+                                className="bg-zinc-900 border-zinc-600 text-zinc-100 h-8 text-sm"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </div>
+                            <div className="max-h-52 overflow-y-auto">
+                              {filteredInv.length === 0 && (
+                                <p className="text-xs text-zinc-500 text-center py-3">No items found</p>
+                              )}
+                              {filteredInv.map(inv => (
+                                <button
+                                  key={inv.id}
+                                  type="button"
+                                  className="w-full text-left px-3 py-2 text-sm hover:bg-zinc-700 transition-colors"
+                                  onClick={() => {
+                                    updateItem(idx, 'inventory_id', inv.id);
+                                    setOpenItemDropdown(null);
+                                    setItemSearches(prev => ({ ...prev, [idx]: "" }));
+                                  }}
+                                >
+                                  <span className="text-orange-400 font-mono text-xs">{inv.sku}</span>
+                                  <span className="text-zinc-300 ml-2">{inv.name}</span>
+                                  {inv.supplier && <span className="text-zinc-500 text-xs ml-1">· {inv.supplier}</span>}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                    <div className="col-span-2">
-                      <Label className="text-xs">Quantity</Label>
-                      <Input
-                        type="number"
-                        value={item.quantity}
-                        onChange={(e) => updateItem(idx, 'quantity', parseFloat(e.target.value) || 0)}
-                        className="bg-zinc-800 border-zinc-700"
-                      />
+                      <div className="col-span-2">
+                        <Label className="text-xs">Quantity</Label>
+                        <Input
+                          type="number"
+                          value={item.quantity}
+                          onChange={(e) => updateItem(idx, 'quantity', parseFloat(e.target.value) || 0)}
+                          className="bg-zinc-800 border-zinc-700"
+                        />
+                      </div>
+                      <div className="col-span-1">
+                        <Label className="text-xs">Unit</Label>
+                        <Input value={item.unit} readOnly className="bg-zinc-800 border-zinc-700 text-zinc-500" />
+                      </div>
+                      <div className="col-span-2">
+                        <Label className="text-xs">Unit Cost</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={item.unit_cost}
+                          onChange={(e) => updateItem(idx, 'unit_cost', parseFloat(e.target.value) || 0)}
+                          className="bg-zinc-800 border-zinc-700"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <Label className="text-xs">Total</Label>
+                        <Input
+                          value={"$" + (item.total_cost?.toFixed(2) || "0.00")}
+                          readOnly
+                          className="bg-zinc-800 border-zinc-700 text-zinc-400"
+                        />
+                      </div>
+                      <div className="col-span-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeItem(idx)}
+                          className="text-red-400 hover:text-red-300"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="col-span-1">
-                      <Label className="text-xs">Unit</Label>
-                      <Input
-                        value={item.unit}
-                        readOnly
-                        className="bg-zinc-800 border-zinc-700 text-zinc-500"
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <Label className="text-xs">Unit Cost</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={item.unit_cost}
-                        onChange={(e) => updateItem(idx, 'unit_cost', parseFloat(e.target.value) || 0)}
-                        className="bg-zinc-800 border-zinc-700"
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <Label className="text-xs">Total</Label>
-                      <Input
-                        value={`$${item.total_cost?.toFixed(2) || '0.00'}`}
-                        readOnly
-                        className="bg-zinc-800 border-zinc-700 text-zinc-400"
-                      />
-                    </div>
-                    <div className="col-span-1">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeItem(idx)}
-                        className="text-red-400 hover:text-red-300"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                );
+                  );
                 })}
                 {formData.items.length === 0 && (
                   <p className="text-center text-zinc-500 py-4">No items added yet</p>
