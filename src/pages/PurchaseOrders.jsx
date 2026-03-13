@@ -601,26 +601,64 @@ export default function PurchaseOrders() {
               </div>
               
               <div className="space-y-2">
-                {formData.items.map((item, idx) => (
-                  <div key={idx} className="grid grid-cols-12 gap-2 items-end p-3 bg-zinc-800/50 rounded-lg">
-                    <div className="col-span-4">
-                      <Label className="text-xs">Item</Label>
-                      <Select 
-                        value={item.inventory_id || ""} 
-                        onValueChange={(v) => updateItem(idx, 'inventory_id', v)}
-                      >
-                        <SelectTrigger className="bg-zinc-800 border-zinc-700">
-                          <SelectValue placeholder="Select item">{item.name || "Select item"}</SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {inventory.map(inv => (
-                            <SelectItem key={inv.id} value={inv.id}>
-                              {inv.sku} - {inv.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+              {formData.items.map((item, idx) => {
+                const q = (itemSearches[idx] ?? "").toLowerCase();
+                const filtered = q
+                  ? inventory.filter(inv =>
+                      inv.sku?.toLowerCase().includes(q) ||
+                      inv.name?.toLowerCase().includes(q) ||
+                      inv.supplier_sku?.toLowerCase().includes(q)
+                    )
+                  : inventory;
+
+                return (
+                <div key={idx} className="grid grid-cols-12 gap-2 items-end p-3 bg-zinc-800/50 rounded-lg">
+                  <div className="col-span-4 relative">
+                    <Label className="text-xs">Item</Label>
+                    <div
+                      className="flex items-center bg-zinc-800 border border-zinc-700 rounded-md px-3 h-9 cursor-pointer"
+                      onClick={() => setOpenItemDropdown(openItemDropdown === idx ? null : idx)}
+                    >
+                      <span className={`flex-1 truncate text-sm ${item.name ? "text-zinc-100" : "text-zinc-500"}`}>
+                        {item.name ? `${item.sku} - ${item.name}` : "Select item"}
+                      </span>
+                      <Search className="w-3.5 h-3.5 text-zinc-500 ml-2 flex-shrink-0" />
                     </div>
+                    {openItemDropdown === idx && (
+                      <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl overflow-hidden">
+                        <div className="p-2 border-b border-zinc-700">
+                          <Input
+                            autoFocus
+                            value={itemSearches[idx] ?? ""}
+                            onChange={(e) => setItemSearches(prev => ({ ...prev, [idx]: e.target.value }))}
+                            placeholder="Search SKU or name…"
+                            className="bg-zinc-900 border-zinc-600 text-zinc-100 h-8 text-sm"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </div>
+                        <div className="max-h-52 overflow-y-auto">
+                          {filtered.length === 0 ? (
+                            <p className="text-xs text-zinc-500 text-center py-3">No items found</p>
+                          ) : filtered.map(inv => (
+                            <button
+                              key={inv.id}
+                              type="button"
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-zinc-700 transition-colors"
+                              onClick={() => {
+                                updateItem(idx, 'inventory_id', inv.id);
+                                setOpenItemDropdown(null);
+                                setItemSearches(prev => ({ ...prev, [idx]: "" }));
+                              }}
+                            >
+                              <span className="text-orange-400 font-mono text-xs">{inv.sku}</span>
+                              <span className="text-zinc-300 ml-2">{inv.name}</span>
+                              {inv.supplier && <span className="text-zinc-500 text-xs ml-1">· {inv.supplier}</span>}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                     <div className="col-span-2">
                       <Label className="text-xs">Quantity</Label>
                       <Input
