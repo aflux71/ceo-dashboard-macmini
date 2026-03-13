@@ -334,9 +334,53 @@ export default function WipCopackTab() {
 
                 {selectedPoId === "new" && (
                   <div className="space-y-3">
-                    <div className="space-y-1.5">
+                    <div className="space-y-1.5 relative">
                       <Label className="text-zinc-400 text-xs">Supplier / Co-packer *</Label>
-                      <Input value={newPoSupplier} onChange={(e) => setNewPoSupplier(e.target.value)} placeholder="Acme Fill Co." className="bg-zinc-800 border-zinc-700 text-zinc-100 h-9 text-sm" />
+                      {supplierDropdownOpen && (
+                        <div className="fixed inset-0 z-40" onClick={() => setSupplierDropdownOpen(false)} />
+                      )}
+                      <div
+                        className="flex items-center bg-zinc-800 border border-zinc-700 rounded-md px-3 h-9 cursor-pointer gap-2"
+                        onClick={() => setSupplierDropdownOpen(!supplierDropdownOpen)}
+                      >
+                        <Search className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                        <input
+                          className="flex-1 bg-transparent text-sm text-zinc-100 outline-none placeholder-zinc-500"
+                          placeholder="Search suppliers…"
+                          value={supplierSearch}
+                          onChange={(e) => { setSupplierSearch(e.target.value); setNewPoSupplier(e.target.value); setSupplierDropdownOpen(true); }}
+                          onClick={(e) => { e.stopPropagation(); setSupplierDropdownOpen(true); }}
+                        />
+                        <ChevronDown className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                      </div>
+                      {supplierDropdownOpen && (
+                        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl overflow-hidden">
+                          <div className="max-h-48 overflow-y-auto">
+                            {suppliers
+                              .filter(s => s.name?.toLowerCase().includes(supplierSearch.toLowerCase()))
+                              .map(s => (
+                                <button
+                                  key={s.id}
+                                  type="button"
+                                  className="w-full text-left px-3 py-2 text-sm hover:bg-zinc-700 transition-colors text-zinc-200"
+                                  onClick={() => { setNewPoSupplier(s.name); setSupplierSearch(s.name); setSupplierDropdownOpen(false); }}
+                                >
+                                  {s.name}
+                                </button>
+                              ))
+                            }
+                            {supplierSearch && !suppliers.find(s => s.name?.toLowerCase() === supplierSearch.toLowerCase()) && (
+                              <button
+                                type="button"
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-zinc-700 transition-colors text-orange-400"
+                                onClick={() => { setNewPoSupplier(supplierSearch); setSupplierDropdownOpen(false); }}
+                              >
+                                Use "{supplierSearch}"
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-zinc-400 text-xs">Expected Date</Label>
