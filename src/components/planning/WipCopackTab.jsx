@@ -60,6 +60,8 @@ export default function WipCopackTab() {
   const [selectedPoId, setSelectedPoId] = useState("new");
   const [newPoSupplier, setNewPoSupplier] = useState("");
   const [newPoExpectedDate, setNewPoExpectedDate] = useState("");
+  const [supplierSearch, setSupplierSearch] = useState("");
+  const [supplierDropdownOpen, setSupplierDropdownOpen] = useState(false);
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["planning_copack_orders"],
