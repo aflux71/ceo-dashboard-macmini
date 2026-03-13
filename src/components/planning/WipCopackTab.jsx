@@ -4,7 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import {
   Plus, Package, Loader2, AlertTriangle, CheckCircle2, Clock, Eye, EyeOff,
-  Timer, Send, Building2, MapPin, RotateCcw, ExternalLink, Hammer, ShoppingCart, FileText
+  Timer, Send, Building2, MapPin, RotateCcw, ExternalLink, Hammer, ShoppingCart, FileText, Search, ChevronDown
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
