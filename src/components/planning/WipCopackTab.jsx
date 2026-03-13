@@ -187,7 +187,9 @@ export default function WipCopackTab() {
     setPoDialog(order);
     setSelectedPoId(draftPOs.length > 0 ? draftPOs[0].id : "new");
     setNewPoSupplier(order.co_packer_name || "");
+    setSupplierSearch(order.co_packer_name || "");
     setNewPoExpectedDate("");
+    setSupplierDropdownOpen(false);
   };
 
   return (
