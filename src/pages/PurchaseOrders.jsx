@@ -706,7 +706,8 @@ export default function PurchaseOrders() {
                       </Button>
                     </div>
                   </div>
-                ))}
+                );
+                })}
                 {formData.items.length === 0 && (
                   <p className="text-center text-zinc-500 py-4">No items added yet</p>
                 )}
