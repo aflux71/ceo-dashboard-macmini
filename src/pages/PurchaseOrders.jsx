@@ -30,6 +30,8 @@ export default function PurchaseOrders() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showModal, setShowModal] = useState(false);
+  const [itemSearches, setItemSearches] = useState({});
+  const [openItemDropdown, setOpenItemDropdown] = useState(null);
   const [showViewModal, setShowViewModal] = useState(false);
   const [selectedPO, setSelectedPO] = useState(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
