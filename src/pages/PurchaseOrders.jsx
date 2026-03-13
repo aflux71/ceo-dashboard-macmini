@@ -509,6 +509,9 @@ export default function PurchaseOrders() {
           <DialogHeader>
             <DialogTitle>{selectedPO ? 'Edit Purchase Order' : 'New Purchase Order'}</DialogTitle>
           </DialogHeader>
+          {openItemDropdown !== null && (
+            <div className="fixed inset-0 z-40" onClick={() => setOpenItemDropdown(null)} />
+          )}
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
