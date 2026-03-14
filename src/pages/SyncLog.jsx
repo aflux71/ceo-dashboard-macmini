@@ -39,6 +39,11 @@ export default function SyncLog() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [runningSync, setRunningSync] = useState(null);
   const [syncResults, setSyncResults] = useState({});
+  const [demandMonth, setDemandMonth] = useState(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 1);
+    return { year: d.getFullYear(), month: d.getMonth() + 1 };
+  });
   const queryClient = useQueryClient();
 
   const { data: logs = [], isLoading } = useQuery({
