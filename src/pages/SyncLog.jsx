@@ -156,13 +156,32 @@ export default function SyncLog() {
         <CardContent className="flex flex-wrap gap-3 pt-0 pb-4">
           {MANUAL_SYNCS.map(({ label, fn }) => {
             const result = syncResults[fn];
+            const isDemand = fn === "rebuildDemandSummaries";
+            const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
             return (
               <div key={fn} className="flex flex-col gap-1">
+                {isDemand && (
+                  <div className="flex items-center gap-2 mb-1">
+                    <select
+                      value={demandMonth.month}
+                      onChange={e => setDemandMonth(p => ({ ...p, month: Number(e.target.value) }))}
+                      className="bg-zinc-800 border border-zinc-700 rounded text-xs text-zinc-300 px-2 py-1"
+                    >
+                      {monthNames.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+                    </select>
+                    <input
+                      type="number"
+                      value={demandMonth.year}
+                      onChange={e => setDemandMonth(p => ({ ...p, year: Number(e.target.value) }))}
+                      className="bg-zinc-800 border border-zinc-700 rounded text-xs text-zinc-300 px-2 py-1 w-20"
+                    />
+                  </div>
+                )}
                 <Button
                   size="sm"
                   variant="outline"
                   disabled={runningSync !== null}
-                  onClick={() => runSync(fn, label)}
+                  onClick={() => runSync(fn, label, isDemand ? { phase: "aggregate", ...demandMonth } : {})}
                   className="border-zinc-700 text-zinc-300 hover:text-white hover:border-orange-500"
                 >
                   {runningSync === fn
