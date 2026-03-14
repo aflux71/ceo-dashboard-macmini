@@ -52,11 +52,11 @@ export default function SyncLog() {
     refetchInterval: runningSync ? 3000 : false,
   });
 
-  const runSync = async (fn, label) => {
+  const runSync = async (fn, label, extraPayload = {}) => {
     setRunningSync(fn);
     setSyncResults(prev => ({ ...prev, [fn]: null }));
     try {
-      const res = await base44.functions.invoke(fn, {});
+      const res = await base44.functions.invoke(fn, extraPayload);
       setSyncResults(prev => ({ ...prev, [fn]: { ok: true, data: res.data } }));
       queryClient.invalidateQueries({ queryKey: ["sync-logs-all"] });
     } catch (err) {
