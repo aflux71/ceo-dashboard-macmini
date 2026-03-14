@@ -63,9 +63,10 @@ Deno.serve(async (req) => {
     // ── Phase: aggregate ──────────────────────────────────────────────────
     // Load one month of ShopifySaleRecord, deduplicate, aggregate by SKU
     if (phase === 'aggregate') {
-      const year = body.year || 2025;
-      const month = body.month;
-      if (!month) return Response.json({ error: 'month required (1-12)' }, { status: 400 });
+      const now = new Date();
+      const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const year = body.year || prevMonth.getFullYear();
+      const month = body.month || (prevMonth.getMonth() + 1);
 
       const monthStr = String(month).padStart(2, '0');
       const startDate = `${year}-${monthStr}-01`;
