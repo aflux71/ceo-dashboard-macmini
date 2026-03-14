@@ -153,49 +153,69 @@ export default function SyncLog() {
             <Play className="w-4 h-4" /> Manual Sync
           </CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-3 pt-0 pb-4">
-          {MANUAL_SYNCS.map(({ label, fn }) => {
-            const result = syncResults[fn];
-            const isDemand = fn === "rebuildDemandSummaries";
+        <CardContent className="pt-0 pb-4">
+          {(() => {
             const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
             return (
-              <div key={fn} className="flex flex-col gap-1">
-                {isDemand && (
-                  <div className="flex items-center gap-2 mb-1">
-                    <select
-                      value={demandMonth.month}
-                      onChange={e => setDemandMonth(p => ({ ...p, month: Number(e.target.value) }))}
-                      className="bg-zinc-800 border border-zinc-700 rounded text-xs text-zinc-300 px-2 py-1"
-                    >
-                      {monthNames.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
-                    </select>
-                    <input
-                      type="number"
-                      value={demandMonth.year}
-                      onChange={e => setDemandMonth(p => ({ ...p, year: Number(e.target.value) }))}
-                      className="bg-zinc-800 border border-zinc-700 rounded text-xs text-zinc-300 px-2 py-1 w-20"
-                    />
-                  </div>
-                )}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={runningSync !== null}
-                  onClick={() => runSync(fn, label, isDemand ? { phase: "aggregate", ...demandMonth } : {})}
-                  className="border-zinc-700 text-zinc-300 hover:text-white hover:border-orange-500"
+              <div className="flex flex-wrap items-center gap-3">
+                {MANUAL_SYNCS.filter(s => s.fn !== "rebuildDemandSummaries").map(({ label, fn }) => {
+                  const result = syncResults[fn];
+                  return (
+                    <div key={fn} className="flex flex-col gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={runningSync !== null}
+                        onClick={() => runSync(fn, label, {})}
+                        className="border-zinc-700 text-zinc-300 hover:text-white hover:border-orange-500"
+                      >
+                        {runningSync === fn
+                          ? <><RefreshCw className="w-3 h-3 mr-2 animate-spin" /> Running...</>
+                          : <><Play className="w-3 h-3 mr-2" /> {label}</>}
+                      </Button>
+                      {result && <p className={`text-xs ${result.ok ? 'text-green-400' : 'text-red-400'}`}>{result.ok ? `✓ Done` : `✗ ${result.error}`}</p>}
+                    </div>
+                  );
+                })}
+
+                {/* Divider */}
+                <div className="h-8 w-px bg-zinc-700 hidden sm:block" />
+
+                {/* Month / Year pickers inline with Rebuild button */}
+                <select
+                  value={demandMonth.month}
+                  onChange={e => setDemandMonth(p => ({ ...p, month: Number(e.target.value) }))}
+                  className="bg-zinc-800 border border-zinc-700 rounded text-xs text-zinc-300 px-2 py-1.5 h-8"
                 >
-                  {runningSync === fn
-                    ? <><RefreshCw className="w-3 h-3 mr-2 animate-spin" /> Running...</>
-                    : <><Play className="w-3 h-3 mr-2" /> {label}</>}
-                </Button>
-                {result && (
-                  <p className={`text-xs ${result.ok ? 'text-green-400' : 'text-red-400'}`}>
-                    {result.ok ? `✓ Done` : `✗ ${result.error}`}
-                  </p>
-                )}
+                  {monthNames.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+                </select>
+                <input
+                  type="number"
+                  value={demandMonth.year}
+                  onChange={e => setDemandMonth(p => ({ ...p, year: Number(e.target.value) }))}
+                  className="bg-zinc-800 border border-zinc-700 rounded text-xs text-zinc-300 px-2 py-1.5 h-8 w-20"
+                />
+                <div className="flex flex-col gap-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={runningSync !== null}
+                    onClick={() => runSync("rebuildDemandSummaries", "Rebuild Demand Summaries", { phase: "aggregate", ...demandMonth })}
+                    className="border-zinc-700 text-zinc-300 hover:text-white hover:border-orange-500"
+                  >
+                    {runningSync === "rebuildDemandSummaries"
+                      ? <><RefreshCw className="w-3 h-3 mr-2 animate-spin" /> Running...</>
+                      : <><Play className="w-3 h-3 mr-2" /> Rebuild Demand Summaries</>}
+                  </Button>
+                  {syncResults["rebuildDemandSummaries"] && (
+                    <p className={`text-xs ${syncResults["rebuildDemandSummaries"].ok ? 'text-green-400' : 'text-red-400'}`}>
+                      {syncResults["rebuildDemandSummaries"].ok ? `✓ Done` : `✗ ${syncResults["rebuildDemandSummaries"].error}`}
+                    </p>
+                  )}
+                </div>
               </div>
             );
-          })}
+          })()}
         </CardContent>
       </Card>
 
