@@ -45,11 +45,30 @@ export default function PlanningAssistant({ demandSummaries = [], forecastSugges
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [minimized, setMinimized] = useState(false);
+  const [hasAiPermission, setHasAiPermission] = useState(false);
   const bottomRef = useRef(null);
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => setUser(null));
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    // Check role_permissions from AppSettings
+    base44.entities.AppSettings.filter({ key: "role_permissions" }).then((settings) => {
+      if (settings.length > 0) {
+        try {
+          const perms = JSON.parse(settings[0].value);
+          setHasAiPermission(!!(perms[user.role] || []).includes("ai_assistant"));
+        } catch {
+          setHasAiPermission(false);
+        }
+      } else {
+        // Fallback to owner only
+        setHasAiPermission(user.role === "owner");
+      }
+    }).catch(() => setHasAiPermission(user.role === "owner"));
+  }, [user]);
 
   useEffect(() => {
     if (open && !minimized) {
@@ -58,8 +77,7 @@ export default function PlanningAssistant({ demandSummaries = [], forecastSugges
   }, [messages, open, minimized]);
 
   // Role check
-  if (!user) return null;
-  if (!ALLOWED_ROLES.includes(user.role)) return null;
+  if (!user || !hasAiPermission) return null;
 
   const context = buildContext(demandSummaries, forecastSuggestions, inventory);
 
