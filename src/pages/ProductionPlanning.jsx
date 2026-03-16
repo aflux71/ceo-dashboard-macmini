@@ -1139,6 +1139,7 @@ import RecipeSheetsTab from "@/components/planning/RecipeSheetsTab";
 import WipCopackTab from "@/components/planning/WipCopackTab";
 import WipInHouseTab from "@/components/planning/WipInHouseTab";
 import ScheduleTab from "@/components/planning/ScheduleTab";
+import PlanningAssistant from "@/components/ai/PlanningAssistant";
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
