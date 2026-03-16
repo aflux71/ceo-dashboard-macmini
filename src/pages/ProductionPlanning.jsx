@@ -1220,6 +1220,11 @@ export default function ProductionPlanning() {
 
   return (
     <div className="space-y-6">
+      {/* AI Planning Assistant */}
+      <PlanningAssistant
+        forecastSuggestions={[...suggestedItems, ...mcForecasts]}
+      />
+
       {/* Header */}
       <div>
         <div className="flex items-center gap-3">
