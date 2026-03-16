@@ -746,6 +746,13 @@ export default function DemandPlanner() {
         />
       )}
 
+      {/* AI Planning Assistant */}
+      <PlanningAssistant
+        demandSummaries={summaries}
+        forecastSuggestions={plannerSKUs ? [] : []}
+        inventory={inventory}
+      />
+
       {/* Push to Planning Confirmation Dialog */}
       <Dialog open={!!pushConfirmItems} onOpenChange={(open) => { if (!open) setPushConfirmItems(null); }}>
         <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 max-w-md">
