@@ -42,7 +42,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 // Default role permissions
 const DEFAULT_ROLE_PERMISSIONS = {
-  owner: ["production", "inventory", "requisitions", "recipes", "recipe_templates", "forecasting", "user_management", "settings", "reports", "batch_history", "review_queue", "purchase_orders", "view_costs"],
+  owner: ["production", "inventory", "requisitions", "recipes", "recipe_templates", "forecasting", "user_management", "settings", "reports", "batch_history", "review_queue", "purchase_orders", "view_costs", "ai_assistant"],
   admin: ["production", "inventory", "requisitions", "recipes", "recipe_templates", "forecasting", "user_management", "reports", "batch_history", "review_queue", "purchase_orders", "view_costs"],
   production_lead: ["production", "inventory", "requisitions", "recipes", "reports", "batch_history", "review_queue"],
   production_labor: ["production", "batch_history"],
