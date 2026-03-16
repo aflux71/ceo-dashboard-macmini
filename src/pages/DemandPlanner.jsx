@@ -749,7 +749,7 @@ export default function DemandPlanner() {
       {/* AI Planning Assistant */}
       <PlanningAssistant
         demandSummaries={summaries}
-        forecastSuggestions={plannerSKUs ? [] : []}
+        forecastSuggestions={plan?.items || []}
         inventory={inventory}
       />
 
