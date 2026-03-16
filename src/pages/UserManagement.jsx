@@ -54,7 +54,7 @@ const DEFAULT_ROLE_PERMISSIONS = {
 const ALL_PERMISSIONS = [
   "production", "inventory", "requisitions", "recipes", "recipe_templates", "forecasting", 
   "user_management", "settings", "reports", "batch_history", "review_queue", 
-  "purchase_orders", "view_costs"
+  "purchase_orders", "view_costs", "ai_assistant"
 ];
 
 export default function UserManagement() {
