@@ -27,6 +27,7 @@ import SKUDetail from "@/components/demand/SKUDetail";
 import EventsTab from "@/components/demand/EventsTab";
 import DataTab from "@/components/demand/DataTab";
 import SKUMappingSettings from "@/components/demand/SKUMappingSettings";
+import PlanningAssistant from "@/components/ai/PlanningAssistant";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const baselineToSummaries = (data) =>
