@@ -5,8 +5,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Bot, X, Send, Loader2, ChevronDown, Sparkles } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
-const ALLOWED_ROLES = ["owner"];
-
 // Summarize demand data for the AI prompt (top 30 items by urgency/need)
 function buildContext(demandSummaries, forecastSuggestions, inventory) {
   const topDemand = (demandSummaries || [])
