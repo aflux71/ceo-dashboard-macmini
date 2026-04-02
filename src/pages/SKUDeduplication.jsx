@@ -71,7 +71,7 @@ export default function SKUDeduplication() {
   });
 
   const handleAddSubmit = (form) => {
-    const exists = aliases.some((a) => a.alias_sku === form.alias_sku.trim());
+    const exists = aliases.some((a) => a.alias_sku === form.alias_sku.trim() && a.status !== "rejected");
     if (exists) {
       toast.error("This alias SKU already exists in the table.");
       return;
