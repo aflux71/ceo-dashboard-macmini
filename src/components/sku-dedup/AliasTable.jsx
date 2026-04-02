@@ -20,7 +20,7 @@ function formatDt(dt) {
   return new Date(dt).toLocaleString("en-CA", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-export default function AliasTable({ records, onApprove, onReject, isUpdating }) {
+export default function AliasTable({ records, onApprove, onReject, isUpdating, skuNames = {} }) {
   if (records.length === 0) {
     return <div className="text-center py-12 text-zinc-500 text-sm">No alias records found.</div>;
   }
@@ -48,8 +48,14 @@ export default function AliasTable({ records, onApprove, onReject, isUpdating })
                   {STATUS_LABEL[r.status] || r.status}
                 </span>
               </TableCell>
-              <TableCell className="font-mono text-sm text-zinc-200">{r.primary_sku}</TableCell>
-              <TableCell className="font-mono text-sm text-zinc-200">{r.alias_sku}</TableCell>
+              <TableCell>
+                <div className="font-mono text-sm text-zinc-200">{r.primary_sku}</div>
+                {skuNames[r.primary_sku] && <div className="text-xs text-zinc-500 mt-0.5">{skuNames[r.primary_sku]}</div>}
+              </TableCell>
+              <TableCell>
+                <div className="font-mono text-sm text-zinc-200">{r.alias_sku}</div>
+                {skuNames[r.alias_sku] && <div className="text-xs text-zinc-500 mt-0.5">{skuNames[r.alias_sku]}</div>}
+              </TableCell>
               <TableCell className="text-sm text-zinc-300">{r.product_name}</TableCell>
               <TableCell className="text-sm text-zinc-400">{r.reason || "—"}</TableCell>
               <TableCell className="text-sm text-zinc-400">{r.reviewed_by || "—"}</TableCell>

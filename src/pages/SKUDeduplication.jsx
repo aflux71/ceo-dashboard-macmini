@@ -39,6 +39,17 @@ export default function SKUDeduplication() {
     queryFn: () => base44.entities.SKUAlias.list("-created_date", 500),
   });
 
+  const { data: demandSummaries = [] } = useQuery({
+    queryKey: ["demand_summaries_skumap"],
+    queryFn: () => base44.entities.DemandSummary.list("-created_date", 2000),
+  });
+
+  const skuNames = useMemo(() => {
+    const map = {};
+    demandSummaries.forEach((s) => { if (s.sku) map[s.sku] = s.product; });
+    return map;
+  }, [demandSummaries]);
+
   const filtered = useMemo(() => {
     let items = aliases;
     if (statusFilter !== "all") items = items.filter((a) => a.status === statusFilter);
@@ -103,6 +114,7 @@ export default function SKUDeduplication() {
     setDetectOpen(true);
     setDetectedGroups([]);
     const summaries = await base44.entities.DemandSummary.list("-created_date", 2000);
+    const approvedAliases = new Set(aliases.filter(a => a.status === "approved").map(a => a.alias_sku));
     const groups = {};
     summaries.forEach((s) => {
       const key = (s.product || "").trim().toLowerCase();
@@ -112,7 +124,8 @@ export default function SKUDeduplication() {
     });
     const dupes = Object.values(groups)
       .filter((g) => g.skus.size >= 2)
-      .map((g) => ({ product_name: g.product_name, skus: [...g.skus] }));
+      .map((g) => ({ product_name: g.product_name, skus: [...g.skus].filter(sku => !approvedAliases.has(sku)) }))
+      .filter((g) => g.skus.length >= 2);
     setDetectedGroups(dupes);
     setDetecting(false);
   };
@@ -202,6 +215,7 @@ export default function SKUDeduplication() {
       ) : (
         <AliasTable
           records={filtered}
+          skuNames={skuNames}
           onApprove={handleApprove}
           onReject={handleReject}
           isUpdating={updateMutation.isPending}
