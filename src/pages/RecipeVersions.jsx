@@ -287,7 +287,10 @@ export default function RecipeVersions() {
                                   <p className="text-sm text-zinc-400 mt-1">{version.version_notes}</p>
                                 )}
                                 <p className="text-xs text-zinc-500 mt-1">
-                                  Created: {new Date(version.created_date).toLocaleDateString()}
+                                  Created: {new Date(version.created_date).toLocaleString("en-CA", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                  {version.created_by && (
+                                    <span className="ml-2 text-zinc-600">by <span className="text-zinc-400">{version.created_by}</span></span>
+                                  )}
                                 </p>
                               </div>
                             </div>
