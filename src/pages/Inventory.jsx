@@ -310,45 +310,31 @@ export default function Inventory() {
   const findDuplicates = () => {
     const duplicates = [];
     const normalize = (str) => str?.toLowerCase().replace(/[^a-z0-9]/g, '') || '';
-    
+    const seen = new Set();
+
     for (let i = 0; i < inventory.length; i++) {
       for (let j = i + 1; j < inventory.length; j++) {
         const a = inventory[i];
         const b = inventory[j];
-        
-        // Skip cross-type comparisons (e.g. finished_product vs raw_material)
+
         if (a.type !== b.type) continue;
-        
-        // Check for similar names (fuzzy match)
-        const nameA = normalize(a.name);
-        const nameB = normalize(b.name);
+
         const skuA = normalize(a.sku);
         const skuB = normalize(b.sku);
-        
-        // Exact SKU match (different IDs)
+        const nameA = normalize(a.name);
+        const nameB = normalize(b.name);
+
+        // Exact SKU match (different DB records)
         if (skuA && skuA === skuB) {
-          duplicates.push({ items: [a, b], reason: 'Same SKU' });
+          const key = [a.id, b.id].sort().join('-');
+          if (!seen.has(key)) { seen.add(key); duplicates.push({ items: [a, b], reason: 'Same SKU' }); }
           continue;
         }
-        
-        // Very similar names (one contains the other or high similarity)
-        if (nameA && nameB && nameA.length > 3 && nameB.length > 3) {
-          if (nameA.includes(nameB) || nameB.includes(nameA)) {
-            duplicates.push({ items: [a, b], reason: 'Similar name' });
-            continue;
-          }
-          // Check if names are very similar (differ by only a few characters)
-          if (Math.abs(nameA.length - nameB.length) <= 2) {
-            let matches = 0;
-            const shorter = nameA.length <= nameB.length ? nameA : nameB;
-            const longer = nameA.length > nameB.length ? nameA : nameB;
-            for (let k = 0; k < shorter.length; k++) {
-              if (shorter[k] === longer[k]) matches++;
-            }
-            if (matches / longer.length > 0.85) {
-              duplicates.push({ items: [a, b], reason: 'Similar name' });
-            }
-          }
+
+        // Exact name match only (both names must be at least 10 chars after normalizing)
+        if (nameA && nameB && nameA.length >= 10 && nameA === nameB) {
+          const key = [a.id, b.id].sort().join('-');
+          if (!seen.has(key)) { seen.add(key); duplicates.push({ items: [a, b], reason: 'Same name' }); }
         }
       }
     }
