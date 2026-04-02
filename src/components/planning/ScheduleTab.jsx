@@ -33,6 +33,7 @@ export default function ScheduleTab() {
   const [lineFilter, setLineFilter] = useState("all");
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [schedDeleteConfirm, setSchedDeleteConfirm] = useState(null);
+  const [overrideConfirm, setOverrideConfirm] = useState(null); // { id, newStatus }
   const { data: batches = [], isLoading } = useQuery({ queryKey: ["planning_schedule_batches"], queryFn: () => base44.entities.Batch.list("-created_date", 500) });
 
   const invalidateAll = () => { ["planning_schedule_batches","planning_batches","planning_batch_queue_manual","planning_batch_queue_forecasts","planning_wip_inhouse_batches"].forEach(k => queryClient.invalidateQueries({ queryKey: [k] })); };
@@ -102,7 +103,7 @@ export default function ScheduleTab() {
                 <div><span className="text-zinc-500 text-xs">Quantity</span><p className="text-zinc-200">{b.quantity?.toLocaleString()}</p></div>
                 <div><span className="text-zinc-500 text-xs">Line</span><p className="text-zinc-200">{parseBatchLine(b)}</p></div>
                 <div><span className="text-zinc-500 text-xs">Operator</span><p className="text-zinc-200">{b.operator || "—"}</p></div>
-                <div><span className="text-zinc-500 text-xs">Status</span><Select value={b.status} onValueChange={(val) => { advanceStageMutation.mutate({ id: b.id, newStatus: val }); }}><SelectTrigger className="bg-zinc-800 border-zinc-700 text-zinc-100 h-8 text-sm mt-0.5"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="draft">Draft</SelectItem><SelectItem value="started">Started</SelectItem><SelectItem value="on_hold">On Hold</SelectItem><SelectItem value="pending_qc">Pending QC</SelectItem><SelectItem value="approved">Approved</SelectItem><SelectItem value="added_to_inventory">Added to Inventory</SelectItem><SelectItem value="rejected">Rejected</SelectItem></SelectContent></Select></div>
+                <div><span className="text-zinc-500 text-xs">Status</span><Select value={b.status} onValueChange={(val) => { if (['approved', 'added_to_inventory', 'rejected'].includes(val)) { setOverrideConfirm({ id: b.id, newStatus: val }); } else { advanceStageMutation.mutate({ id: b.id, newStatus: val }); } }}><SelectTrigger className="bg-zinc-800 border-zinc-700 text-zinc-100 h-8 text-sm mt-0.5"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="draft">Draft</SelectItem><SelectItem value="started">Started</SelectItem><SelectItem value="on_hold">On Hold</SelectItem><SelectItem value="pending_qc">Pending QC</SelectItem><SelectItem value="approved">Approved</SelectItem><SelectItem value="added_to_inventory">Added to Inventory</SelectItem><SelectItem value="rejected">Rejected</SelectItem></SelectContent></Select></div>
               </div>
               <div className="flex items-center gap-2 p-3 rounded-lg bg-zinc-800/50 text-xs text-zinc-400"><CalendarDays className="w-4 h-4 text-zinc-500 shrink-0" /><span><span className="text-blue-400">Batch</span> {formatDate(batchDate)}<span className="text-zinc-600 mx-1.5">→</span><span className="text-amber-400">QC</span> {formatDate(qcDate)}<span className="text-zinc-600 mx-1.5">→</span><span className="text-green-400">Fill</span> {formatDate(fillDate)}</span></div>
             </div>
@@ -125,6 +126,20 @@ export default function ScheduleTab() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setSchedDeleteConfirm(null)} className="border-zinc-700">Cancel</Button>
             <Button onClick={() => deleteScheduledMutation.mutate(schedDeleteConfirm)} disabled={deleteScheduledMutation.isPending} className="bg-red-600 hover:bg-red-700 text-white">{deleteScheduledMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}Delete Batch</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!overrideConfirm} onOpenChange={(open) => { if (!open) setOverrideConfirm(null); }}>
+        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 max-w-sm">
+          <DialogHeader><DialogTitle className="flex items-center gap-2 text-amber-400">⚠ Manual Override</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm font-semibold text-amber-300">Abnormal process, confirm override</p>
+            <p className="text-xs text-zinc-400">You are manually setting this batch to <span className="text-zinc-200 font-medium capitalize">{overrideConfirm?.newStatus?.replace(/_/g, ' ')}</span>. This bypasses the standard production lifecycle.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOverrideConfirm(null)} className="border-zinc-700">Cancel</Button>
+            <Button onClick={() => { advanceStageMutation.mutate({ id: overrideConfirm.id, newStatus: overrideConfirm.newStatus }); setOverrideConfirm(null); }} disabled={advanceStageMutation.isPending} className="bg-amber-600 hover:bg-amber-700 text-white">{advanceStageMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}Confirm Override</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
