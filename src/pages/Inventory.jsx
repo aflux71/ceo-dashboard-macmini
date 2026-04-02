@@ -67,6 +67,8 @@ export default function Inventory() {
   });
   const [showAllDuplicates, setShowAllDuplicates] = useState(false);
   const [showLowStockList, setShowLowStockList] = useState(false);
+  const [isMerging, setIsMerging] = useState(false);
+  const [mergeResult, setMergeResult] = useState(null);
 
   const CURRENCIES = ["CAD", "USD", "EUR", "GBP"];
 
@@ -361,6 +363,16 @@ export default function Inventory() {
     localStorage.setItem('dismissedDuplicates', JSON.stringify(newDismissed));
   };
 
+  const handleMergeAll = async () => {
+    if (!confirm(`This will merge all ${duplicates.filter(d => d.reason === 'Same SKU').length} duplicate SKU groups — combining their quantities into one record each and deleting the extras. Continue?`)) return;
+    setIsMerging(true);
+    setMergeResult(null);
+    const res = await base44.functions.invoke('mergeInventoryDuplicates', {});
+    setMergeResult(res.data);
+    setIsMerging(false);
+    queryClient.invalidateQueries({ queryKey: ['inventory'] });
+  };
+
   const getTypeColor = (type) => {
     const found = INVENTORY_TYPES.find(t => t.value === type);
     return found?.color || 'default';
@@ -436,12 +448,32 @@ export default function Inventory() {
         </div>
       )}
 
+      {/* Merge Result Banner */}
+      {mergeResult && (
+        <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 flex items-center justify-between">
+          <span className="text-green-400 text-sm">{mergeResult.message}</span>
+          <button onClick={() => setMergeResult(null)} className="text-zinc-500 hover:text-zinc-300 ml-4">×</button>
+        </div>
+      )}
+
       {/* Duplicate Alert */}
       {duplicates.length > 0 && (
         <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
-          <div className="flex items-center gap-2 text-amber-400 mb-2">
-            <Copy className="w-5 h-5" />
-            <span className="font-semibold">{duplicates.length} potential duplicate(s) detected</span>
+          <div className="flex items-center justify-between gap-2 text-amber-400 mb-2">
+            <div className="flex items-center gap-2">
+              <Copy className="w-5 h-5" />
+              <span className="font-semibold">{duplicates.length} potential duplicate(s) detected</span>
+            </div>
+            {duplicates.some(d => d.reason === 'Same SKU') && (
+              <Button
+                size="sm"
+                onClick={handleMergeAll}
+                disabled={isMerging}
+                className="bg-amber-500 hover:bg-amber-600 text-black text-xs h-7 px-3"
+              >
+                {isMerging ? 'Merging...' : 'Auto-Merge All Duplicates'}
+              </Button>
+            )}
           </div>
           <div className="space-y-2 mt-3">
             {(showAllDuplicates ? duplicates : duplicates.slice(0, 5)).map((dup, idx) => (
