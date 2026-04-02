@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,8 +17,14 @@ export default function ReviewQueue() {
   const queryClient = useQueryClient();
   const { floorUser, hasPermission } = useFloorPin();
 
+  const [dashUser, setDashUser] = useState(null);
+  useEffect(() => {
+    base44.auth.me().then(setDashUser).catch(() => {});
+  }, []);
+
   const QC_ROLES = ['owner', 'admin', 'production_lead', 'qc'];
-  const canEditQty = QC_ROLES.includes(floorUser?.role);
+  // Allow if floor PIN user has QC+ role OR the logged-in dashboard user has QC+ role
+  const canEditQty = QC_ROLES.includes(floorUser?.role) || QC_ROLES.includes(dashUser?.role);
 
   // Check cost view permission
   const canViewCosts = hasPermission?.("view_costs") || 
