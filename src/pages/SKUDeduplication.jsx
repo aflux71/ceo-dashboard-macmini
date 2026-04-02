@@ -12,14 +12,13 @@ import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
-import { Plus, Search, Loader2, GitMerge } from "lucide-react";
+import { Plus, Search, Loader2, GitMerge, RefreshCw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import AliasTable from "@/components/sku-dedup/AliasTable";
 import AddAliasModal from "@/components/sku-dedup/AddAliasModal";
-import AutoDetectModal from "@/components/sku-dedup/AutoDetectModal";
 
 export default function SKUDeduplication() {
   const queryClient = useQueryClient();
@@ -27,8 +26,6 @@ export default function SKUDeduplication() {
   const [searchQuery, setSearchQuery] = useState("");
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [prefill, setPrefill] = useState(null);
-  const [detectOpen, setDetectOpen] = useState(false);
-  const [detectedGroups, setDetectedGroups] = useState([]);
   const [detecting, setDetecting] = useState(false);
   const [user, setUser] = useState(null);
 
@@ -111,9 +108,8 @@ export default function SKUDeduplication() {
 
   const handleAutoDetect = async () => {
     setDetecting(true);
-    setDetectOpen(true);
-    setDetectedGroups([]);
     const summaries = await base44.entities.DemandSummary.list("-created_date", 2000);
+    const existingAliasSkus = new Set(aliases.map(a => a.alias_sku));
     const approvedAliases = new Set(aliases.filter(a => a.status === "approved").map(a => a.alias_sku));
     const groups = {};
     summaries.forEach((s) => {
@@ -126,14 +122,27 @@ export default function SKUDeduplication() {
       .filter((g) => g.skus.size >= 2)
       .map((g) => ({ product_name: g.product_name, skus: [...g.skus].filter(sku => !approvedAliases.has(sku)) }))
       .filter((g) => g.skus.length >= 2);
-    setDetectedGroups(dupes);
-    setDetecting(false);
-  };
 
-  const handleAddFromDetect = (data) => {
-    setPrefill(data);
-    setDetectOpen(false);
-    setAddModalOpen(true);
+    let created = 0;
+    for (const group of dupes) {
+      const [primary, ...rest] = group.skus;
+      for (const alias of rest) {
+        if (!existingAliasSkus.has(alias)) {
+          await base44.entities.SKUAlias.create({
+            primary_sku: primary,
+            alias_sku: alias,
+            product_name: group.product_name,
+            reason: "Auto-detected duplicate",
+            status: "pending_review",
+          });
+          created++;
+        }
+      }
+    }
+    queryClient.invalidateQueries({ queryKey: ["sku_aliases"] });
+    setDetecting(false);
+    if (created > 0) toast.success(`Added ${created} duplicate pair${created > 1 ? "s" : ""} for review`);
+    else toast("No new duplicates detected", { icon: "ℹ️" });
   };
 
   const counts = useMemo(() => ({
@@ -155,8 +164,9 @@ export default function SKUDeduplication() {
           <p className="text-sm text-zinc-500 mt-1">Review and approve SKU aliases to suppress duplicate rows in the Demand Planner</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <Button variant="outline" onClick={handleAutoDetect} className="border-zinc-700 text-zinc-300 hover:text-zinc-100">
-            <Search className="w-4 h-4 mr-2" />Auto-Detect Duplicates
+          <Button variant="outline" onClick={handleAutoDetect} disabled={detecting} className="border-zinc-700 text-zinc-300 hover:text-zinc-100">
+            {detecting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
+            Auto-Detect Duplicates
           </Button>
           <Button onClick={() => { setPrefill(null); setAddModalOpen(true); }} className="bg-orange-600 hover:bg-orange-700 text-white">
             <Plus className="w-4 h-4 mr-2" />Add Alias Pair
@@ -203,6 +213,15 @@ export default function SKUDeduplication() {
             className="bg-zinc-800 border-zinc-700 text-zinc-100 h-9 text-sm pl-9"
           />
         </div>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => queryClient.invalidateQueries({ queryKey: ["sku_aliases"] })}
+          className="border-zinc-700 text-zinc-400 hover:text-zinc-100 h-9 w-9"
+          title="Refresh"
+        >
+          <RefreshCw className="w-4 h-4" />
+        </Button>
       </div>
 
       {/* Table */}
@@ -229,13 +248,6 @@ export default function SKUDeduplication() {
         onSubmit={handleAddSubmit}
         isPending={createMutation.isPending}
         prefill={prefill}
-      />
-      <AutoDetectModal
-        open={detectOpen}
-        onOpenChange={setDetectOpen}
-        groups={detectedGroups}
-        isLoading={detecting}
-        onAddPair={handleAddFromDetect}
       />
     </div>
   );
