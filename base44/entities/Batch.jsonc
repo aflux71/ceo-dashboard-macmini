@@ -1,0 +1,265 @@
+{
+  "name": "Batch",
+  "type": "object",
+  "properties": {
+    "batch_id": {
+      "type": "string",
+      "description": "Unique batch identifier (e.g., BF-TRV-001)"
+    },
+    "recipe_id": {
+      "type": "string",
+      "description": "Reference to Recipe entity"
+    },
+    "sku": {
+      "type": "string",
+      "description": "Product SKU"
+    },
+    "product_name": {
+      "type": "string",
+      "description": "Product name"
+    },
+    "quantity": {
+      "type": "number",
+      "description": "Units produced"
+    },
+    "actual_yield_units": {
+      "type": "number",
+      "description": "Actual yield units after QC override \u2014 records production loss or failure"
+    },
+    "deviation_notes": {
+      "type": "string",
+      "description": "Required notes explaining deviation from planned quantity"
+    },
+    "qty_override_by": {
+      "type": "string",
+      "description": "Name of QC/lead who applied the quantity override"
+    },
+    "qty_override_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp of when the quantity override was applied"
+    },
+    "production_line": {
+      "type": "number",
+      "description": "Line used (1 or 2)"
+    },
+    "operator": {
+      "type": "string",
+      "description": "Operator who ran the batch"
+    },
+    "production_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Production timestamp"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "started",
+        "on_hold",
+        "pending_qc",
+        "approved",
+        "added_to_inventory",
+        "rejected"
+      ],
+      "default": "draft",
+      "description": "Batch status"
+    },
+    "current_step": {
+      "type": "number",
+      "default": 1,
+      "description": "Current step in the production entry flow (1-4)"
+    },
+    "hold_reason": {
+      "type": "string",
+      "description": "Reason if batch is on hold"
+    },
+    "approved_by": {
+      "type": "string",
+      "description": "Supervisor who approved"
+    },
+    "approved_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Approval timestamp"
+    },
+    "rejection_reason": {
+      "type": "string",
+      "description": "Reason if rejected"
+    },
+    "material_usage": {
+      "type": "array",
+      "description": "Actual materials used with variances",
+      "items": {
+        "type": "object",
+        "properties": {
+          "material_sku": {
+            "type": "string"
+          },
+          "material_name": {
+            "type": "string"
+          },
+          "expected_qty": {
+            "type": "number"
+          },
+          "actual_qty": {
+            "type": "number"
+          },
+          "variance": {
+            "type": "number"
+          },
+          "variance_percent": {
+            "type": "number"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "lot_number": {
+            "type": "string"
+          },
+          "verified_by": {
+            "type": "string"
+          },
+          "verified_at": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "procedure_results": {
+      "type": "array",
+      "description": "Procedure verification results",
+      "items": {
+        "type": "object",
+        "properties": {
+          "step": {
+            "type": "number"
+          },
+          "description": {
+            "type": "string"
+          },
+          "duration_minutes": {
+            "type": "number"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "verified_by": {
+            "type": "string"
+          },
+          "verified_at": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "qc_results": {
+      "type": "array",
+      "description": "QC check results",
+      "items": {
+        "type": "object",
+        "properties": {
+          "checkpoint": {
+            "type": "string"
+          },
+          "criteria": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string"
+          },
+          "passed": {
+            "type": "boolean"
+          },
+          "value": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "checked_by": {
+            "type": "string"
+          },
+          "checked_at": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "notes": {
+      "type": "string",
+      "description": "Production notes"
+    },
+    "expiry_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Product expiry date"
+    },
+    "finished_product_lot_number": {
+      "type": "string",
+      "description": "Lot number assigned to the finished product batch"
+    },
+    "schedule_id": {
+      "type": "string",
+      "description": "Reference to ForecastSuggestion if from schedule"
+    },
+    "stage": {
+      "type": "string",
+      "enum": [
+        "requested",
+        "material_check",
+        "batch_queue",
+        "batching",
+        "qc_hold",
+        "filling",
+        "complete"
+      ],
+      "description": "Current production stage"
+    },
+    "batch_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date the batch was made"
+    },
+    "qc_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date QC was performed"
+    },
+    "fill_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date filling was completed"
+    },
+    "fill_operator": {
+      "type": "string",
+      "description": "Operator who performed the fill"
+    },
+    "batch_size_units": {
+      "type": "number",
+      "description": "Planned batch size in units"
+    },
+    "copacker_group": {
+      "type": "string",
+      "description": "Copacker group or name"
+    },
+    "production_type": {
+      "type": "string",
+      "enum": [
+        "make",
+        "buy",
+        "copacked"
+      ],
+      "description": "How the product is produced"
+    }
+  },
+  "required": [
+    "batch_id",
+    "sku",
+    "product_name",
+    "quantity",
+    "operator",
+    "status"
+  ]
+}

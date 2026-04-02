@@ -4,7 +4,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { CheckCircle, XCircle, AlertTriangle, ChevronDown, ChevronUp, DollarSign } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { CheckCircle, XCircle, AlertTriangle, ChevronDown, ChevronUp, DollarSign, PackageX, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { calculateBatchCost } from "@/components/recipes/BatchCostCalculator";
 import { useFloorPin } from "@/components/auth/FloorPinContext";
@@ -12,8 +13,12 @@ import { useFloorPin } from "@/components/auth/FloorPinContext";
 export default function ReviewQueue() {
   const [expandedBatch, setExpandedBatch] = useState(null);
   const [rejectionReason, setRejectionReason] = useState({});
+  const [yieldOverride, setYieldOverride] = useState({}); // { [batchId]: { qty, notes } }
   const queryClient = useQueryClient();
   const { floorUser, hasPermission } = useFloorPin();
+
+  const QC_ROLES = ['owner', 'admin', 'production_lead', 'qc'];
+  const canEditQty = QC_ROLES.includes(floorUser?.role);
 
   // Check cost view permission
   const canViewCosts = hasPermission?.("view_costs") || 
@@ -71,6 +76,29 @@ export default function ReviewQueue() {
       queryClient.invalidateQueries({ queryKey: ["pendingQcBatches"] });
       toast.success("Batch rejected");
       setRejectionReason({});
+    }
+  });
+
+  // Qty override mutation
+  const overrideMutation = useMutation({
+    mutationFn: async ({ batch_id, actual_yield_units, deviation_notes, apply_material_override }) => {
+      const res = await base44.functions.invoke('adjustProductionQty', {
+        batch_id,
+        actual_yield_units,
+        deviation_notes,
+        apply_material_override,
+      });
+      return res.data;
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['pendingQcBatches'] });
+      setYieldOverride(prev => { const n = { ...prev }; delete n[vars.batch_id]; return n; });
+      toast.success(vars.apply_material_override
+        ? 'Quantity overridden and raw materials adjusted'
+        : 'Quantity saved — no material adjustment');
+    },
+    onError: (err) => {
+      toast.error(err?.response?.data?.error || err?.message || 'Override failed');
     }
   });
 
@@ -206,6 +234,96 @@ export default function ReviewQueue() {
                             </div>
                           ))}
                         </div>
+                      </div>
+                    )}
+
+                    {/* Qty Override Section — QC+ only */}
+                    {canEditQty && (
+                      <div className="border border-amber-500/30 bg-amber-950/10 rounded-lg p-4 space-y-3">
+                        <div className="flex items-center gap-2">
+                          <PackageX className="w-4 h-4 text-amber-400" />
+                          <h4 className="text-sm font-semibold text-amber-300">Production Quantity Override</h4>
+                        </div>
+                        <p className="text-xs text-zinc-400">Use this section to record actual yield when production loss or failure occurred. Notes are required.</p>
+                        <div className="grid grid-cols-1 gap-3">
+                          <div>
+                            <label className="text-xs text-zinc-400 mb-1 block">
+                              Actual Yield (units) <span className="text-zinc-500">— planned: {batch.quantity}</span>
+                              {batch.actual_yield_units != null && (
+                                <span className="ml-2 text-amber-400">Current override: {batch.actual_yield_units}</span>
+                              )}
+                            </label>
+                            <Input
+                              type="number"
+                              min={0}
+                              placeholder={String(batch.quantity)}
+                              value={yieldOverride[batch.batch_id]?.qty ?? ''}
+                              onChange={(e) => setYieldOverride(prev => ({
+                                ...prev,
+                                [batch.batch_id]: { ...prev[batch.batch_id], qty: e.target.value }
+                              }))}
+                              className="bg-zinc-800 border-zinc-700 text-zinc-100 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-zinc-400 mb-1 block">
+                              Deviation Notes <span className="text-red-400">*</span>
+                            </label>
+                            <Textarea
+                              placeholder="Required: explain reason for quantity change (e.g. production loss, failed units, fill error)..."
+                              value={yieldOverride[batch.batch_id]?.notes ?? ''}
+                              onChange={(e) => setYieldOverride(prev => ({
+                                ...prev,
+                                [batch.batch_id]: { ...prev[batch.batch_id], notes: e.target.value }
+                              }))}
+                              className="bg-zinc-800 border-zinc-700 text-zinc-100 text-xs min-h-[60px]"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex gap-2 pt-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={
+                              overrideMutation.isPending ||
+                              !yieldOverride[batch.batch_id]?.qty ||
+                              !yieldOverride[batch.batch_id]?.notes?.trim()
+                            }
+                            onClick={() => overrideMutation.mutate({
+                              batch_id: batch.batch_id,
+                              actual_yield_units: Number(yieldOverride[batch.batch_id]?.qty),
+                              deviation_notes: yieldOverride[batch.batch_id]?.notes,
+                              apply_material_override: false,
+                            })}
+                            className="border-zinc-600 text-zinc-300 hover:bg-zinc-800 text-xs"
+                          >
+                            Save Qty Only
+                          </Button>
+                          <Button
+                            size="sm"
+                            disabled={
+                              overrideMutation.isPending ||
+                              !yieldOverride[batch.batch_id]?.qty ||
+                              !yieldOverride[batch.batch_id]?.notes?.trim()
+                            }
+                            onClick={() => overrideMutation.mutate({
+                              batch_id: batch.batch_id,
+                              actual_yield_units: Number(yieldOverride[batch.batch_id]?.qty),
+                              deviation_notes: yieldOverride[batch.batch_id]?.notes,
+                              apply_material_override: true,
+                            })}
+                            className="bg-amber-600 hover:bg-amber-700 text-white text-xs gap-1"
+                          >
+                            <AlertCircle className="w-3 h-3" />
+                            Override + Adjust Raw Materials
+                          </Button>
+                        </div>
+                        {batch.qty_override_by && (
+                          <p className="text-xs text-zinc-500">
+                            Last override by <span className="text-zinc-300">{batch.qty_override_by}</span>
+                            {batch.qty_override_at && ` on ${new Date(batch.qty_override_at).toLocaleString()}`}
+                          </p>
+                        )}
                       </div>
                     )}
 
