@@ -306,38 +306,45 @@ export default function Inventory() {
 
   const lowStock = filtered.filter(i => i.reorder_point && i.quantity <= i.reorder_point);
 
-  // Detect potential duplicates
+  // Detect potential duplicates — group by SKU, one entry per duplicate SKU
   const findDuplicates = () => {
-    const duplicates = [];
+    const skuGroups = {};
+    const nameGroups = {};
     const normalize = (str) => str?.toLowerCase().replace(/[^a-z0-9]/g, '') || '';
-    const seen = new Set();
 
-    for (let i = 0; i < inventory.length; i++) {
-      for (let j = i + 1; j < inventory.length; j++) {
-        const a = inventory[i];
-        const b = inventory[j];
+    inventory.forEach((item) => {
+      const skuKey = normalize(item.sku);
+      if (skuKey) {
+        if (!skuGroups[skuKey]) skuGroups[skuKey] = [];
+        skuGroups[skuKey].push(item);
+      }
+      const nameKey = normalize(item.name);
+      if (nameKey && nameKey.length >= 12) {
+        const typeNameKey = `${item.type}||${nameKey}`;
+        if (!nameGroups[typeNameKey]) nameGroups[typeNameKey] = [];
+        nameGroups[typeNameKey].push(item);
+      }
+    });
 
-        if (a.type !== b.type) continue;
+    const duplicates = [];
 
-        const skuA = normalize(a.sku);
-        const skuB = normalize(b.sku);
-        const nameA = normalize(a.name);
-        const nameB = normalize(b.name);
+    // Same SKU across multiple records
+    Object.values(skuGroups).forEach((group) => {
+      if (group.length >= 2) {
+        duplicates.push({ items: [group[0], group[1]], count: group.length, reason: 'Same SKU' });
+      }
+    });
 
-        // Exact SKU match (different DB records)
-        if (skuA && skuA === skuB) {
-          const key = [a.id, b.id].sort().join('-');
-          if (!seen.has(key)) { seen.add(key); duplicates.push({ items: [a, b], reason: 'Same SKU' }); }
-          continue;
-        }
-
-        // Exact name match only (both names must be at least 10 chars after normalizing)
-        if (nameA && nameB && nameA.length >= 10 && nameA === nameB) {
-          const key = [a.id, b.id].sort().join('-');
-          if (!seen.has(key)) { seen.add(key); duplicates.push({ items: [a, b], reason: 'Same name' }); }
+    // Same normalized name (different SKUs)
+    Object.values(nameGroups).forEach((group) => {
+      if (group.length >= 2) {
+        const uniqueSkus = new Set(group.map(i => normalize(i.sku)));
+        if (uniqueSkus.size >= 2) {
+          duplicates.push({ items: [group[0], group[1]], count: group.length, reason: 'Same name' });
         }
       }
-    }
+    });
+
     return duplicates;
   };
 
