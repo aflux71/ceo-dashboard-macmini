@@ -14,8 +14,11 @@ import {
   ArrowRight,
   FileText,
   AlertOctagon,
-  LogOut
+  LogOut,
+  Sun,
+  Moon
 } from "lucide-react";
+import { useTheme } from "next-themes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
@@ -30,6 +33,7 @@ import SKUMappingAlert from "@/components/dashboard/SKUMappingAlert.jsx";
 export default function Dashboard() {
   const navigate = useNavigate();
   const [showPinScreen, setShowPinScreen] = useState(false);
+  const { theme, setTheme } = useTheme();
 
   const { data: batches = [] } = useQuery({
     queryKey: ['batches'],
@@ -109,6 +113,14 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex gap-3">
+          <Button
+            variant="outline"
+            size="icon"
+            className="border-zinc-700 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          >
+            {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </Button>
           <Button
             variant="outline"
             className="border-zinc-700 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
