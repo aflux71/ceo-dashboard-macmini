@@ -90,26 +90,31 @@ export default function Layout({ children, currentPageName }) {
 
   const [pendingQcCount, setPendingQcCount] = useState(0);
 
-  // Fetch production queue counts
+  // Fetch production queue counts and approved batches
   useEffect(() => {
-    const fetchQueueCounts = async () => {
+    const fetchCounts = async () => {
       try {
-        const batches = await base44.entities.Batch.filter({
-          status: { $in: ['started', 'on_hold', 'draft', 'pending_qc'] }
-        });
+        const [batches, approvedBatches] = await Promise.all([
+          base44.entities.Batch.filter({ status: { $in: ['started', 'on_hold', 'draft', 'pending_qc'] } }),
+          base44.entities.Batch.filter({ status: 'approved' })
+        ]);
         setProductionQueueCount({
           started: batches.filter(b => b.status === 'started').length,
           onHold: batches.filter(b => b.status === 'on_hold').length,
           total: batches.filter(b => b.status !== 'pending_qc').length
         });
         setPendingQcCount(batches.filter(b => b.status === 'pending_qc').length);
+        setApprovedBatchCount(approvedBatches.length);
       } catch (err) {
         setProductionQueueCount({ started: 0, onHold: 0, total: 0 });
         setPendingQcCount(0);
+        setApprovedBatchCount(0);
       }
     };
-    fetchQueueCounts();
-  }, [currentPageName]);
+    const interval = setInterval(fetchCounts, 30000);
+    fetchCounts();
+    return () => clearInterval(interval);
+  }, []);
 
   // Fetch new equipment repair count
   useEffect(() => {
@@ -123,8 +128,10 @@ export default function Layout({ children, currentPageName }) {
         setNewRepairCount(0);
       }
     };
+    const interval = setInterval(fetchRepairCount, 30000);
     fetchRepairCount();
-  }, [currentPageName]);
+    return () => clearInterval(interval);
+  }, []);
 
   // Fetch pending consumables count
   useEffect(() => {
@@ -138,22 +145,13 @@ export default function Layout({ children, currentPageName }) {
         setPendingConsumablesCount(0);
       }
     };
+    const interval = setInterval(fetchConsumablesCount, 30000);
     fetchConsumablesCount();
-  }, [currentPageName]);
+    return () => clearInterval(interval);
+  }, []);
 
   // Fetch approved batch count for Add to Inventory
   const [approvedBatchCount, setApprovedBatchCount] = useState(0);
-  useEffect(() => {
-    const fetchApprovedCount = async () => {
-      try {
-        const batches = await base44.entities.Batch.filter({ status: 'approved' });
-        setApprovedBatchCount(batches.length);
-      } catch (err) {
-        setApprovedBatchCount(0);
-      }
-    };
-    fetchApprovedCount();
-  }, [currentPageName]);
 
   // Fetch low label count
   const [lowLabelCount, setLowLabelCount] = useState(0);
@@ -167,8 +165,10 @@ export default function Layout({ children, currentPageName }) {
         setLowLabelCount(0);
       }
     };
+    const interval = setInterval(fetchLabelCount, 30000);
     fetchLabelCount();
-  }, [currentPageName]);
+    return () => clearInterval(interval);
+  }, []);
 
   // Fetch issue count for nav styling
   useEffect(() => {
@@ -187,8 +187,10 @@ export default function Layout({ children, currentPageName }) {
         setIssueCount(0);
       }
     };
+    const interval = setInterval(fetchIssueCount, 30000);
     fetchIssueCount();
-  }, [currentPageName]);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (currentPageName === "Kiosk") {
