@@ -8,6 +8,7 @@ import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ReceiveShipment from './pages/ReceiveShipment';
+import ErrorBoundary from './components/ErrorBoundary';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -69,6 +70,7 @@ const AuthenticatedApp = () => {
 function App() {
 
   return (
+    <ErrorBoundary>
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
         <Router>
@@ -78,6 +80,7 @@ function App() {
         <Toaster />
       </QueryClientProvider>
     </AuthProvider>
+    </ErrorBoundary>
   )
 }
 
