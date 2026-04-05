@@ -292,6 +292,7 @@ export default function Layout({ children, currentPageName }) {
                                 </span>
                               </div>
                               <div className="flex items-center gap-2">
+                                {theme && (
                                 <button
                                   onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
                                   className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-orange-400 transition-colors"
@@ -299,6 +300,7 @@ export default function Layout({ children, currentPageName }) {
                                 >
                                   {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
                                 </button>
+                                )}
                                 <button
                                   onClick={() => setIsFullScreen(!isFullScreen)}
                                   className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-orange-400 transition-colors"
