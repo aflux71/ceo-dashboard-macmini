@@ -224,40 +224,9 @@ export default function Layout({ children, currentPageName }) {
   return (
     <FloorPinProvider>
     <ForecastProvider>
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
-      <style>{`
-        :root {
-          --background: 240 10% 3.9%;
-          --foreground: 0 0% 98%;
-          --card: 240 10% 7%;
-          --card-foreground: 0 0% 98%;
-          --popover: 240 10% 7%;
-          --popover-foreground: 0 0% 98%;
-          --primary: 24.6 95% 53.1%;
-          --primary-foreground: 0 0% 98%;
-          --secondary: 240 5.9% 12%;
-          --secondary-foreground: 0 0% 98%;
-          --muted: 240 5.9% 12%;
-          --muted-foreground: 240 5% 64.9%;
-          --accent: 240 5.9% 12%;
-          --accent-foreground: 0 0% 98%;
-          --destructive: 0 84.2% 60.2%;
-          --destructive-foreground: 0 0% 98%;
-          --border: 240 5.9% 18%;
-          --input: 240 5.9% 18%;
-          --ring: 24.6 95% 53.1%;
-        }
-        body {
-          font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        }
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: #18181b; }
-        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #52525b; }
-      `}</style>
-
+    <div className="min-h-screen bg-background text-foreground">
       {/* Mobile Header */}
-              <div className={`${isFullScreen ? '' : 'lg:hidden'} fixed top-0 left-0 right-0 h-16 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-4 z-50`}>
+              <div className={`${isFullScreen ? '' : 'lg:hidden'} fixed top-0 left-0 right-0 h-16 bg-background border-b border-border flex items-center justify-between px-4 z-50`}>
                 <button
                   onClick={() => isFullScreen ? setIsFullScreen(false) : setSidebarOpen(true)}
                   className="p-2 hover:bg-zinc-800 rounded-lg"
@@ -278,13 +247,13 @@ export default function Layout({ children, currentPageName }) {
 
       {/* Sidebar */}
               <aside className={`
-                fixed top-0 left-0 h-full w-64 bg-zinc-900 border-r border-zinc-800 z-50
+                fixed top-0 left-0 h-full w-64 bg-background border-r border-border z-50
                 transform transition-transform duration-300 ease-in-out
                 ${isFullScreen ? '-translate-x-full' : sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
               `}>
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="h-16 flex items-center justify-between px-4 border-b border-zinc-800">
+          <div className="h-16 flex items-center justify-between px-4 border-b border-border">
             <div className="flex items-center gap-2">
                                 <span className="text-2xl font-bold text-white">neōb</span>
                                 <span className="text-xs px-2 py-0.5 bg-orange-500/20 text-orange-400 rounded-full font-medium">
@@ -475,7 +444,7 @@ export default function Layout({ children, currentPageName }) {
                       </nav>
 
           {/* User Section */}
-          <div className="p-4 border-t border-zinc-800">
+          <div className="p-4 border-t border-border">
             {user ? (
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
