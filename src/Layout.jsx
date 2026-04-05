@@ -4,7 +4,7 @@ import { createPageUrl } from "./utils";
 import { base44 } from "@/api/base44Client";
 import { FloorPinProvider } from "@/components/auth/FloorPinContext";
 import { ForecastProvider } from "@/components/forecast/ForecastContext";
-import { useTheme } from "next-themes";
+
 import {
   Factory,
   Package,
@@ -33,9 +33,7 @@ import {
   Tag,
   Building2,
   GitMerge,
-  Boxes,
-  Moon,
-  Sun
+  Boxes
 } from "lucide-react";
 
 const navItems = [
@@ -77,7 +75,6 @@ const settingsItems = [
       ];
 
 export default function Layout({ children, currentPageName }) {
-    const { theme, setTheme } = useTheme();
     const [sidebarOpen, setSidebarOpen] = useState(false);
       const [settingsOpen, setSettingsOpen] = useState(false);
       const [navOpen, setNavOpen] = useState(currentPageName !== "Kiosk");
@@ -261,17 +258,8 @@ export default function Layout({ children, currentPageName }) {
                                 </span>
                               </div>
                               <div className="flex items-center gap-2">
-                                {theme && (
-                                <button
-                                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                                  className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-orange-400 transition-colors"
-                                  title="Toggle theme"
-                                >
-                                  {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-                                </button>
-                                )}
-                                <button
-                                  onClick={() => setIsFullScreen(!isFullScreen)}
+                                 <button
+                                   onClick={() => setIsFullScreen(!isFullScreen)}
                                   className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-orange-400 transition-colors"
                                   title={isFullScreen ? "Exit Full Screen" : "Full Screen"}
                                 >
