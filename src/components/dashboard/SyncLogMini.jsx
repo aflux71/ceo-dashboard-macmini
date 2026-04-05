@@ -24,7 +24,7 @@ const SYNC_TYPE_LABELS = {
 export default function SyncLogMini() {
   const { data: logs = [] } = useQuery({
     queryKey: ["sync-logs-recent"],
-    queryFn: () => base44.entities.SyncLog.list("-created_date", 6),
+    queryFn: () => base44.entities.SyncLog.list("-created_date", 2),
   });
 
   return (
@@ -45,7 +45,7 @@ export default function SyncLogMini() {
           <p className="text-zinc-500 text-sm py-4 text-center">No sync activity recorded</p>
         ) : (
           <div className="space-y-2">
-            {logs.map((log) => (
+            {logs.slice(0, 2).map((log) => (
               <div
                 key={log.id}
                 className="flex items-center justify-between p-3 bg-zinc-800/50 rounded-lg border border-zinc-800"
