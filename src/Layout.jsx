@@ -90,7 +90,7 @@ export default function Layout({ children, currentPageName }) {
 
   const [pendingQcCount, setPendingQcCount] = useState(0);
 
-  // Fetch production queue counts and approved batches
+  // Fetch production queue counts and approved batches (staggered)
   useEffect(() => {
     const fetchCounts = async () => {
       try {
@@ -112,14 +112,9 @@ export default function Layout({ children, currentPageName }) {
       }
     };
     const timeout = setTimeout(fetchCounts, 500);
-    const interval = setInterval(fetchCounts, 30000);
-    return () => {
-      clearTimeout(timeout);
-      clearInterval(interval);
-    };
-  }, []);
+    const interval = setInterval(fetchCounts, 60000);
 
-  // Fetch new equipment repair count
+  // Fetch new equipment repair count (staggered)
   useEffect(() => {
     const fetchRepairCount = async () => {
       try {
@@ -131,15 +126,10 @@ export default function Layout({ children, currentPageName }) {
         setNewRepairCount(0);
       }
     };
-    const timeout = setTimeout(fetchRepairCount, 1000);
-    const interval = setInterval(fetchRepairCount, 30000);
-    return () => {
-      clearTimeout(timeout);
-      clearInterval(interval);
-    };
-  }, []);
+    const timeout = setTimeout(fetchRepairCount, 2000);
+    const interval = setInterval(fetchRepairCount, 60000);
 
-  // Fetch pending consumables count
+  // Fetch pending consumables count (staggered)
   useEffect(() => {
     const fetchConsumablesCount = async () => {
       try {
@@ -151,18 +141,13 @@ export default function Layout({ children, currentPageName }) {
         setPendingConsumablesCount(0);
       }
     };
-    const timeout = setTimeout(fetchConsumablesCount, 1500);
-    const interval = setInterval(fetchConsumablesCount, 30000);
-    return () => {
-      clearTimeout(timeout);
-      clearInterval(interval);
-    };
-  }, []);
+    const timeout = setTimeout(fetchConsumablesCount, 3500);
+    const interval = setInterval(fetchConsumablesCount, 60000);
 
   // Fetch approved batch count for Add to Inventory
   const [approvedBatchCount, setApprovedBatchCount] = useState(0);
 
-  // Fetch low label count
+  // Fetch low label count (staggered)
   const [lowLabelCount, setLowLabelCount] = useState(0);
   useEffect(() => {
     const fetchLabelCount = async () => {
@@ -174,15 +159,10 @@ export default function Layout({ children, currentPageName }) {
         setLowLabelCount(0);
       }
     };
-    const timeout = setTimeout(fetchLabelCount, 2000);
-    const interval = setInterval(fetchLabelCount, 30000);
-    return () => {
-      clearTimeout(timeout);
-      clearInterval(interval);
-    };
-  }, []);
+    const timeout = setTimeout(fetchLabelCount, 4500);
+    const interval = setInterval(fetchLabelCount, 60000);
 
-  // Fetch issue count for nav styling
+  // Fetch issue count for nav styling (staggered)
   useEffect(() => {
     const fetchIssueCount = async () => {
       try {
@@ -199,13 +179,8 @@ export default function Layout({ children, currentPageName }) {
         setIssueCount(0);
       }
     };
-    const timeout = setTimeout(fetchIssueCount, 2500);
-    const interval = setInterval(fetchIssueCount, 30000);
-    return () => {
-      clearTimeout(timeout);
-      clearInterval(interval);
-    };
-  }, []);
+    const timeout = setTimeout(fetchIssueCount, 5500);
+    const interval = setInterval(fetchIssueCount, 60000);
 
   useEffect(() => {
     if (currentPageName === "Kiosk") {
@@ -501,3 +476,5 @@ export default function Layout({ children, currentPageName }) {
     </FloorPinProvider>
   );
 }
+
+export default Layout;
