@@ -33,7 +33,9 @@ import {
   Tag,
   Building2,
   GitMerge,
-  Boxes
+  Boxes,
+  Moon,
+  Sun
 } from "lucide-react";
 
 const navItems = [
