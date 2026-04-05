@@ -113,6 +113,11 @@ export default function Layout({ children, currentPageName }) {
     };
     const timeout = setTimeout(fetchCounts, 500);
     const interval = setInterval(fetchCounts, 60000);
+    return () => {
+      clearTimeout(timeout);
+      clearInterval(interval);
+    };
+  }, []);
 
   // Fetch new equipment repair count (staggered)
   useEffect(() => {
@@ -128,6 +133,11 @@ export default function Layout({ children, currentPageName }) {
     };
     const timeout = setTimeout(fetchRepairCount, 2000);
     const interval = setInterval(fetchRepairCount, 60000);
+    return () => {
+      clearTimeout(timeout);
+      clearInterval(interval);
+    };
+  }, []);
 
   // Fetch pending consumables count (staggered)
   useEffect(() => {
@@ -143,6 +153,11 @@ export default function Layout({ children, currentPageName }) {
     };
     const timeout = setTimeout(fetchConsumablesCount, 3500);
     const interval = setInterval(fetchConsumablesCount, 60000);
+    return () => {
+      clearTimeout(timeout);
+      clearInterval(interval);
+    };
+  }, []);
 
   // Fetch approved batch count for Add to Inventory
   const [approvedBatchCount, setApprovedBatchCount] = useState(0);
@@ -161,6 +176,11 @@ export default function Layout({ children, currentPageName }) {
     };
     const timeout = setTimeout(fetchLabelCount, 4500);
     const interval = setInterval(fetchLabelCount, 60000);
+    return () => {
+      clearTimeout(timeout);
+      clearInterval(interval);
+    };
+  }, []);
 
   // Fetch issue count for nav styling (staggered)
   useEffect(() => {
@@ -181,6 +201,11 @@ export default function Layout({ children, currentPageName }) {
     };
     const timeout = setTimeout(fetchIssueCount, 5500);
     const interval = setInterval(fetchIssueCount, 60000);
+    return () => {
+      clearTimeout(timeout);
+      clearInterval(interval);
+    };
+  }, []);
 
   useEffect(() => {
     if (currentPageName === "Kiosk") {
@@ -476,5 +501,3 @@ export default function Layout({ children, currentPageName }) {
     </FloorPinProvider>
   );
 }
-
-export default Layout;
