@@ -4,6 +4,7 @@ import { createPageUrl } from "./utils";
 import { base44 } from "@/api/base44Client";
 import { FloorPinProvider } from "@/components/auth/FloorPinContext";
 import { ForecastProvider } from "@/components/forecast/ForecastContext";
+import { useTheme } from "next-themes";
 import {
   Factory,
   Package,
@@ -74,6 +75,7 @@ const settingsItems = [
       ];
 
 export default function Layout({ children, currentPageName }) {
+    const { theme, setTheme } = useTheme();
     const [sidebarOpen, setSidebarOpen] = useState(false);
       const [settingsOpen, setSettingsOpen] = useState(false);
       const [navOpen, setNavOpen] = useState(currentPageName !== "Kiosk");
@@ -287,20 +289,29 @@ export default function Layout({ children, currentPageName }) {
                                   {import.meta.env.VITE_APP_VERSION || 'dev'}
                                 </span>
                               </div>
-                              <button
-                                                  onClick={() => setIsFullScreen(!isFullScreen)}
-                                                  className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-orange-400 transition-colors"
-                                                  title={isFullScreen ? "Exit Full Screen" : "Full Screen"}
-                                                >
-                                                  {isFullScreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
-                                                </button>
-                                                <Link
-                                                  to={createPageUrl("Kiosk")}
-                                                  className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-orange-400 transition-colors"
-                                                  title="Kiosk Mode"
-                                                >
-                                                  <Monitor className="w-5 h-5" />
-                                                </Link>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                                  className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-orange-400 transition-colors"
+                                  title="Toggle theme"
+                                >
+                                  {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                                </button>
+                                <button
+                                  onClick={() => setIsFullScreen(!isFullScreen)}
+                                  className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-orange-400 transition-colors"
+                                  title={isFullScreen ? "Exit Full Screen" : "Full Screen"}
+                                >
+                                  {isFullScreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
+                                </button>
+                                <Link
+                                  to={createPageUrl("Kiosk")}
+                                  className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-orange-400 transition-colors"
+                                  title="Kiosk Mode"
+                                >
+                                  <Monitor className="w-5 h-5" />
+                                </Link>
+                              </div>
             <button
               onClick={() => setSidebarOpen(false)}
               className="lg:hidden p-2 hover:bg-zinc-800 rounded-lg"
