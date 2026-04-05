@@ -23,6 +23,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import Badge from "@/components/ui/Badge";
 import LotNumbersDialog from "@/components/inventory/LotNumbersDialog";
+import PhotoCaptureMode from "@/components/inventory/PhotoCaptureMode";
+import { Camera } from "lucide-react";
 
 const DEFAULT_UNITS = ["units", "Cases", "L", "ml", "Kg", "gram"];
 const DEFAULT_INVENTORY_TYPES = [
@@ -69,6 +71,7 @@ export default function Inventory() {
   const [showLowStockList, setShowLowStockList] = useState(false);
   const [isMerging, setIsMerging] = useState(false);
   const [mergeResult, setMergeResult] = useState(null);
+  const [showPhotoCaptureMode, setShowPhotoCaptureMode] = useState(false);
 
   const CURRENCIES = ["CAD", "USD", "EUR", "GBP"];
 
@@ -406,10 +409,20 @@ export default function Inventory() {
             Manage raw materials, packaging, and finished products
           </p>
         </div>
-        <Button onClick={() => openModal()} className="bg-orange-500 hover:bg-orange-600 text-white">
-          <Plus className="w-4 h-4 mr-2" />
-          Add Item
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => setShowPhotoCaptureMode(true)}
+            variant="outline"
+            className="border-zinc-700 text-zinc-400 hover:text-zinc-100"
+          >
+            <Camera className="w-4 h-4 mr-2" />
+            Capture Photos ({inventory.filter(i => !i.component_photo).length})
+          </Button>
+          <Button onClick={() => openModal()} className="bg-orange-500 hover:bg-orange-600 text-white">
+            <Plus className="w-4 h-4 mr-2" />
+            Add Item
+          </Button>
+        </div>
       </div>
 
       {/* Low Stock Alert */}
@@ -903,6 +916,13 @@ export default function Inventory() {
         onOpenChange={setShowLotDialog}
         item={selectedItemForLots}
         onSave={handleSaveLots}
+      />
+
+      {/* Photo Capture Mode */}
+      <PhotoCaptureMode
+        open={showPhotoCaptureMode}
+        onClose={() => setShowPhotoCaptureMode(false)}
+        inventory={inventory}
       />
     </div>
   );

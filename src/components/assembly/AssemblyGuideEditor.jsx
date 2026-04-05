@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, GripVertical, UploadCloud } from "lucide-react";
+import { Plus, Trash2, GripVertical, UploadCloud, Camera } from "lucide-react";
 import ComponentPhotoCard from "./ComponentPhotoCard";
 
 const ROLES = [
@@ -19,10 +19,15 @@ const ROLES = [
   { value: "other", label: "Other" }
 ];
 
-export default function AssemblyGuideEditor({ guide, inventory, onSave, onCancel }) {
+export default function AssemblyGuideEditor({ guide, inventory, onSave, onCancel, onOpenPhotoCaptureMode }) {
   const [components, setComponents] = useState(guide?.components || []);
   const [assemblyNotes, setAssemblyNotes] = useState(guide?.assembly_notes || "");
   const [uploading, setUploading] = useState(false);
+
+  const missingPhotos = components.filter(comp => {
+    const inv = inventory.find(i => i.id === comp.inventory_item_id);
+    return !inv?.component_photo;
+  }).length;
 
   const addComponent = () => {
     const newOrder = components.length > 0 
@@ -75,6 +80,28 @@ export default function AssemblyGuideEditor({ guide, inventory, onSave, onCancel
           className="bg-zinc-800 border-zinc-700 min-h-24"
         />
       </div>
+
+      {/* Missing Photos Warning */}
+      {missingPhotos > 0 && onOpenPhotoCaptureMode && (
+        <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg flex items-start gap-3">
+          <UploadCloud className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-amber-200">
+              {missingPhotos} component{missingPhotos > 1 ? "s" : ""} missing photo
+            </p>
+            <Button
+              type="button"
+              onClick={onOpenPhotoCaptureMode}
+              variant="outline"
+              size="sm"
+              className="mt-2 text-amber-400 border-amber-500/30 hover:bg-amber-500/10"
+            >
+              <Camera className="w-3 h-3 mr-1" />
+              Quick Capture
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Components */}
       <div className="space-y-3">

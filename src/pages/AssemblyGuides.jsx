@@ -25,6 +25,7 @@ import {
 import { toast } from "sonner";
 import AssemblyGuideEditor from "@/components/assembly/AssemblyGuideEditor";
 import AssemblyGuideDisplay from "@/components/assembly/AssemblyGuideDisplay";
+import PhotoCaptureMode from "@/components/inventory/PhotoCaptureMode";
 
 export default function AssemblyGuides() {
   const [search, setSearch] = useState("");
@@ -33,6 +34,7 @@ export default function AssemblyGuides() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedGuide, setSelectedGuide] = useState(null);
   const [selectedRecipe, setSelectedRecipe] = useState(null);
+  const [showPhotoCaptureMode, setShowPhotoCaptureMode] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -258,6 +260,10 @@ export default function AssemblyGuides() {
               inventory={inventory}
               onSave={handleCreateGuide}
               onCancel={() => setSelectedRecipe(null)}
+              onOpenPhotoCaptureMode={() => {
+                setShowCreateModal(false);
+                setShowPhotoCaptureMode(true);
+              }}
             />
           )}
         </DialogContent>
@@ -295,10 +301,21 @@ export default function AssemblyGuides() {
               inventory={inventory}
               onSave={handleUpdateGuide}
               onCancel={() => setShowEditModal(false)}
+              onOpenPhotoCaptureMode={() => {
+                setShowEditModal(false);
+                setShowPhotoCaptureMode(true);
+              }}
             />
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Photo Capture Mode */}
+      <PhotoCaptureMode
+        open={showPhotoCaptureMode}
+        onClose={() => setShowPhotoCaptureMode(false)}
+        inventory={inventory}
+      />
     </div>
   );
 }
