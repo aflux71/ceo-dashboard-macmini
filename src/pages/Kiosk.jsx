@@ -10,9 +10,12 @@ import {
   Clock,
   AlertTriangle,
   Loader2,
-  Delete
+  Delete,
+  Sun,
+  Moon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useTheme } from "next-themes";
 import KioskProductionEntry from "@/components/kiosk/KioskProductionEntry";
 import KioskQCReview from "@/components/kiosk/KioskQCReview";
 import KioskInventoryCheck from "@/components/kiosk/KioskInventoryCheck";
@@ -34,6 +37,7 @@ const ROLE_LABELS = {
 };
 
 export default function Kiosk() {
+  const { theme, setTheme } = useTheme();
   const [kioskUser, setKioskUser] = useState(null);
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
@@ -261,6 +265,14 @@ export default function Kiosk() {
               <p className="text-xs text-zinc-500">{ROLE_LABELS[kioskUser.role]}</p>
             </div>
           </div>
+          <Button 
+            variant="outline" 
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="h-12 px-4 text-zinc-400 border-zinc-700"
+            title="Toggle theme"
+          >
+            {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          </Button>
           <Button 
             variant="outline" 
             onClick={handleLogout}
