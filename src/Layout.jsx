@@ -111,9 +111,12 @@ export default function Layout({ children, currentPageName }) {
         setApprovedBatchCount(0);
       }
     };
+    const timeout = setTimeout(fetchCounts, 500);
     const interval = setInterval(fetchCounts, 30000);
-    fetchCounts();
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(timeout);
+      clearInterval(interval);
+    };
   }, []);
 
   // Fetch new equipment repair count
@@ -128,9 +131,12 @@ export default function Layout({ children, currentPageName }) {
         setNewRepairCount(0);
       }
     };
+    const timeout = setTimeout(fetchRepairCount, 1000);
     const interval = setInterval(fetchRepairCount, 30000);
-    fetchRepairCount();
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(timeout);
+      clearInterval(interval);
+    };
   }, []);
 
   // Fetch pending consumables count
@@ -145,9 +151,12 @@ export default function Layout({ children, currentPageName }) {
         setPendingConsumablesCount(0);
       }
     };
+    const timeout = setTimeout(fetchConsumablesCount, 1500);
     const interval = setInterval(fetchConsumablesCount, 30000);
-    fetchConsumablesCount();
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(timeout);
+      clearInterval(interval);
+    };
   }, []);
 
   // Fetch approved batch count for Add to Inventory
@@ -165,9 +174,12 @@ export default function Layout({ children, currentPageName }) {
         setLowLabelCount(0);
       }
     };
+    const timeout = setTimeout(fetchLabelCount, 2000);
     const interval = setInterval(fetchLabelCount, 30000);
-    fetchLabelCount();
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(timeout);
+      clearInterval(interval);
+    };
   }, []);
 
   // Fetch issue count for nav styling
@@ -187,9 +199,12 @@ export default function Layout({ children, currentPageName }) {
         setIssueCount(0);
       }
     };
+    const timeout = setTimeout(fetchIssueCount, 2500);
     const interval = setInterval(fetchIssueCount, 30000);
-    fetchIssueCount();
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(timeout);
+      clearInterval(interval);
+    };
   }, []);
 
   useEffect(() => {
