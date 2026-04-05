@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
 import StatsCard from "@/components/dashboard/StatsCard";
 import UrgentItemsList from "@/components/dashboard/UrgentItemsList";
 import RequisitionAlerts from "@/components/dashboard/RequisitionAlerts";
@@ -27,6 +28,7 @@ import PinLoginScreen from "@/components/auth/PinLoginScreen";
 import SKUMappingAlert from "@/components/dashboard/SKUMappingAlert.jsx";
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [showPinScreen, setShowPinScreen] = useState(false);
 
   const { data: batches = [] } = useQuery({
@@ -126,30 +128,38 @@ export default function Dashboard() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <StatsCard
-          title="Pending Review"
-          value={pendingBatches.length}
-          subtitle="Batches awaiting approval"
-          icon={Clock}
-        />
-        <StatsCard
-          title="Approved Today"
-          value={approvedToday.length}
-          subtitle="Batches completed"
-          icon={CheckCircle}
-        />
-        <StatsCard
-          title="Low Stock Items"
-          value={lowStockItems.length}
-          subtitle={lowStockItems.length > 0 ? "Need attention" : "All good"}
-          icon={AlertTriangle}
-        />
-        <StatsCard
-          title="Open P.O.s"
-          value={openPOs.length}
-          subtitle="Awaiting delivery"
-          icon={ShoppingCart}
-        />
+        <div onClick={() => navigate(createPageUrl('ProductionQueue'))} className="cursor-pointer">
+          <StatsCard
+            title="Pending Review"
+            value={pendingBatches.length}
+            subtitle="Batches awaiting approval"
+            icon={Clock}
+          />
+        </div>
+        <div onClick={() => navigate(createPageUrl('BatchHistory'))} className="cursor-pointer">
+          <StatsCard
+            title="Approved Today"
+            value={approvedToday.length}
+            subtitle="Batches completed"
+            icon={CheckCircle}
+          />
+        </div>
+        <div onClick={() => navigate(createPageUrl('Inventory'))} className="cursor-pointer">
+          <StatsCard
+            title="Low Stock Items"
+            value={lowStockItems.length}
+            subtitle={lowStockItems.length > 0 ? "Need attention" : "All good"}
+            icon={AlertTriangle}
+          />
+        </div>
+        <div onClick={() => navigate(createPageUrl('PurchaseOrders'))} className="cursor-pointer">
+          <StatsCard
+            title="Open P.O.s"
+            value={openPOs.length}
+            subtitle="Awaiting delivery"
+            icon={ShoppingCart}
+          />
+        </div>
         {/* Issue Alerts Tile */}
         <Link to={createPageUrl("IssueAlerts")}>
           <Card className={`bg-zinc-900 border-zinc-800 hover:border-red-500/50 transition-colors cursor-pointer ${issueCount > 0 ? 'border-red-500/30 bg-red-500/5' : ''}`}>
