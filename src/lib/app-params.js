@@ -1,6 +1,18 @@
 const isNode = typeof window === 'undefined';
-const windowObj = isNode ? { localStorage: new Map() } : window;
-const storage = windowObj.localStorage;
+
+// Safe localStorage wrapper — throws in iframes with storage blocked
+let storage;
+try {
+  storage = isNode ? new Map() : window.localStorage;
+  // Test that it's actually usable
+  if (!isNode) {
+    window.localStorage.setItem('__test__', '1');
+    window.localStorage.removeItem('__test__');
+  }
+} catch (_e) {
+  // Fallback to in-memory storage when localStorage is blocked
+  storage = new Map();
+}
 
 const toSnakeCase = (str) => {
 	return str.replace(/([A-Z])/g, '_$1').toLowerCase();

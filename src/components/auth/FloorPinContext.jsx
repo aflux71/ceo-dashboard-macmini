@@ -6,6 +6,11 @@ const FloorPinContext = createContext(null);
 const STORAGE_KEY = "neob_floor_session";
 const DEFAULT_TIMEOUT_MS = 2 * 60 * 60 * 1000; // 2 hours default
 
+// Safe localStorage helpers
+const safeGetItem = (key) => { try { return localStorage.getItem(key); } catch { return null; } };
+const safeSetItem = (key, val) => { try { localStorage.setItem(key, val); } catch { /* ignore */ } };
+const safeRemoveItem = (key) => { try { localStorage.removeItem(key); } catch { /* ignore */ } };
+
 // Default role permissions
 const DEFAULT_ROLE_PERMISSIONS = {
   owner: ["production", "inventory", "requisitions", "recipes", "recipe_templates", "forecasting", "user_management", "settings", "reports", "batch_history", "review_queue", "purchase_orders", "view_costs", "delete_recipes"],
@@ -31,7 +36,7 @@ export function FloorPinProvider({ children }) {
   useEffect(() => {
     const loadSession = async () => {
       try {
-        const stored = localStorage.getItem(STORAGE_KEY);
+        const stored = safeGetItem(STORAGE_KEY);
         if (stored) {
           const session = JSON.parse(stored);
           // Verify user still exists and is active
@@ -40,7 +45,7 @@ export function FloorPinProvider({ children }) {
             setFloorUser(users[0]);
             setLastActivity(session.lastActivity || Date.now());
           } else {
-            localStorage.removeItem(STORAGE_KEY);
+            safeRemoveItem(STORAGE_KEY);
           }
         }
         
@@ -61,7 +66,7 @@ export function FloorPinProvider({ children }) {
         }
       } catch (error) {
         console.error("Error loading floor session:", error);
-        localStorage.removeItem(STORAGE_KEY);
+        safeRemoveItem(STORAGE_KEY);
       }
       setLoading(false);
     };
@@ -89,11 +94,11 @@ export function FloorPinProvider({ children }) {
     const now = Date.now();
     setLastActivity(now);
     if (floorUser) {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = safeGetItem(STORAGE_KEY);
       if (stored) {
         const session = JSON.parse(stored);
         session.lastActivity = now;
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+        safeSetItem(STORAGE_KEY, JSON.stringify(session));
       }
     }
   }, [floorUser]);
@@ -129,7 +134,7 @@ export function FloorPinProvider({ children }) {
         userId: user.id,
         lastActivity: Date.now()
       };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+      safeSetItem(STORAGE_KEY, JSON.stringify(session));
       
       setFloorUser(user);
       setLastActivity(Date.now());
@@ -142,7 +147,7 @@ export function FloorPinProvider({ children }) {
   };
 
   const logout = () => {
-    localStorage.removeItem(STORAGE_KEY);
+    safeRemoveItem(STORAGE_KEY);
     setFloorUser(null);
   };
 
