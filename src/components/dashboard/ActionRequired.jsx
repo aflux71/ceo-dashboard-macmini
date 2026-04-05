@@ -13,16 +13,16 @@ function calcDaysOfSupply(item) {
 }
 
 function DaysLabel({ days }) {
-  if (days <= 0) return <span className="text-red-400 font-bold text-xs">OUT</span>;
-  if (days <= 3) return <span className="text-red-400 font-semibold text-xs">{days}d</span>;
-  if (days <= 14) return <span className="text-orange-400 font-semibold text-xs">{days}d</span>;
-  return <span className="text-zinc-400 text-xs">{days}d</span>;
+  if (days <= 0) return <span className="text-red-400 font-bold text-sm">OUT</span>;
+  if (days <= 3) return <span className="text-red-400 font-semibold text-sm">{days}d</span>;
+  if (days <= 14) return <span className="text-orange-400 font-semibold text-sm">{days}d</span>;
+  return <span className="text-zinc-400 text-sm">{days}d</span>;
 }
 
 function StockLabel({ item, days }) {
   const color = days <= 0 ? "text-red-400" : days <= 3 ? "text-red-400" : days <= 14 ? "text-orange-400" : "text-zinc-400";
   return (
-    <span className={`text-xs ${color}`}>
+    <span className={`text-sm ${color}`}>
       {item.quantity?.toLocaleString()} {item.unit}
     </span>
   );
@@ -122,7 +122,7 @@ function DetailPopup({ item, req, po, onClose }) {
 }
 
 export default function ActionRequired({ inventory = [], requisitions = [], purchaseOrders = [] }) {
-  const [showOrdered, setShowOrdered] = useState(false);
+  const [showOrdered, setShowOrdered] = useState(true);
   const [detailItem, setDetailItem] = useState(null);
 
   const enriched = useMemo(() => {
@@ -159,6 +159,7 @@ export default function ActionRequired({ inventory = [], requisitions = [], purc
 
   const displayList = showOrdered ? enriched : visible;
 
+
   if (enriched.length === 0) {
     return (
       <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-6 flex items-center gap-3">
@@ -187,11 +188,11 @@ export default function ActionRequired({ inventory = [], requisitions = [], purc
             onClick={() => setShowOrdered(v => !v)}
             className={`text-xs px-3 py-1.5 rounded-md border transition-colors ${
               showOrdered
-                ? "bg-zinc-700 border-zinc-600 text-zinc-300"
+                ? "bg-zinc-800/60 border-zinc-600 text-zinc-300 hover:text-zinc-100"
                 : "bg-zinc-800/60 border-zinc-700 text-zinc-500 hover:text-zinc-300"
             }`}
           >
-            {showOrdered ? "Hide ordered" : `Show ordered (${ordered.length})`}
+            {showOrdered ? `Hide ordered (${ordered.length})` : `Show ordered (${ordered.length})`}
           </button>
         )}
       </div>
@@ -208,7 +209,7 @@ export default function ActionRequired({ inventory = [], requisitions = [], purc
         </div>
       )}
 
-      {/* Empty state when all are ordered */}
+      {/* Empty state when all are ordered and hidden */}
       {visible.length === 0 && ordered.length > 0 && !showOrdered && (
         <div className="px-4 py-5 flex items-center gap-3">
           <CheckCircle className="w-4 h-4 text-green-400 shrink-0" />
@@ -223,39 +224,25 @@ export default function ActionRequired({ inventory = [], requisitions = [], purc
             <div
               key={item.id}
               className={`flex items-center gap-3 px-4 py-2.5 transition-colors ${
-                isOrdered ? "opacity-50 bg-zinc-900/30" : "hover:bg-zinc-800/30"
+                isOrdered ? "opacity-40 bg-zinc-900/20" : "hover:bg-zinc-800/30"
               }`}
             >
-              {/* RM ID */}
-              <span className="font-mono text-xs text-orange-400 w-24 shrink-0 truncate">{item.sku}</span>
-
-              {/* Name */}
-              <span className="text-xs text-zinc-300 flex-1 truncate">{item.name}</span>
-
-              {/* Stock */}
+              <span className="font-mono text-sm text-orange-400 w-24 shrink-0 truncate">{item.sku}</span>
+              <span className="text-sm text-zinc-300 flex-1 truncate">{item.name}</span>
               <div className="hidden sm:block w-24 shrink-0 text-right">
                 <StockLabel item={item} days={days} />
               </div>
-
-              {/* Days of supply */}
               <div className="w-10 shrink-0 text-right">
                 <DaysLabel days={days} />
               </div>
-
-              {/* Status pill */}
               <div className="w-12 shrink-0 flex justify-end">
-                <StatusPill
-                  req={req}
-                  po={po}
-                  onClick={() => setDetailItem(item.id)}
-                />
+                <StatusPill req={req} po={po} onClick={() => setDetailItem(item.id)} />
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Detail popup */}
       {detailEntry && (
         <DetailPopup
           item={detailEntry.item}
