@@ -1,0 +1,77 @@
+{
+  "name": "AssemblyGuide",
+  "type": "object",
+  "properties": {
+    "recipe_id": {
+      "type": "string",
+      "description": "ID of the linked Recipe (one-to-one)"
+    },
+    "product_name": {
+      "type": "string",
+      "description": "Product name (auto-populated from Recipe)"
+    },
+    "sku": {
+      "type": "string",
+      "description": "Product SKU (auto-populated from Recipe)"
+    },
+    "components": {
+      "type": "array",
+      "description": "Ordered list of assembly components",
+      "items": {
+        "type": "object",
+        "properties": {
+          "order": {
+            "type": "number",
+            "description": "Display order"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "bottle",
+              "cap",
+              "label",
+              "label_back",
+              "shrink_band",
+              "insert",
+              "outer_box",
+              "other"
+            ],
+            "description": "Component role/type"
+          },
+          "inventory_item_id": {
+            "type": "string",
+            "description": "ID of linked Inventory item"
+          },
+          "quantity_per_unit": {
+            "type": "number",
+            "default": 1,
+            "description": "Quantity needed per finished unit"
+          },
+          "notes": {
+            "type": "string",
+            "description": "Per-component notes (e.g., 'black ribbed cap, NOT smooth')"
+          }
+        },
+        "required": [
+          "order",
+          "role",
+          "inventory_item_id"
+        ]
+      }
+    },
+    "assembly_notes": {
+      "type": "string",
+      "description": "General assembly instructions, warnings, or tips"
+    },
+    "updated_by": {
+      "type": "string",
+      "description": "Name of user who last updated"
+    }
+  },
+  "required": [
+    "recipe_id",
+    "product_name",
+    "sku",
+    "components"
+  ]
+}

@@ -1,0 +1,147 @@
+{
+  "name": "Inventory",
+  "type": "object",
+  "properties": {
+    "sku": {
+      "type": "string",
+      "description": "Material/Product SKU"
+    },
+    "name": {
+      "type": "string",
+      "description": "Item name"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "raw_material",
+        "packaging",
+        "finished_product"
+      ],
+      "description": "Type of inventory item"
+    },
+    "material_type": {
+      "type": "string",
+      "description": "Material category (e.g., Oil, Butter, Fragrance, Color, etc.)"
+    },
+    "quantity": {
+      "type": "number",
+      "description": "Current stock quantity"
+    },
+    "unit": {
+      "type": "string",
+      "description": "Unit of measure (kg, L, units, etc.)"
+    },
+    "reorder_point": {
+      "type": "number",
+      "description": "Low stock threshold for reorder alert"
+    },
+    "reorder_qty": {
+      "type": "number",
+      "description": "Suggested reorder quantity"
+    },
+    "supplier": {
+      "type": "string",
+      "description": "Primary supplier name"
+    },
+    "supplier_sku": {
+      "type": "string",
+      "description": "Supplier's SKU/part number"
+    },
+    "cost_per_unit": {
+      "type": "number",
+      "description": "Cost per unit"
+    },
+    "currency": {
+      "type": "string",
+      "enum": [
+        "CAD",
+        "USD",
+        "EUR",
+        "GBP"
+      ],
+      "default": "CAD",
+      "description": "Currency for cost"
+    },
+    "lead_time_days": {
+      "type": "number",
+      "description": "Typical lead time from supplier (overrides supplier default)"
+    },
+    "location": {
+      "type": "string",
+      "description": "Storage location"
+    },
+    "last_restock_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Last restock date"
+    },
+    "last_shopify_sync": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Last time this record was synced from Shopify"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Additional notes"
+    },
+    "paired_item_id": {
+      "type": "string",
+      "description": "ID of paired item (e.g., matching lid for a bottle)"
+    },
+    "paired_item_sku": {
+      "type": "string",
+      "description": "SKU of paired item"
+    },
+    "paired_item_name": {
+      "type": "string",
+      "description": "Name of paired item"
+    },
+    "paired_qty": {
+      "type": "number",
+      "default": 1,
+      "description": "Quantity of paired item needed per unit"
+    },
+    "lot_numbers": {
+      "type": "array",
+      "description": "List of lot numbers with quantities and expiration dates",
+      "items": {
+        "type": "object",
+        "properties": {
+          "lot": {
+            "type": "string",
+            "description": "Lot number"
+          },
+          "quantity": {
+            "type": "number",
+            "description": "Quantity for this lot"
+          },
+          "expiration_date": {
+            "type": "string",
+            "format": "date",
+            "description": "Expiration date of this lot"
+          },
+          "received_date": {
+            "type": "string",
+            "format": "date",
+            "description": "Date lot was received"
+          }
+        },
+        "required": [
+          "lot",
+          "quantity"
+        ]
+      }
+    },
+    "component_photo": {
+      "type": "string",
+      "description": "Photo URL of the physical component (bottle, cap, label, etc.)"
+    }
+  },
+  "required": [
+    "sku",
+    "name",
+    "type",
+    "quantity",
+    "unit"
+  ]
+}
