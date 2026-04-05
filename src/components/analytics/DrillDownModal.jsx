@@ -36,7 +36,7 @@ export default function DrillDownModal({ data, onClose }) {
   const formatDate = (dateStr) => {
     if (!dateStr) return '-';
     try {
-      return format(parseISO(dateStr), 'MMM d, yyyy');
+      return format(new Date(dateStr), 'MMM d, yyyy');
     } catch {
       return dateStr;
     }

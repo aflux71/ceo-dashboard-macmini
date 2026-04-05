@@ -70,8 +70,12 @@ export default function Analytics() {
     if (!dateRange.start || !dateRange.end) return batches;
     return batches.filter(batch => {
       if (!batch.production_date) return false;
-      const batchDate = parseISO(batch.production_date);
-      return isWithinInterval(batchDate, { start: dateRange.start, end: dateRange.end });
+      try {
+        const batchDate = parseISO(batch.production_date);
+        return isWithinInterval(batchDate, { start: dateRange.start, end: dateRange.end });
+      } catch {
+        return false;
+      }
     });
   }, [batches, dateRange]);
 

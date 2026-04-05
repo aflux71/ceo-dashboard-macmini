@@ -38,8 +38,12 @@ export default function ProductionVolumeChart({ batches, dateRange, onDrillDown 
       
       const periodBatches = completedBatches.filter(batch => {
         if (!batch.production_date) return false;
-        const batchKey = format(parseISO(batch.production_date), groupKey);
-        return batchKey === key;
+        try {
+          const batchKey = format(parseISO(batch.production_date), groupKey);
+          return batchKey === key;
+        } catch {
+          return false;
+        }
       });
 
       const line1Volume = periodBatches
