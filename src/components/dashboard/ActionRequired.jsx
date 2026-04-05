@@ -6,6 +6,7 @@ import { CheckCircle, X, ArrowRight } from "lucide-react";
 function calcDaysOfSupply(item) {
   if (!item.quantity || item.quantity <= 0) return 0;
   if (!item.reorder_point || item.reorder_point <= 0) return 999;
+  // Estimate daily usage: assume reorder_point represents ~30 days of supply threshold
   const dailyUsage = item.reorder_point / 30;
   if (dailyUsage <= 0) return 999;
   return Math.floor(item.quantity / dailyUsage);
@@ -32,14 +33,20 @@ function StatusPill({ req, po, onClick }) {
     const isComplete = po.status === "received" || po.status === "complete" || po.status === "cancelled";
     if (isComplete) return null;
     return (
-      <button onClick={onClick} className="px-2 py-0.5 rounded text-xs font-medium bg-blue-900/50 text-blue-400 border border-blue-800 hover:bg-blue-900/80 transition-colors">
+      <button
+        onClick={onClick}
+        className="px-2 py-0.5 rounded text-xs font-medium bg-blue-900/50 text-blue-400 border border-blue-800 hover:bg-blue-900/80 transition-colors"
+      >
         PO
       </button>
     );
   }
   if (req) {
     return (
-      <button onClick={onClick} className="px-2 py-0.5 rounded text-xs font-medium bg-amber-900/50 text-amber-400 border border-amber-800 hover:bg-amber-900/80 transition-colors">
+      <button
+        onClick={onClick}
+        className="px-2 py-0.5 rounded text-xs font-medium bg-amber-900/50 text-amber-400 border border-amber-800 hover:bg-amber-900/80 transition-colors"
+      >
         REQ
       </button>
     );
@@ -60,6 +67,7 @@ function DetailPopup({ item, req, po, onClose }) {
             <X className="w-4 h-4" />
           </button>
         </div>
+
         <div className="space-y-3 text-sm">
           {req && (
             <div className="p-3 rounded-lg bg-amber-900/20 border border-amber-800/40">
@@ -71,6 +79,7 @@ function DetailPopup({ item, req, po, onClose }) {
               {req.suggested_qty && <p className="text-xs text-zinc-500 mt-1">Qty: {req.suggested_qty?.toLocaleString()}</p>}
             </div>
           )}
+
           {po && (
             <div className="p-3 rounded-lg bg-blue-900/20 border border-blue-800/40">
               <p className="text-xs font-semibold text-blue-400 mb-1">Purchase Order</p>
@@ -83,12 +92,14 @@ function DetailPopup({ item, req, po, onClose }) {
               {po.total != null && <p className="text-xs text-zinc-500">Total: ${po.total?.toLocaleString()}</p>}
             </div>
           )}
+
           {!req && !po && (
             <div className="p-3 rounded-lg bg-zinc-800/60 border border-zinc-700">
               <p className="text-xs text-zinc-400">No requisition or PO found for this item.</p>
             </div>
           )}
         </div>
+
         <div className="flex gap-2 mt-4">
           {req && (
             <Link to={createPageUrl("PurchaseRequisitions")} className="flex-1">
@@ -116,17 +127,28 @@ export default function ActionRequired({ inventory = [], requisitions = [], purc
 
   const enriched = useMemo(() => {
     const lowStock = inventory.filter(i => i.reorder_point && i.quantity <= i.reorder_point);
+
     return lowStock.map(item => {
       const days = calcDaysOfSupply(item);
-      const req = requisitions.find(r => r.item_sku === item.sku && !['ordered', 'rejected'].includes(r.status)) || null;
-      const po = purchaseOrders.find(p => {
-        const isActive = !['received', 'cancelled'].includes(p.status);
-        return isActive && p.items?.some(li => li.sku === item.sku);
+
+      // Match requisition by sku or item_sku
+      const req = requisitions.find(r =>
+        r.item_sku === item.sku && !['ordered', 'rejected'].includes(r.status)
+      ) || null;
+
+      // Match PO by checking PO line items for this SKU
+      const po = purchaseOrders.find(po => {
+        const isActive = !['received', 'cancelled'].includes(po.status);
+        return isActive && po.items?.some(li => li.sku === item.sku);
       }) || null;
+
       const isOrdered = !!(req || po);
+
       return { item, days, req, po, isOrdered };
     }).sort((a, b) => {
+      // Sort by days (OUT first)
       if (a.days !== b.days) return a.days - b.days;
+      // No req/PO first within same urgency
       return (a.isOrdered ? 1 : 0) - (b.isOrdered ? 1 : 0);
     });
   }, [inventory, requisitions, purchaseOrders]);
@@ -134,8 +156,8 @@ export default function ActionRequired({ inventory = [], requisitions = [], purc
   const visible = enriched.filter(e => !e.isOrdered);
   const ordered = enriched.filter(e => e.isOrdered);
   const criticalCount = visible.filter(e => e.days <= 3).length;
+
   const displayList = showOrdered ? enriched : visible;
-  const detailEntry = detailItem ? enriched.find(e => e.item.id === detailItem) : null;
 
   if (enriched.length === 0) {
     return (
@@ -145,6 +167,8 @@ export default function ActionRequired({ inventory = [], requisitions = [], purc
       </div>
     );
   }
+
+  const detailEntry = detailItem ? enriched.find(e => e.item.id === detailItem) : null;
 
   return (
     <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg overflow-hidden">
@@ -161,9 +185,13 @@ export default function ActionRequired({ inventory = [], requisitions = [], purc
         {ordered.length > 0 && (
           <button
             onClick={() => setShowOrdered(v => !v)}
-            className={`text-xs px-3 py-1.5 rounded-md border transition-colors ${showOrdered ? "bg-zinc-800/60 border-zinc-600 text-zinc-300 hover:text-zinc-100" : "bg-zinc-800/60 border-zinc-700 text-zinc-500 hover:text-zinc-300"}`}
+            className={`text-xs px-3 py-1.5 rounded-md border transition-colors ${
+              showOrdered
+                ? "bg-zinc-700 border-zinc-600 text-zinc-300"
+                : "bg-zinc-800/60 border-zinc-700 text-zinc-500 hover:text-zinc-300"
+            }`}
           >
-            {showOrdered ? `Hide ordered (${ordered.length})` : `Show ordered (${ordered.length})`}
+            {showOrdered ? "Hide ordered" : `Show ordered (${ordered.length})`}
           </button>
         )}
       </div>
@@ -180,7 +208,7 @@ export default function ActionRequired({ inventory = [], requisitions = [], purc
         </div>
       )}
 
-      {/* Empty state when all are ordered and hidden */}
+      {/* Empty state when all are ordered */}
       {visible.length === 0 && ordered.length > 0 && !showOrdered && (
         <div className="px-4 py-5 flex items-center gap-3">
           <CheckCircle className="w-4 h-4 text-green-400 shrink-0" />
@@ -194,18 +222,33 @@ export default function ActionRequired({ inventory = [], requisitions = [], purc
           {displayList.map(({ item, days, req, po, isOrdered }) => (
             <div
               key={item.id}
-              className={`flex items-center gap-3 px-4 py-2.5 transition-colors ${isOrdered ? "opacity-40 bg-zinc-900/20" : "hover:bg-zinc-800/30"}`}
+              className={`flex items-center gap-3 px-4 py-2.5 transition-colors ${
+                isOrdered ? "opacity-50 bg-zinc-900/30" : "hover:bg-zinc-800/30"
+              }`}
             >
+              {/* RM ID */}
               <span className="font-mono text-xs text-orange-400 w-24 shrink-0 truncate">{item.sku}</span>
-              <span className="text-sm text-zinc-300 flex-1 truncate">{item.name}</span>
+
+              {/* Name */}
+              <span className="text-xs text-zinc-300 flex-1 truncate">{item.name}</span>
+
+              {/* Stock */}
               <div className="hidden sm:block w-24 shrink-0 text-right">
                 <StockLabel item={item} days={days} />
               </div>
+
+              {/* Days of supply */}
               <div className="w-10 shrink-0 text-right">
                 <DaysLabel days={days} />
               </div>
+
+              {/* Status pill */}
               <div className="w-12 shrink-0 flex justify-end">
-                <StatusPill req={req} po={po} onClick={() => setDetailItem(item.id)} />
+                <StatusPill
+                  req={req}
+                  po={po}
+                  onClick={() => setDetailItem(item.id)}
+                />
               </div>
             </div>
           ))}
