@@ -14,11 +14,8 @@ import {
   ArrowRight,
   FileText,
   AlertOctagon,
-  LogOut,
-  Sun,
-  Moon
+  LogOut
 } from "lucide-react";
-import { useTheme } from "next-themes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
