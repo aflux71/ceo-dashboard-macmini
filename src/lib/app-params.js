@@ -1,17 +1,25 @@
 const isNode = typeof window === 'undefined';
 
-// Safe localStorage wrapper — throws in iframes with storage blocked
+// In-memory fallback with localStorage-compatible API
+const memStorage = {
+  _data: {},
+  setItem(k, v) { this._data[k] = v; },
+  getItem(k) { return this._data[k] ?? null; },
+  removeItem(k) { delete this._data[k]; },
+};
+
+// Safe localStorage wrapper — falls back to in-memory if blocked
 let storage;
 try {
-  storage = isNode ? new Map() : window.localStorage;
-  // Test that it's actually usable
-  if (!isNode) {
+  if (isNode) {
+    storage = memStorage;
+  } else {
     window.localStorage.setItem('__test__', '1');
     window.localStorage.removeItem('__test__');
+    storage = window.localStorage;
   }
 } catch (_e) {
-  // Fallback to in-memory storage when localStorage is blocked
-  storage = new Map();
+  storage = memStorage;
 }
 
 const toSnakeCase = (str) => {
