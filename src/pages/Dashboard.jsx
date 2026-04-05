@@ -83,7 +83,7 @@ export default function Dashboard() {
   const excludedSKUs = new Set(exclusions.map(e => e.sku));
 
   const lowStockItems = inventory.filter(i => {
-    if (i.type !== 'finished_product') return false;
+    if (i.type === 'raw_material' || i.type === 'packaging') return false;
     if (excludedSKUs.has(i.sku)) return false;
     if (!i.reorder_point) return false;
     return i.quantity <= i.reorder_point;
