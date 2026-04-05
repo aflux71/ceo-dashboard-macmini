@@ -370,11 +370,11 @@ export default function PurchaseRequisitions() {
                             {req.po_number}
                           </span>
                         )}
-                        <Badge variant={
+                        <Badge variant={(
                           req.status === "pending" ? "amber" :
                           req.status === "approved" ? "green" :
                           req.status === "ordered" ? "blue" : "red"
-                        }>
+                        )}>
                           {req.status}
                         </Badge>
                       </div>
