@@ -54,11 +54,6 @@ export default function Dashboard() {
     queryFn: () => base44.entities.Recipe.list(),
   });
 
-  const { data: exclusions = [] } = useQuery({
-    queryKey: ['forecast_exclusions'],
-    queryFn: () => base44.entities.ForecastExclusion.list(),
-  });
-
   const { data: scheduledItems = [] } = useQuery({
     queryKey: ['forecast-suggestions-all'],
     queryFn: () => base44.entities.ForecastSuggestion.filter({
@@ -80,11 +75,7 @@ export default function Dashboard() {
     return new Date(b.approved_date || b.updated_date).toDateString() === today;
   });
 
-  const excludedSKUs = new Set(exclusions.map(e => e.sku));
-
   const lowStockItems = inventory.filter(i => {
-    if (i.type === 'raw_material' || i.type === 'packaging') return false;
-    if (excludedSKUs.has(i.sku)) return false;
     if (!i.reorder_point) return false;
     return i.quantity <= i.reorder_point;
   }).map(i => ({
