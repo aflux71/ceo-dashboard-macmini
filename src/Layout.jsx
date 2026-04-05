@@ -50,7 +50,6 @@ const navItems = [
         { name: "Batch History", icon: History, page: "BatchHistory" },
         { name: "Inventory", icon: Package, page: "Inventory" },
         { name: "Recipes", icon: Beaker, page: "Recipes" },
-        { name: "Recipe Versions", icon: History, page: "RecipeVersions" },
         { name: "Assembly Guides", icon: Boxes, page: "AssemblyGuides" },
         { name: "Purchase Orders", icon: ShoppingCart, page: "PurchaseOrders" },
         { name: "Requisitions", icon: FileText, page: "PurchaseRequisitions", badge: true },
@@ -70,6 +69,7 @@ const settingsItems = [
         { name: "Product Categories", icon: Tag, page: "CategorySettings" },
         { name: "Measurement Units", icon: Package, page: "MeasurementSettings" },
         { name: "Audit Log", icon: ClipboardList, page: "AuditLog" },
+        { name: "Recipe Versions", icon: History, page: "RecipeVersions" },
         { name: "Sync Log", icon: History, page: "SyncLog" },
       ];
 
