@@ -76,6 +76,7 @@ export default function Dashboard() {
   });
 
   const lowStockItems = inventory.filter(i => {
+    if (i.type !== 'finished_product') return false;
     if (!i.reorder_point) return false;
     return i.quantity <= i.reorder_point;
   }).map(i => ({
