@@ -69,9 +69,16 @@ export default function RequisitionAlerts({ requisitions = [] }) {
                 <span className="font-mono text-xs text-orange-400">{req.item_sku}</span>
                 <span className="text-sm text-zinc-300 truncate max-w-[150px]">{req.item_name}</span>
               </div>
-              <Badge variant={urgencyConfig[req.urgency]?.color}>
-                {urgencyConfig[req.urgency]?.label}
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant={urgencyConfig[req.urgency]?.color}>
+                  {urgencyConfig[req.urgency]?.label}
+                </Badge>
+                {req.po_number && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border bg-blue-500/20 text-blue-400 border-blue-500/30">
+                    PO
+                  </span>
+                )}
+              </div>
             </div>
           ))}
           {pending.length > 5 && (

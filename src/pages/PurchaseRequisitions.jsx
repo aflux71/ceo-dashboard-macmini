@@ -364,6 +364,12 @@ export default function PurchaseRequisitions() {
                         <Badge variant={urgencyConfig[req.urgency]?.color}>
                           {urgencyConfig[req.urgency]?.label}
                         </Badge>
+                        {req.po_number && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border bg-blue-500/20 text-blue-400 border-blue-500/30">
+                            <ShoppingCart className="w-3 h-3" />
+                            {req.po_number}
+                          </span>
+                        )}
                         <Badge variant={
                           req.status === "pending" ? "amber" :
                           req.status === "approved" ? "green" :
