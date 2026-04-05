@@ -13,11 +13,14 @@ const urgencyConfig = {
 };
 
 export default function RequisitionAlerts({ requisitions = [] }) {
+  const [showAll, setShowAll] = React.useState(false);
   const pending = requisitions.filter(r => r.status === "pending");
   const critical = pending.filter(r => r.urgency === "critical");
   const high = pending.filter(r => r.urgency === "high");
   
   if (pending.length === 0) return null;
+
+  const visibleItems = showAll ? pending : pending.slice(0, 5);
 
   return (
     <Card className="bg-zinc-900 border-zinc-800">
@@ -60,7 +63,7 @@ export default function RequisitionAlerts({ requisitions = [] }) {
 
         {/* Recent Items */}
         <div className="space-y-2 mt-3">
-          {pending.slice(0, 5).map((req) => (
+          {visibleItems.map((req) => (
             <div key={req.id} className="flex items-center justify-between p-2 bg-zinc-800/50 rounded-lg">
               <div className="flex items-center gap-3">
                 <span className="font-mono text-xs text-orange-400">{req.item_sku}</span>
@@ -72,9 +75,9 @@ export default function RequisitionAlerts({ requisitions = [] }) {
             </div>
           ))}
           {pending.length > 5 && (
-            <p className="text-xs text-zinc-500 text-center pt-2">
-              +{pending.length - 5} more pending
-            </p>
+            <button onClick={() => setShowAll(!showAll)} className="w-full text-xs text-zinc-500 hover:text-zinc-300 text-center pt-2 transition-colors">
+              {showAll ? "Show less" : `+${pending.length - 5} more pending`}
+            </button>
           )}
         </div>
       </CardContent>
