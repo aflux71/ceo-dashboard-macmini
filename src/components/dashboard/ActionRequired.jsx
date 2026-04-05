@@ -12,16 +12,16 @@ function calcDaysOfSupply(item) {
 }
 
 function DaysLabel({ days }) {
-  if (days <= 0) return <span className="text-red-400 font-bold text-sm">OUT</span>;
-  if (days <= 3) return <span className="text-red-400 font-semibold text-sm">{days}d</span>;
-  if (days <= 14) return <span className="text-orange-400 font-semibold text-sm">{days}d</span>;
-  return <span className="text-zinc-400 text-sm">{days}d</span>;
+  if (days <= 0) return <span className="text-red-400 font-bold text-xs">OUT</span>;
+  if (days <= 3) return <span className="text-red-400 font-semibold text-xs">{days}d</span>;
+  if (days <= 14) return <span className="text-orange-400 font-semibold text-xs">{days}d</span>;
+  return <span className="text-zinc-400 text-xs">{days}d</span>;
 }
 
 function StockLabel({ item, days }) {
   const color = days <= 0 ? "text-red-400" : days <= 3 ? "text-red-400" : days <= 14 ? "text-orange-400" : "text-zinc-400";
   return (
-    <span className={`text-sm ${color}`}>
+    <span className={`text-xs ${color}`}>
       {item.quantity?.toLocaleString()} {item.unit}
     </span>
   );
@@ -111,7 +111,7 @@ function DetailPopup({ item, req, po, onClose }) {
 }
 
 export default function ActionRequired({ inventory = [], requisitions = [], purchaseOrders = [] }) {
-  const [showOrdered, setShowOrdered] = useState(true);
+  const [showOrdered, setShowOrdered] = useState(false);
   const [detailItem, setDetailItem] = useState(null);
 
   const enriched = useMemo(() => {
@@ -196,7 +196,7 @@ export default function ActionRequired({ inventory = [], requisitions = [], purc
               key={item.id}
               className={`flex items-center gap-3 px-4 py-2.5 transition-colors ${isOrdered ? "opacity-40 bg-zinc-900/20" : "hover:bg-zinc-800/30"}`}
             >
-              <span className="font-mono text-sm text-orange-400 w-24 shrink-0 truncate">{item.sku}</span>
+              <span className="font-mono text-xs text-orange-400 w-24 shrink-0 truncate">{item.sku}</span>
               <span className="text-sm text-zinc-300 flex-1 truncate">{item.name}</span>
               <div className="hidden sm:block w-24 shrink-0 text-right">
                 <StockLabel item={item} days={days} />
