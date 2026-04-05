@@ -14,13 +14,14 @@ const urgencyConfig = {
 
 export default function RequisitionAlerts({ requisitions = [] }) {
   const [showAll, setShowAll] = React.useState(false);
-  const pending = requisitions.filter(r => r.status === "pending");
+  const active = requisitions.filter(r => r.status === "pending" || r.status === "ordered" || r.status === "approved");
+  const pending = active.filter(r => r.status === "pending");
   const critical = pending.filter(r => r.urgency === "critical");
   const high = pending.filter(r => r.urgency === "high");
   
-  if (pending.length === 0) return null;
+  if (active.length === 0) return null;
 
-  const visibleItems = showAll ? pending : pending.slice(0, 5);
+  const visibleItems = showAll ? active : active.slice(0, 5);
 
   return (
     <Card className="bg-zinc-900 border-zinc-800">
@@ -29,7 +30,7 @@ export default function RequisitionAlerts({ requisitions = [] }) {
           <CardTitle className="text-base flex items-center gap-2">
             <Clock className="w-5 h-5 text-amber-400" />
             Pending Requisitions
-            <Badge variant="amber">{pending.length}</Badge>
+            <Badge variant="amber">{active.length}</Badge>
           </CardTitle>
           <a href={createPageUrl("PurchaseRequisitions")}>
             <Button variant="ghost" size="sm">
@@ -81,9 +82,9 @@ export default function RequisitionAlerts({ requisitions = [] }) {
               </div>
             </div>
           ))}
-          {pending.length > 5 && (
+          {active.length > 5 && (
             <button onClick={() => setShowAll(!showAll)} className="w-full text-xs text-zinc-500 hover:text-zinc-300 text-center pt-2 transition-colors">
-              {showAll ? "Show less" : `+${pending.length - 5} more pending`}
+              {showAll ? "Show less" : `+${active.length - 5} more`}
             </button>
           )}
         </div>
