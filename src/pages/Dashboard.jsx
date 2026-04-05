@@ -20,7 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import StatsCard from "@/components/dashboard/StatsCard";
 import UrgentItemsList from "@/components/dashboard/UrgentItemsList";
-import RequisitionAlerts from "@/components/dashboard/RequisitionAlerts";
+import ActionRequired from "@/components/dashboard/ActionRequired";
 import SyncLogMini from "@/components/dashboard/SyncLogMini";
 import Badge from "@/components/ui/Badge";
 import PinLoginScreen from "@/components/auth/PinLoginScreen";
@@ -176,16 +176,12 @@ export default function Dashboard() {
       {/* SKU Mapping Alerts */}
       <SKUMappingAlert />
 
-      {/* Requisition Alerts */}
-      <RequisitionAlerts requisitions={requisitions} />
-
-      {/* Urgent Items Alert */}
-      {lowStockItems.length > 0 && (
-        <UrgentItemsList
-          items={lowStockItems}
-          title="Critical Inventory Alerts"
-        />
-      )}
+      {/* Action Required */}
+      <ActionRequired
+        inventory={inventory}
+        requisitions={requisitions}
+        purchaseOrders={purchaseOrders}
+      />
 
       {/* Two Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
