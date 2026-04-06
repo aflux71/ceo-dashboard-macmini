@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
-  Database, RefreshCw, Package, ShoppingCart, Check, Clock, AlertCircle, Loader2,
+  Database, RefreshCw, Package, ShoppingCart, Check, Clock, AlertCircle, Loader2, GitMerge,
 } from "lucide-react";
 import { formatNumber } from "@/components/demand/demandHelpers";
 
@@ -23,6 +23,7 @@ export default function DataTab({
   isRebuilding,
   rebuildProgress,
   onRebuild,
+  onRerunAliases,
 }) {
   const progressPct = rebuildProgress && rebuildProgress.total > 0
     ? Math.round((rebuildProgress.current / rebuildProgress.total) * 100)
@@ -108,6 +109,19 @@ export default function DataTab({
           <p className="text-[10px] text-zinc-500 mt-2">
             Aggregates all ShopifySaleRecord data month-by-month with deduplication, then writes fresh DemandSummary records.
           </p>
+
+          <div className="mt-4 pt-4 border-t border-zinc-800">
+            <button
+              onClick={onRerunAliases}
+              className="flex items-center gap-2 px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-zinc-200 text-sm font-medium rounded transition-colors"
+            >
+              <GitMerge className="w-4 h-4" />
+              Re-run SKU Alias Consolidation
+            </button>
+            <p className="text-[10px] text-zinc-500 mt-2">
+              Merges duplicate SKUs using your SKU Alias records (e.g. 990315100079 → 10007). Run this after adding new aliases without a full rebuild.
+            </p>
+          </div>
         </CardContent>
       </Card>
 

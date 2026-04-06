@@ -449,6 +449,21 @@ export default function DemandPlanner() {
   };
 
   // ── Rebuild summaries ────────────────────────────────────────────────────
+  const handleRerunAliases = async () => {
+    try {
+      const aliases = await fetchAll(base44.entities.SKUAlias);
+      const aliasMap = buildAliasMap(aliases);
+      if (aliasMap.size === 0) {
+        toast.info("No SKU aliases found. Add aliases in the SKU Deduplication page first.");
+        return;
+      }
+      setSummaries((prev) => consolidateDemandBySKU(prev, aliasMap));
+      toast.success(`Alias consolidation applied (${aliasMap.size} alias mappings)`);
+    } catch (err) {
+      toast.error("Failed to run alias consolidation: " + err.message);
+    }
+  };
+
   const handleRebuild = async () => {
     setIsRebuilding(true);
     try {
@@ -589,7 +604,10 @@ export default function DemandPlanner() {
           byLocation: typeof s.byLocation === "string" ? JSON.parse(s.byLocation) : s.byLocation,
           category: s.category || categorize(s.product),
         }));
-        setSummaries(parsed);
+        // Also re-run alias consolidation after rebuild
+        const aliases = await fetchAll(base44.entities.SKUAlias).catch(() => []);
+        const aliasMap = buildAliasMap(aliases);
+        setSummaries(aliasMap.size > 0 ? consolidateDemandBySKU(parsed, aliasMap) : parsed);
       }
     } catch (err) {
       toast.error("Rebuild failed: " + err.message);
@@ -714,6 +732,7 @@ export default function DemandPlanner() {
             isRebuilding={isRebuilding}
             rebuildProgress={rebuildProgress}
             onRebuild={handleRebuild}
+            onRerunAliases={handleRerunAliases}
           />
         </TabsContent>
 
