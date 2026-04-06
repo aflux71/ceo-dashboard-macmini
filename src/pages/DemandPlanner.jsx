@@ -23,6 +23,7 @@ import {
 import baselineData from "@/data/baseline-2025.json";
 import DashboardTab from "@/components/demand/DashboardTab";
 import PlanTable from "@/components/demand/PlanTable";
+import { buildAliasMap, consolidateDemandBySKU } from "@/utils/skuAliasResolver";
 import SKUDetail from "@/components/demand/SKUDetail";
 import EventsTab from "@/components/demand/EventsTab";
 import DataTab from "@/components/demand/DataTab";
@@ -97,30 +98,43 @@ export default function DemandPlanner() {
   };
 
   const loadData = async () => {
-    setLoading(true);
-    try {
-      // 1. Try loading DemandSummary entities first
-      let loadedSummaries = [];
-      try {
-        loadedSummaries = await fetchAll(base44.entities.DemandSummary);
-      } catch (e) {
-        // Entity may not exist yet
-      }
+   setLoading(true);
+   try {
+     // 1. Try loading DemandSummary entities first
+     let loadedSummaries = [];
+     try {
+       loadedSummaries = await fetchAll(base44.entities.DemandSummary);
+     } catch (e) {
+       // Entity may not exist yet
+     }
 
-      // 2. If empty, seed from baseline
-      if (!loadedSummaries || loadedSummaries.length === 0) {
-        loadedSummaries = baselineToSummaries(baselineData);
-      } else {
-        // Parse JSON fields from stored entities
-        loadedSummaries = loadedSummaries.map((s) => ({
-          ...s,
-          monthly: typeof s.monthly === "string" ? JSON.parse(s.monthly) : s.monthly,
-          byChannel: typeof s.byChannel === "string" ? JSON.parse(s.byChannel) : s.byChannel,
-          byLocation: typeof s.byLocation === "string" ? JSON.parse(s.byLocation) : s.byLocation,
-          category: s.category || categorize(s.product),
-        }));
-      }
-      setSummaries(loadedSummaries);
+     // 2. If empty, seed from baseline
+     if (!loadedSummaries || loadedSummaries.length === 0) {
+       loadedSummaries = baselineToSummaries(baselineData);
+     } else {
+       // Parse JSON fields from stored entities
+       loadedSummaries = loadedSummaries.map((s) => ({
+         ...s,
+         monthly: typeof s.monthly === "string" ? JSON.parse(s.monthly) : s.monthly,
+         byChannel: typeof s.byChannel === "string" ? JSON.parse(s.byChannel) : s.byChannel,
+         byLocation: typeof s.byLocation === "string" ? JSON.parse(s.byLocation) : s.byLocation,
+         category: s.category || categorize(s.product),
+       }));
+     }
+
+     // 2.5. Load SKU aliases and consolidate demand for merged SKUs
+     let aliasMap = new Map();
+     try {
+       const aliases = await fetchAll(base44.entities.SKUAlias);
+       aliasMap = buildAliasMap(aliases);
+       if (aliasMap.size > 0) {
+         loadedSummaries = consolidateDemandBySKU(loadedSummaries, aliasMap);
+       }
+     } catch (e) {
+       // SKUAlias entity may not exist
+     }
+
+     setSummaries(loadedSummaries);
 
       // 3. Load finished product inventory
       let inventoryMap = {};
