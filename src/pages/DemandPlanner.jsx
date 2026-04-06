@@ -67,7 +67,7 @@ export default function DemandPlanner() {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [detailItem, setDetailItem] = useState(null);
   const [isRebuilding, setIsRebuilding] = useState(false);
-  const [rebuildProgress, setRebuildProgress] = useState(null); // { current, total, phase, detail }
+  const [rebuildProgress, setRebuildProgress] = useState(null);
   const [initialUrgencyFilter, setInitialUrgencyFilter] = useState(null);
   const [pushConfirmItems, setPushConfirmItems] = useState(null);
   const [isPushing, setIsPushing] = useState(false);
@@ -95,6 +95,27 @@ export default function DemandPlanner() {
       skip += pageSize;
     }
     return results;
+  };
+
+  // Merges all three exclusion sources into one unified system default list
+  const mergeAllExclusions = async (baseList = [], loadedWorkspaces = []) => {
+    const merged = new Set(baseList.map(String));
+    // 1. Load default_exclusion_list from AppSettings
+    try {
+      const defSettings = await base44.entities.AppSettings.filter({ key: "default_exclusion_list" });
+      if (defSettings.length > 0) {
+        JSON.parse(defSettings[0].value || "[]").forEach((s) => merged.add(String(s)));
+      }
+    } catch {}
+    // 2. Load "Master Exclusion List" workspace exclusions
+    const masterWs = loadedWorkspaces.find((w) => w.name === "Master Exclusion List");
+    if (masterWs) {
+      const masterList = typeof masterWs.exclusionList === "string"
+        ? JSON.parse(masterWs.exclusionList || "[]")
+        : masterWs.exclusionList || [];
+      masterList.forEach((s) => merged.add(String(s)));
+    }
+    return [...merged];
   };
 
   const loadData = async () => {
@@ -140,56 +161,45 @@ export default function DemandPlanner() {
       let inventoryMap = {};
       try {
         const inv = await base44.entities.Inventory.filter({ type: "finished_product", location: "neob HQ" });
-        // Fall back to all finished_product records if no neob HQ records found (pre-migration data)
         const invToUse = inv.length > 0 ? inv : await base44.entities.Inventory.filter({ type: "finished_product" });
         invToUse.forEach((item) => {
           if (item.sku) {
             inventoryMap[item.sku] = (inventoryMap[item.sku] || 0) + (item.quantity || 0);
           }
-          // Also index by supplier_sku (Shopify variant SKU) so DemandSummary records
-          // using the old variant SKU can still find the inventory quantity
           if (item.supplier_sku && item.supplier_sku !== item.sku) {
             inventoryMap[item.supplier_sku] = (inventoryMap[item.supplier_sku] || 0) + (item.quantity || 0);
           }
         });
-      } catch (e) {
-        // No inventory data available
-      }
+      } catch (e) {}
       setInventory(inventoryMap);
 
       // 4. Load events
       let loadedEvents = [];
       try {
         loadedEvents = await fetchAll(base44.entities.DemandEvent);
-      } catch (e) {
-        // Entity may not exist
-      }
+      } catch (e) {}
       setEvents(loadedEvents);
 
       // 5. Load workspaces
       let loadedWorkspaces = [];
       try {
         loadedWorkspaces = await fetchAll(base44.entities.DemandConfig);
-      } catch (e) {
-        // Entity may not exist
-      }
+      } catch (e) {}
       setWorkspaces(loadedWorkspaces);
 
-      // Apply default workspace if found
+      // Apply default workspace — always merge all three exclusion sources
       const defaultWs = loadedWorkspaces.find((w) => w.isDefault);
       if (defaultWs) {
-        applyWorkspace(defaultWs);
-      } else if (loadedWorkspaces.length === 0) {
-        // No workspace yet — load default exclusion list from AppSettings
-        try {
-          const defSettings = await base44.entities.AppSettings.filter({ key: "default_exclusion_list" });
-          if (defSettings.length > 0) {
-            const defList = JSON.parse(defSettings[0].value || "[]");
-            if (defList.length > 0) {
-              setWorkspace((prev) => ({ ...prev, exclusionList: defList }));
-            }
-          }
-        } catch {}
+        const baseList = typeof defaultWs.exclusionList === "string"
+          ? JSON.parse(defaultWs.exclusionList || "[]")
+          : defaultWs.exclusionList || [];
+        const mergedList = await mergeAllExclusions(baseList, loadedWorkspaces);
+        applyWorkspace({ ...defaultWs, exclusionList: mergedList });
+      } else {
+        const mergedList = await mergeAllExclusions([], loadedWorkspaces);
+        if (mergedList.length > 0) {
+          setWorkspace((prev) => ({ ...prev, exclusionList: mergedList }));
+        }
       }
 
       // 6. Load planner SKUs (active ForecastSuggestions)
@@ -207,19 +217,15 @@ export default function DemandPlanner() {
           setLastSync(syncLogs[0].created_date);
           setShopifyRecordCount(syncLogs[0].records_processed || 0);
         } else if (loadedSummaries.length > 0) {
-          // Fallback: use the most recent updatedAt from DemandSummary records
           const latest = loadedSummaries.reduce((best, s) => {
             const d = s.updatedAt || s.updated_date || "";
             return d > best ? d : best;
           }, "");
           if (latest) setLastSync(latest);
         }
-      } catch (e) {
-        // ignore
-      }
+      } catch (e) {}
     } catch (err) {
       console.error("Failed to load demand data:", err);
-      // Fall back to baseline
       setSummaries(baselineToSummaries(baselineData));
     }
     setLoading(false);
@@ -272,7 +278,7 @@ export default function DemandPlanner() {
     }
   };
 
-  // Auto-save exclusion changes to DemandConfig (creates workspace if none exists)
+  // Auto-save exclusion changes to DemandConfig
   const persistExclusions = async (newList) => {
     try {
       if (activeWorkspaceId) {
@@ -280,7 +286,6 @@ export default function DemandPlanner() {
           exclusionList: JSON.stringify(newList),
         });
       } else {
-        // No workspace yet — create one automatically
         const payload = buildPayload({ ...workspace, exclusionList: newList });
         const created = await base44.entities.DemandConfig.create(payload);
         setActiveWorkspaceId(created.id);
@@ -343,7 +348,6 @@ export default function DemandPlanner() {
       setEvents((prev) => [...prev, created]);
       toast.success("Event created");
     } catch (err) {
-      // Store locally if entity doesn't exist
       const localEvent = { ...eventData, id: `local-${Date.now()}` };
       setEvents((prev) => [...prev, localEvent]);
       toast.success("Event added (local)");
@@ -363,9 +367,7 @@ export default function DemandPlanner() {
   const handleDeleteEvent = async (id) => {
     try {
       await base44.entities.DemandEvent.delete(id);
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) {}
     setEvents((prev) => prev.filter((e) => e.id !== id));
     toast.success("Event deleted");
   };
@@ -446,23 +448,19 @@ export default function DemandPlanner() {
     toast.success(`On-hand override set for SKU ${sku}: ${qty}`);
   };
 
-  // ── Rebuild summaries (month-by-month aggregation with dedup) ────────────
+  // ── Rebuild summaries ────────────────────────────────────────────────────
   const handleRebuild = async () => {
     setIsRebuilding(true);
     try {
-      // Define months to aggregate: Jan 2025 through current month
       const now = new Date();
       const endYear = now.getFullYear() > 2025 ? now.getFullYear() : 2025;
       const endMonth = now.getFullYear() > 2025 ? now.getMonth() + 1 : 12;
       const months = [];
-      // 2025 all months
       for (let m = 1; m <= 12; m++) months.push({ year: 2025, month: m });
-      // 2026 months if applicable
       if (endYear > 2025) {
         for (let m = 1; m <= endMonth; m++) months.push({ year: 2026, month: m });
       }
 
-      // Aggregate each month sequentially
       const merged = {};
       let totalRaw = 0;
       let totalDupes = 0;
@@ -473,7 +471,6 @@ export default function DemandPlanner() {
       for (let mi = 0; mi < months.length; mi++) {
         const { year, month } = months[mi];
         setRebuildProgress({ current: mi + 1, total: months.length, phase: "aggregating", detail: `${year}-${String(month).padStart(2, '0')}` });
-        // Delay between months to avoid rate limiting
         if (mi > 0) await sleep(2000);
         const res = await base44.functions.invoke("rebuildDemandSummaries", {
           phase: "aggregate", year, month,
@@ -486,8 +483,7 @@ export default function DemandPlanner() {
         totalOverlap += d.csv_overlap_removed || 0;
         totalUnique += d.unique_records || 0;
 
-        // Merge monthly aggregation into master
-        const monthIdx = month - 1; // 0-indexed
+        const monthIdx = month - 1;
         for (const [sku, skuAgg] of Object.entries(d.aggregation || {})) {
           if (!merged[sku]) {
             merged[sku] = {
@@ -515,7 +511,6 @@ export default function DemandPlanner() {
         }
       }
 
-      // Calculate dataMonths for each SKU
       for (const m of Object.values(merged)) {
         const start = new Date(m.periodStart);
         const end = new Date(m.periodEnd);
@@ -528,7 +523,6 @@ export default function DemandPlanner() {
       const skuCount = Object.keys(merged).length;
       setRebuildProgress({ current: 0, total: skuCount, phase: "deleting", detail: "Clearing old records..." });
 
-      // Delete existing DemandSummary records directly from frontend
       let delCount = 0;
       while (true) {
         const batch = await base44.entities.DemandSummary.list('-created_date', 50);
@@ -538,10 +532,9 @@ export default function DemandPlanner() {
         }
         delCount += batch.length;
         setRebuildProgress({ current: delCount, total: delCount, phase: "deleting", detail: `Deleted ${delCount} old records...` });
-        await sleep(1000); // Rate limit protection
+        await sleep(1000);
       }
 
-      // Build final records from merged aggregation
       const nowISO = new Date().toISOString();
       const records = Object.values(merged).map(s => {
         const dataMonths = Math.max(1, s.dataMonths || 1);
@@ -562,7 +555,6 @@ export default function DemandPlanner() {
         };
       });
 
-      // Bulk create in batches of 10
       setRebuildProgress({ current: 0, total: records.length, phase: "writing", detail: `Writing 0/${records.length} summaries...` });
       let created = 0;
       for (let i = 0; i < records.length; i += 10) {
@@ -570,15 +562,14 @@ export default function DemandPlanner() {
         await base44.entities.DemandSummary.bulkCreate(batch);
         created += batch.length;
         setRebuildProgress({ current: created, total: records.length, phase: "writing", detail: `Writing ${created}/${records.length} summaries...` });
-        await sleep(500); // Rate limit protection
+        await sleep(500);
       }
 
-      toast.success(`Rebuild complete: ${created} summaries from ${totalUnique} deduplicated records (${totalDupes} dupes + ${totalOverlap} overlaps removed)`);
+      toast.success(`Rebuild complete: ${created} summaries from ${totalUnique} deduplicated records`);
       const rebuildDate = new Date().toISOString();
       setLastSync(rebuildDate);
       setShopifyRecordCount(totalUnique);
 
-      // Log to SyncLog
       try {
         await base44.entities.SyncLog.create({
           sync_type: "demand_summaries",
@@ -587,9 +578,8 @@ export default function DemandPlanner() {
           records_created: created,
           notes: `Rebuilt ${created} summaries from ${totalRaw} raw records (${totalDupes} dupes, ${totalOverlap} overlaps removed)`,
         });
-      } catch (e) { /* ignore */ }
+      } catch (e) {}
 
-      // Reload summaries
       const updated = await fetchAll(base44.entities.DemandSummary);
       if (updated?.length > 0) {
         const parsed = updated.map((s) => ({
@@ -628,7 +618,6 @@ export default function DemandPlanner() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* Workspace selector */}
           {workspaces.length > 0 && (
             <select
               value={activeWorkspaceId || ""}
@@ -819,7 +808,7 @@ export default function DemandPlanner() {
   );
 }
 
-// ── Settings Panel (inline) ──────────────────────────────────────────────────
+// ── Settings Panel ────────────────────────────────────────────────────────────
 function SettingsPanel({
   workspace,
   workspaces,
@@ -836,71 +825,6 @@ function SettingsPanel({
 }) {
   const [exclusionSearch, setExclusionSearch] = useState("");
   const exclusionCsvRef = React.useRef(null);
-
-  // Default exclusion list from AppSettings
-  const [defaultExclusions, setDefaultExclusions] = useState([]);
-  const [defaultExclusionSearch, setDefaultExclusionSearch] = useState("");
-  const [loadingDefaults, setLoadingDefaults] = useState(true);
-  const [savingDefaults, setSavingDefaults] = useState(false);
-  const [defaultSettingId, setDefaultSettingId] = useState(null);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const settings = await base44.entities.AppSettings.filter({ key: "default_exclusion_list" });
-        if (settings.length > 0) {
-          setDefaultSettingId(settings[0].id);
-          setDefaultExclusions(JSON.parse(settings[0].value || "[]"));
-        }
-      } catch {}
-      setLoadingDefaults(false);
-    })();
-  }, []);
-
-  const saveDefaultExclusions = async (list) => {
-    setSavingDefaults(true);
-    try {
-      const payload = { key: "default_exclusion_list", value: JSON.stringify(list), description: "Default SKU exclusion list for Demand Planner" };
-      if (defaultSettingId) {
-        await base44.entities.AppSettings.update(defaultSettingId, payload);
-      } else {
-        const created = await base44.entities.AppSettings.create(payload);
-        setDefaultSettingId(created.id);
-      }
-      setDefaultExclusions(list);
-      toast.success("Default exclusion list saved");
-    } catch {
-      toast.error("Failed to save default exclusion list");
-    }
-    setSavingDefaults(false);
-  };
-
-  const addDefaultExclusion = (sku) => {
-    if (!defaultExclusions.includes(sku)) {
-      saveDefaultExclusions([...defaultExclusions, sku]);
-    }
-    setDefaultExclusionSearch("");
-  };
-
-  const removeDefaultExclusion = (sku) => {
-    saveDefaultExclusions(defaultExclusions.filter((s) => s !== sku));
-  };
-
-  const loadDefaultsIntoWorkspace = () => {
-    onBulkExclude(defaultExclusions.filter((sku) => !workspace.exclusionList.includes(sku)));
-    toast.success("Default exclusions loaded into workspace");
-  };
-
-  const defaultExclusionResults = useMemo(() => {
-    if (!defaultExclusionSearch.trim()) return [];
-    const q = defaultExclusionSearch.toLowerCase();
-    return summaries
-      .filter((s) =>
-        (s.product?.toLowerCase().includes(q) || s.sku?.toLowerCase().includes(q)) &&
-        !defaultExclusions.includes(s.sku)
-      )
-      .slice(0, 10);
-  }, [defaultExclusionSearch, summaries, defaultExclusions]);
 
   const handleExclusionCSV = (e) => {
     const file = e.target.files?.[0];
@@ -971,7 +895,7 @@ function SettingsPanel({
         </CardContent>
       </Card>
 
-      {/* Saved workspaces - always visible */}
+      {/* Saved workspaces */}
       <Card className="bg-zinc-900 border-zinc-800">
         <CardContent className="p-4">
           <h3 className="text-sm font-semibold text-zinc-300 mb-3">Saved Workspaces</h3>
@@ -1016,106 +940,12 @@ function SettingsPanel({
         </CardContent>
       </Card>
 
-      {/* Default Exclusion List */}
+      {/* System Default Exclusion List (unified — merges all sources on load) */}
       <Card className="bg-zinc-900 border-zinc-800">
         <CardContent className="p-4">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-1">
             <h3 className="text-sm font-semibold text-zinc-300 flex items-center gap-2">
-              Default Exclusion List
-              <span className="text-xs text-zinc-500 font-normal">
-                ({defaultExclusions.length} SKUs)
-              </span>
-            </h3>
-            <button
-              onClick={loadDefaultsIntoWorkspace}
-              disabled={defaultExclusions.length === 0}
-              className="flex items-center gap-1 px-2 py-1 bg-orange-600 hover:bg-orange-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[10px] rounded transition-colors"
-            >
-              <ArrowRight className="w-3 h-3" /> Load into Workspace
-            </button>
-          </div>
-          <p className="text-[10px] text-zinc-500 mb-3">
-            These SKUs are pre-loaded into new workspaces. Use "Load into Workspace" to apply them to the current workspace.
-          </p>
-
-          {/* Search to add */}
-          <div className="relative mb-3">
-            <Input
-              placeholder="Search product name or SKU to add to defaults..."
-              value={defaultExclusionSearch}
-              onChange={(e) => setDefaultExclusionSearch(e.target.value)}
-              className="h-8 bg-zinc-800 border-zinc-700 text-sm pr-8"
-            />
-            {defaultExclusionSearch && (
-              <button
-                onClick={() => setDefaultExclusionSearch("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            )}
-          </div>
-
-          {/* Search results */}
-          {defaultExclusionResults.length > 0 && (
-            <div className="mb-3 border border-zinc-700 rounded-lg overflow-hidden">
-              {defaultExclusionResults.map((s) => (
-                <div
-                  key={s.sku}
-                  className="flex items-center justify-between px-3 py-2 hover:bg-zinc-800/80 cursor-pointer border-b border-zinc-800 last:border-b-0"
-                  onClick={() => addDefaultExclusion(s.sku)}
-                >
-                  <div>
-                    <span className="text-xs text-zinc-200">{s.product}</span>
-                    <span className="text-[10px] text-zinc-500 ml-2 font-mono">SKU {s.sku}</span>
-                  </div>
-                  <span className="text-[10px] text-orange-400 flex items-center gap-1">
-                    <Plus className="w-3 h-3" /> Add
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-          {defaultExclusionSearch && defaultExclusionResults.length === 0 && (
-            <p className="text-xs text-zinc-500 mb-3">No matching SKUs found.</p>
-          )}
-
-          {/* Current default list */}
-          {loadingDefaults ? (
-            <p className="text-xs text-zinc-500">Loading...</p>
-          ) : defaultExclusions.length === 0 ? (
-            <p className="text-xs text-zinc-500">No default exclusions set. Search above to add SKUs.</p>
-          ) : (
-            <div className="space-y-1 max-h-72 overflow-y-auto">
-              {defaultExclusions.map((sku) => {
-                const summary = summaries.find((s) => s.sku === sku);
-                return (
-                  <div key={sku} className="flex items-center justify-between px-3 py-1.5 bg-zinc-800/50 rounded text-xs">
-                    <span className="text-zinc-300">
-                      <span className="font-mono text-zinc-500">SKU {sku}</span>
-                      {summary && ` — ${summary.product}`}
-                    </span>
-                    <button
-                      onClick={() => removeDefaultExclusion(sku)}
-                      className="text-zinc-500 hover:text-red-400"
-                      title="Remove from defaults"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Workspace Exclusion list */}
-      <Card className="bg-zinc-900 border-zinc-800">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-zinc-300 flex items-center gap-2">
-              Workspace Exclusion List
+              System Default Exclusion List
               <span className="text-xs text-zinc-500 font-normal">
                 ({workspace.exclusionList.length} SKUs excluded)
               </span>
@@ -1130,8 +960,10 @@ function SettingsPanel({
               </button>
             </div>
           </div>
+          <p className="text-[10px] text-zinc-500 mb-3">
+            All exclusion sources (Default list, Master Exclusion List workspace) are merged into this single system-wide list on load.
+          </p>
 
-          {/* Search to add */}
           <div className="relative mb-3">
             <Input
               placeholder="Search product name or SKU to exclude..."
@@ -1149,7 +981,6 @@ function SettingsPanel({
             )}
           </div>
 
-          {/* Search results */}
           {exclusionResults.length > 0 && (
             <div className="mb-3 border border-zinc-700 rounded-lg overflow-hidden">
               {exclusionResults.map((s) => (
@@ -1173,7 +1004,6 @@ function SettingsPanel({
             <p className="text-xs text-zinc-500 mb-3">No matching SKUs found.</p>
           )}
 
-          {/* Current exclusion list */}
           {workspace.exclusionList.length === 0 ? (
             <p className="text-xs text-zinc-500">No SKUs excluded. Search above or use the ⊘ button on any Dashboard card.</p>
           ) : (
