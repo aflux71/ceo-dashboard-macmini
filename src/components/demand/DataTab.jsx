@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -25,6 +25,14 @@ export default function DataTab({
   onRebuild,
   onRerunAliases,
 }) {
+  const [isRerunning, setIsRerunning] = useState(false);
+
+  const handleRerun = async () => {
+    setIsRerunning(true);
+    await onRerunAliases();
+    setIsRerunning(false);
+  };
+
   const progressPct = rebuildProgress && rebuildProgress.total > 0
     ? Math.round((rebuildProgress.current / rebuildProgress.total) * 100)
     : 0;
@@ -112,11 +120,12 @@ export default function DataTab({
 
           <div className="mt-4 pt-4 border-t border-zinc-800">
             <button
-              onClick={onRerunAliases}
-              className="flex items-center gap-2 px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-zinc-200 text-sm font-medium rounded transition-colors"
+              onClick={handleRerun}
+              disabled={isRerunning}
+              className="flex items-center gap-2 px-4 py-2 bg-zinc-700 hover:bg-zinc-600 disabled:bg-zinc-800 disabled:text-zinc-500 text-zinc-200 text-sm font-medium rounded transition-colors"
             >
-              <GitMerge className="w-4 h-4" />
-              Re-run SKU Alias Consolidation
+              {isRerunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <GitMerge className="w-4 h-4" />}
+              {isRerunning ? "Running..." : "Re-run SKU Alias Consolidation"}
             </button>
             <p className="text-[10px] text-zinc-500 mt-2">
               Merges duplicate SKUs using your SKU Alias records (e.g. 990315100079 → 10007). Run this after adding new aliases without a full rebuild.
