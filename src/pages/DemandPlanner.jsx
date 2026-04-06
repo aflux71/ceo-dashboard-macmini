@@ -608,9 +608,20 @@ export default function DemandPlanner() {
         const aliases = await fetchAll(base44.entities.SKUAlias).catch(() => []);
         const aliasMap = buildAliasMap(aliases);
         setSummaries(aliasMap.size > 0 ? consolidateDemandBySKU(parsed, aliasMap) : parsed);
+        // Update summary count display
+        setShopifyRecordCount(totalUnique || updated.length);
       }
+      // Always refresh SyncLog stats after rebuild
+      try {
+        const freshLogs = await base44.entities.SyncLog.filter({ sync_type: "demand_summaries" }, "-created_date", 1);
+        if (freshLogs.length > 0) {
+          setLastSync(freshLogs[0].created_date);
+          setShopifyRecordCount(freshLogs[0].records_processed || totalUnique || 0);
+        }
+      } catch (e) {}
     } catch (err) {
       toast.error("Rebuild failed: " + err.message);
+      console.error("Rebuild error:", err);
     }
     setIsRebuilding(false);
     setRebuildProgress(null);
