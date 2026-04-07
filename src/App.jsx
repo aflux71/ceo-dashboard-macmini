@@ -8,6 +8,7 @@ import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ReceiveShipment from './pages/ReceiveShipment';
+import AIAssistant from './pages/AIAssistant';
 import AssemblyGuides from './pages/AssemblyGuides';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -63,6 +64,7 @@ const AuthenticatedApp = () => {
       ))}
       <Route path="/ReceiveShipment" element={<LayoutWrapper currentPageName="ReceiveShipment"><ReceiveShipment /></LayoutWrapper>} />
       <Route path="/AssemblyGuides" element={<LayoutWrapper currentPageName="AssemblyGuides"><AssemblyGuides /></LayoutWrapper>} />
+      <Route path="/AIAssistant" element={<LayoutWrapper currentPageName="AIAssistant"><AIAssistant /></LayoutWrapper>} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

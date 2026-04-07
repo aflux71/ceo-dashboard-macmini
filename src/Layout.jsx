@@ -32,7 +32,8 @@ import {
   Tag,
   Building2,
   GitMerge,
-  Boxes
+  Boxes,
+  BrainCircuit
 } from "lucide-react";
 
 const navItems = [
@@ -56,6 +57,7 @@ const navItems = [
         { name: "Demand Planner", icon: BarChart3, page: "DemandPlanner" },
         { name: "Planning", icon: Factory, page: "ProductionPlanning" },
         { name: "SKU Dedup", icon: GitMerge, page: "SKUDeduplication" },
+        { name: "AI Assistant", icon: BrainCircuit, page: "AIAssistant" },
         { name: "Bug Reports", icon: AlertOctagon, page: "BugReports" },
       ];
 
