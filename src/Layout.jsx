@@ -78,7 +78,6 @@ const settingsItems = [
 export default function Layout({ children, currentPageName }) {
     const [sidebarOpen, setSidebarOpen] = useState(false);
       const [settingsOpen, setSettingsOpen] = useState(false);
-      const [navOpen, setNavOpen] = useState(currentPageName !== "Kiosk");
       const [user, setUser] = useState(null);
       const [isFullScreen, setIsFullScreen] = useState(currentPageName === "Kiosk");
       const [issueCount, setIssueCount] = useState(0);
@@ -312,116 +311,102 @@ export default function Layout({ children, currentPageName }) {
           </div>
 
           {/* Navigation */}
-                      <nav className="flex-1 py-4 px-3 overflow-y-auto">
-                        <button
-                          onClick={() => setNavOpen(!navOpen)}
-                          className="w-full px-3 py-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider flex items-center justify-between hover:text-zinc-400 transition-colors"
-                        >
-                          <div className="flex items-center gap-2">
-                            <Menu className="w-4 h-4" />
-                            Navigation
-                          </div>
-                          <ChevronDown className={`w-4 h-4 transition-transform ${navOpen ? 'rotate-0' : '-rotate-90'}`} />
-                        </button>
-                        {navOpen && (
-                        <div className="space-y-1 mt-1">
-                          {navItems.map((item) => {
-                                                            const isActive = item.isQueueLink ? false : currentPageName === item.page;
-                                                            // Only show alert styling if there are actual issues
-                                                            const showAlertStyle = item.alertStyle && issueCount > 0;
-                                                            const isQueueItem = item.isQueueLink;
-                                                            const queueHasItems = productionQueueCount.total > 0;
-                                                            const isRepairItem = item.isRepairLink;
-                                                                                                                          const hasNewRepairs = newRepairCount > 0;
-                                                                                                                          const isConsumablesItem = item.isConsumablesLink;
-                                                                                                                                                                          const hasPendingConsumables = pendingConsumablesCount > 0;
-                                                                                                                                                                          const isLabelsItem = item.isLabelsLink;
-                                                                                                                                                                          const hasLowLabels = lowLabelCount > 0;
-                                                                                                                                                                          const isAddToInventoryItem = item.isAddToInventoryLink;
-                                                                                                                                                                          const hasApprovedBatches = approvedBatchCount > 0;
-
-                                                            return (
-                                                              <Link
-                                                                key={item.name}
-                                                                to={createPageUrl(item.page)}
-                                                                onClick={() => setSidebarOpen(false)}
-                                                                className={`
-                                                                  flex items-center justify-between px-3 py-1.5 rounded-lg text-sm font-medium
-                                                                  transition-colors duration-200
-                                                                  ${isActive
-                                                                    ? showAlertStyle 
-                                                                      ? 'bg-red-500/10 text-red-400 border border-red-500/20'
-                                                                      : 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
-                                                                    : showAlertStyle
-                                                                      ? 'text-red-400 hover:text-red-300 hover:bg-red-500/10'
-                                                                      : isRepairItem && hasNewRepairs
-                                                                                                                                                    ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
-                                                                                                                                                    : isConsumablesItem && hasPendingConsumables
-                                                                                                                                                      ? 'text-orange-400 hover:text-orange-300 hover:bg-orange-500/10'
-                                                                                                                                                      : isLabelsItem && hasLowLabels
-                                                                                                                                                        ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
-                                                                                                                                                        : isAddToInventoryItem && hasApprovedBatches
-                                                                                                                                                          ? 'text-green-400 hover:text-green-300 hover:bg-green-500/10'
-                                                                                                                                                          : isQueueItem
-                                                                          ? 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 ml-4 border-l-2 border-zinc-700'
-                                                                          : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
-                                                                  }
-                                                                `}
-                                                              >
-                                                                <div className="flex items-center gap-3">
-                                                                  <item.icon className={`w-5 h-5 ${showAlertStyle ? 'text-red-400' : isRepairItem && hasNewRepairs ? 'text-amber-400' : isConsumablesItem && hasPendingConsumables ? 'text-orange-400' : isLabelsItem && hasLowLabels ? 'text-amber-400' : isAddToInventoryItem && hasApprovedBatches ? 'text-green-400' : ''}`} />
-                                                                  {item.name}
-                                                                </div>
-                                                                {item.badge && pendingQcCount > 0 && (
-                                                                  <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
-                                                                )}
-                                                                {isRepairItem && hasNewRepairs && (
-                                                                                                                                        <span className="flex items-center gap-1 text-xs text-amber-400">
-                                                                                                                                          <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse"></span>
-                                                                                                                                          {newRepairCount}
-                                                                                                                                        </span>
-                                                                                                                                      )}
-                                                                                                                                      {isConsumablesItem && hasPendingConsumables && (
-                                                                                                                                          <span className="flex items-center gap-1 text-xs text-orange-400">
-                                                                                                                                            <span className="w-1.5 h-1.5 bg-orange-400 rounded-full animate-pulse"></span>
-                                                                                                                                            {pendingConsumablesCount}
-                                                                                                                                          </span>
-                                                                                                                                        )}
-                                                                                                                                        {isLabelsItem && hasLowLabels && (
-                                                                                                                                          <span className="flex items-center gap-1 text-xs text-amber-400">
-                                                                                                                                            <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse"></span>
-                                                                                                                                            {lowLabelCount}
-                                                                                                                                          </span>
-                                                                                                                                        )}
-                                                                                                                                        {isAddToInventoryItem && hasApprovedBatches && (
-                                                                                                                                          <span className="flex items-center gap-1 text-xs text-green-400">
-                                                                                                                                            <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></span>
-                                                                                                                                            {approvedBatchCount}
-                                                                                                                                          </span>
-                                                                                                                                        )}
-                                                                                                                                      {isQueueItem && queueHasItems && (
-                                                                  <div className="flex items-center gap-1">
-                                                                    {productionQueueCount.started > 0 && (
-                                                                      <span className="flex items-center gap-1 text-xs text-blue-400">
-                                                                        <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse"></span>
-                                                                        {productionQueueCount.started}
-                                                                      </span>
-                                                                    )}
-                                                                    {productionQueueCount.onHold > 0 && (
-                                                                      <span className="flex items-center gap-1 text-xs text-amber-400 ml-1">
-                                                                        <span className="w-1.5 h-1.5 bg-amber-400 rounded-full"></span>
-                                                                        {productionQueueCount.onHold}
-                                                                      </span>
-                                                                    )}
-                                                                  </div>
-                                                                )}
-                                                              </Link>
-                                                            );
-                                                          })}
-                        </div>
+          <nav className="flex-1 py-4 px-3 overflow-y-auto">
+            <div className="space-y-1">
+              {navItems.map((item) => {
+                const isActive = currentPageName === item.page;
+                const showAlertStyle = item.alertStyle && issueCount > 0;
+                const isRepairItem = item.isRepairLink;
+                const hasNewRepairs = newRepairCount > 0;
+                const isConsumablesItem = item.isConsumablesLink;
+                const hasPendingConsumables = pendingConsumablesCount > 0;
+                const isLabelsItem = item.isLabelsLink;
+                const hasLowLabels = lowLabelCount > 0;
+                const isAddToInventoryItem = item.isAddToInventoryLink;
+                const hasApprovedBatches = approvedBatchCount > 0;
+                const isQueueItem = item.isQueueLink;
+                const queueHasItems = productionQueueCount.total > 0;
+                return (
+                  <Link
+                    key={item.name}
+                    to={createPageUrl(item.page)}
+                    onClick={() => setSidebarOpen(false)}
+                    className={`
+                      flex items-center justify-between px-3 py-1.5 rounded-lg text-sm font-medium
+                      transition-colors duration-200
+                      ${isActive
+                        ? showAlertStyle
+                          ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+                          : 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
+                        : showAlertStyle
+                          ? 'text-red-400 hover:text-red-300 hover:bg-red-500/10'
+                          : isRepairItem && hasNewRepairs
+                            ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
+                            : isConsumablesItem && hasPendingConsumables
+                              ? 'text-orange-400 hover:text-orange-300 hover:bg-orange-500/10'
+                              : isLabelsItem && hasLowLabels
+                                ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
+                                : isAddToInventoryItem && hasApprovedBatches
+                                  ? 'text-green-400 hover:text-green-300 hover:bg-green-500/10'
+                                  : isQueueItem
+                                    ? 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 ml-4 border-l-2 border-zinc-700'
+                                    : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
+                      }
+                    `}
+                  >
+                    <div className="flex items-center gap-3">
+                      <item.icon className={`w-5 h-5 ${showAlertStyle ? 'text-red-400' : isRepairItem && hasNewRepairs ? 'text-amber-400' : isConsumablesItem && hasPendingConsumables ? 'text-orange-400' : isLabelsItem && hasLowLabels ? 'text-amber-400' : isAddToInventoryItem && hasApprovedBatches ? 'text-green-400' : ''}`} />
+                      {item.name}
+                    </div>
+                    {item.badge && pendingQcCount > 0 && (
+                      <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
+                    )}
+                    {isRepairItem && hasNewRepairs && (
+                      <span className="flex items-center gap-1 text-xs text-amber-400">
+                        <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse"></span>
+                        {newRepairCount}
+                      </span>
+                    )}
+                    {isConsumablesItem && hasPendingConsumables && (
+                      <span className="flex items-center gap-1 text-xs text-orange-400">
+                        <span className="w-1.5 h-1.5 bg-orange-400 rounded-full animate-pulse"></span>
+                        {pendingConsumablesCount}
+                      </span>
+                    )}
+                    {isLabelsItem && hasLowLabels && (
+                      <span className="flex items-center gap-1 text-xs text-amber-400">
+                        <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse"></span>
+                        {lowLabelCount}
+                      </span>
+                    )}
+                    {isAddToInventoryItem && hasApprovedBatches && (
+                      <span className="flex items-center gap-1 text-xs text-green-400">
+                        <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></span>
+                        {approvedBatchCount}
+                      </span>
+                    )}
+                    {isQueueItem && queueHasItems && (
+                      <div className="flex items-center gap-1">
+                        {productionQueueCount.started > 0 && (
+                          <span className="flex items-center gap-1 text-xs text-blue-400">
+                            <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse"></span>
+                            {productionQueueCount.started}
+                          </span>
                         )}
+                        {productionQueueCount.onHold > 0 && (
+                          <span className="flex items-center gap-1 text-xs text-amber-400 ml-1">
+                            <span className="w-1.5 h-1.5 bg-amber-400 rounded-full"></span>
+                            {productionQueueCount.onHold}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
 
-                        {/* Settings Section */}
+            {/* Settings Section */}
                                       <div className="mt-6 pt-4 border-t border-zinc-800">
                                         <button
                                           onClick={() => setSettingsOpen(!settingsOpen)}
