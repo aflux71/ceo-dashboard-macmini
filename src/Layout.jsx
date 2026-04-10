@@ -78,6 +78,7 @@ const settingsItems = [
 export default function Layout({ children, currentPageName }) {
     const [sidebarOpen, setSidebarOpen] = useState(false);
       const [settingsOpen, setSettingsOpen] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
       const [user, setUser] = useState(null);
       const [isFullScreen, setIsFullScreen] = useState(currentPageName === "Kiosk");
       const [issueCount, setIssueCount] = useState(0);
@@ -312,7 +313,17 @@ export default function Layout({ children, currentPageName }) {
 
           {/* Navigation */}
           <nav className="flex-1 py-4 px-3 overflow-y-auto">
-            <div className="space-y-1">
+            <button
+              onClick={() => setNavOpen(!navOpen)}
+              className="w-full px-3 py-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider flex items-center justify-between hover:text-zinc-400 transition-colors mb-1"
+            >
+              <div className="flex items-center gap-2">
+                <Menu className="w-4 h-4" />
+                Navigation
+              </div>
+              <ChevronDown className={`w-4 h-4 transition-transform ${navOpen ? 'rotate-0' : '-rotate-90'}`} />
+            </button>
+            {navOpen && <div className="space-y-1">
               {navItems.map((item) => {
                 const isActive = currentPageName === item.page;
                 const showAlertStyle = item.alertStyle && issueCount > 0;
@@ -404,7 +415,7 @@ export default function Layout({ children, currentPageName }) {
                   </Link>
                 );
               })}
-            </div>
+            </div>}
 
             {/* Settings Section */}
                                       <div className="mt-6 pt-4 border-t border-zinc-800">
