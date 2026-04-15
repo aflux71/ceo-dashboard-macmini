@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
-import { ArrowRight, Loader2, CheckCircle2, Eye, EyeOff, Timer, Trash2, Printer } from "lucide-react";
+import { ArrowRight, Loader2, CheckCircle2, Eye, EyeOff, Timer, Trash2, Printer, FileText, ClipboardList } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import Badge from "@/components/ui/Badge";
 import RecipeBatchSheet from "@/components/recipes/RecipeBatchSheet";
+import BatchTraveller from "@/components/recipes/BatchTraveller";
 
 const STAGE_CONFIG = {
   batching:  { label: "Batching",  bg: "bg-blue-500/20",  border: "border-blue-500/30",  text: "text-blue-400",  dot: "bg-blue-500",  fill: "bg-blue-500" },
@@ -66,6 +67,7 @@ export default function WipInHouseTab() {
   const [printBatch, setPrintBatch] = useState(null);
   const [printRecipe, setPrintRecipe] = useState(null);
   const [printLoading, setPrintLoading] = useState(false);
+  const [printType, setPrintType] = useState("traveller"); // "traveller" | "batch_sheet"
   const printRef = useRef(null);
 
   const { data: batches = [], isLoading } = useQuery({ queryKey: ["planning_wip_inhouse_batches"], queryFn: () => base44.entities.Batch.list("-created_date", 500) });
@@ -248,35 +250,53 @@ export default function WipInHouseTab() {
         </DialogContent>
       </Dialog>
 
-      {/* Print Batch Sheet Dialog */}
+      {/* Print Dialog */}
       <Dialog open={!!printBatch} onOpenChange={(open) => { if (!open) { setPrintBatch(null); setPrintRecipe(null); } }}>
         <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Printer className="w-4 h-4" />
-              Batch Sheet — {printBatch?.batch_id}
+              Print — {printBatch?.batch_id}
             </DialogTitle>
           </DialogHeader>
+
+          {/* Type toggle */}
+          <div className="flex gap-2 border-b border-zinc-800 pb-3">
+            <button
+              onClick={() => setPrintType("traveller")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${printType === "traveller" ? "bg-orange-500/20 text-orange-400 border border-orange-500/30" : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800"}`}
+            >
+              <FileText className="w-4 h-4" /> Traveller Card
+            </button>
+            <button
+              onClick={() => setPrintType("batch_sheet")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${printType === "batch_sheet" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800"}`}
+            >
+              <ClipboardList className="w-4 h-4" /> Full Batch Sheet
+            </button>
+          </div>
+
           <div className="py-2">
             {printLoading ? (
               <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-zinc-400" /></div>
+            ) : printType === "traveller" ? (
+              <div ref={printRef}>
+                <BatchTraveller batch={printBatch} recipe={printRecipe} />
+              </div>
             ) : !printRecipe ? (
               <div className="text-center py-8 text-zinc-400">
                 <p className="text-sm">No recipe found for SKU <span className="font-mono text-zinc-300">{printBatch?.sku}</span>.</p>
-                <p className="text-xs text-zinc-500 mt-1">A recipe must exist to print a batch sheet.</p>
+                <p className="text-xs text-zinc-500 mt-1">A recipe must exist to print a full batch sheet.</p>
               </div>
             ) : (
               <div ref={printRef}>
-                <RecipeBatchSheet recipes={[{
-                  ...printRecipe,
-                  _batchInfo: printBatch,
-                }]} showVerifyCheckboxes={true} />
+                <RecipeBatchSheet recipes={[{ ...printRecipe, _batchInfo: printBatch }]} showVerifyCheckboxes={true} />
               </div>
             )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setPrintBatch(null); setPrintRecipe(null); }} className="border-zinc-700">Close</Button>
-            {printRecipe && (
+            {(printType === "traveller" || printRecipe) && (
               <Button onClick={doPrint} className="bg-blue-600 hover:bg-blue-700 text-white">
                 <Printer className="w-4 h-4 mr-2" /> Print
               </Button>
