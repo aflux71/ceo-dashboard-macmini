@@ -39,13 +39,8 @@ export default function BatchTraveller({ batch, recipe }) {
   return (
     <div style={s.page}>
       <style>{`
-        @media print {
-          @page { margin: 0.45in 0.5in; size: letter; }
-          body * { visibility: hidden; }
-          .print-traveller, .print-traveller * { visibility: visible; }
-          .print-traveller { position: absolute; left: 0; top: 0; width: 100%; background: white !important; color: black !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          .no-print { display: none !important; }
-        }
+        body { margin: 0; padding: 0; }
+        * { box-sizing: border-box; }
       `}</style>
 
       <div className="print-traveller" style={s.page}>

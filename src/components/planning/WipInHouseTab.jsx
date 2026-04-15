@@ -151,7 +151,17 @@ export default function WipInHouseTab() {
   };
 
   const doPrint = () => {
-    window.print();
+    const printContent = printRef.current;
+    if (!printContent) return;
+    const win = window.open("", "_blank", "width=900,height=700");
+    win.document.write(`<!DOCTYPE html><html><head><title>Print</title><style>
+      @page { margin: 0.5in; size: letter; }
+      body { margin: 0; padding: 0; font-family: Arial, sans-serif; font-size: 12px; color: #111; background: white; }
+      * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    </style></head><body>${printContent.innerHTML}</body></html>`);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); win.close(); }, 400);
   };
 
   return (
