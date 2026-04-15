@@ -51,6 +51,7 @@ export default function BatchQueueTab() {
   });
   const { data: recipes = [] } = useQuery({ queryKey: ["planning_recipes"], queryFn: () => base44.entities.Recipe.list() });
   const { data: batches = [] } = useQuery({ queryKey: ["planning_batches"], queryFn: () => base44.entities.Batch.list("-created_date", 500) });
+  const { data: skuAliases = [] } = useQuery({ queryKey: ["planning_sku_aliases"], queryFn: () => base44.entities.SKUAlias.filter({ status: "approved" }) });
 
   const scheduleForecastMutation = useMutation({
     mutationFn: async ({ item, batchData }) => { const batch = await base44.entities.Batch.create(batchData); await base44.entities.ForecastSuggestion.update(item.id, { status: "in_production", scheduled_batch_id: batch.id }); return batch; },
@@ -73,7 +74,16 @@ export default function BatchQueueTab() {
     onError: (err) => toast.error(`Failed to delete: ${err?.message || String(err)}`),
   });
 
-  const findRecipe = useCallback((sku) => sku ? recipes.find((r) => r.sku?.toLowerCase() === sku.toLowerCase() && r.active !== false) : null, [recipes]);
+  const findRecipe = useCallback((sku) => {
+    if (!sku) return null;
+    // Direct match first
+    const direct = recipes.find((r) => r.sku?.toLowerCase() === sku.toLowerCase() && r.active !== false);
+    if (direct) return direct;
+    // Fall back to primary SKU via alias
+    const alias = skuAliases.find((a) => a.alias_sku?.toLowerCase() === sku.toLowerCase());
+    if (alias?.primary_sku) return recipes.find((r) => r.sku?.toLowerCase() === alias.primary_sku.toLowerCase() && r.active !== false) || null;
+    return null;
+  }, [recipes, skuAliases]);
   const generateBatchId = useCallback((sku) => { const prefix = sku?.substring(0, 3)?.toUpperCase() || "BAT"; const date = new Date().toISOString().slice(2, 10).replace(/-/g, ""); return `${prefix}-${date}-${batches.filter((b) => b.batch_id?.startsWith(`${prefix}-${date}`)).length + 1}`; }, [batches]);
 
   const allItems = useMemo(() => {
