@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Check, X, Loader2, Link2, CheckCircle2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Check, X, Loader2, Link2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 
@@ -24,35 +26,42 @@ function formatDt(dt) {
 
 export default function AliasTable({ records, onApprove, onReject, isUpdating, skuNames = {}, recipes = [], onRecipeLinked }) {
   const [linkingId, setLinkingId] = useState(null);
+  const [linkDialog, setLinkDialog] = useState(null); // { record }
+  const [recipeSearch, setRecipeSearch] = useState("");
+  const [selectedRecipe, setSelectedRecipe] = useState(null);
 
-  const handleLinkRecipe = async (record) => {
-    setLinkingId(record.id);
+  const activeRecipes = recipes.filter(r => r.active !== false);
+
+  const filteredRecipes = activeRecipes.filter(r =>
+    !recipeSearch ||
+    r.name?.toLowerCase().includes(recipeSearch.toLowerCase()) ||
+    r.sku?.toLowerCase().includes(recipeSearch.toLowerCase())
+  );
+
+  const openLinkDialog = (record) => {
+    setLinkDialog(record);
+    setRecipeSearch("");
+    setSelectedRecipe(null);
+  };
+
+  const handleLinkRecipe = async () => {
+    if (!linkDialog || !selectedRecipe) return;
+    setLinkingId(linkDialog.id);
     try {
-      // Find recipe(s) using the alias SKU
-      const aliasRecipes = recipes.filter(r => r.sku === record.alias_sku && r.active !== false);
-      // Find recipe(s) already using the primary SKU
-      const primaryRecipes = recipes.filter(r => r.sku === record.primary_sku && r.active !== false);
+      const primaryRecipes = activeRecipes.filter(r => r.sku === linkDialog.primary_sku);
 
-      if (aliasRecipes.length === 0) {
-        toast.error(`No active recipe found for alias SKU ${record.alias_sku}`);
-        return;
-      }
-
-      // Update the alias recipe's SKU to the primary SKU (link them)
-      // If primary already has a recipe, we just add the alias SKU as a note
-      for (const r of aliasRecipes) {
-        if (primaryRecipes.length === 0) {
-          // No primary recipe — remap the alias recipe to the primary SKU
-          await base44.entities.Recipe.update(r.id, { sku: record.primary_sku });
-          toast.success(`Recipe "${r.name}" remapped from ${record.alias_sku} → ${record.primary_sku}`);
-        } else {
-          // Primary already has a recipe — mark alias recipe inactive
-          await base44.entities.Recipe.update(r.id, { active: false });
-          toast.success(`Alias recipe linked: "${r.name}" deactivated in favour of primary SKU recipe`);
-        }
+      if (primaryRecipes.length === 0) {
+        // Remap the chosen recipe's SKU to the primary SKU
+        await base44.entities.Recipe.update(selectedRecipe.id, { sku: linkDialog.primary_sku });
+        toast.success(`Recipe "${selectedRecipe.name}" remapped to primary SKU ${linkDialog.primary_sku}`);
+      } else {
+        // Primary already has a recipe — deactivate the alias recipe
+        await base44.entities.Recipe.update(selectedRecipe.id, { active: false });
+        toast.success(`"${selectedRecipe.name}" linked and deactivated in favour of primary SKU recipe`);
       }
 
       if (onRecipeLinked) onRecipeLinked();
+      setLinkDialog(null);
     } catch (err) {
       toast.error(`Link failed: ${err?.message || String(err)}`);
     } finally {
@@ -63,9 +72,6 @@ export default function AliasTable({ records, onApprove, onReject, isUpdating, s
   if (records.length === 0) {
     return <div className="text-center py-12 text-zinc-500 text-sm">No alias records found.</div>;
   }
-
-  // Build a quick lookup: which alias SKUs have an active recipe?
-  const aliasSkusWithRecipe = new Set(recipes.filter(r => r.active !== false).map(r => r.sku));
 
   return (
     <div className="rounded-lg border border-zinc-800 overflow-hidden">
@@ -114,23 +120,18 @@ export default function AliasTable({ records, onApprove, onReject, isUpdating, s
                       </Button>
                     </>
                   )}
-                  {r.status === "approved" && aliasSkusWithRecipe.has(r.alias_sku) && (
+                  {r.status === "approved" && (
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => handleLinkRecipe(r)}
+                      onClick={() => openLinkDialog(r)}
                       disabled={linkingId === r.id}
                       className="border-blue-500/30 text-blue-400 hover:bg-blue-500/10 h-7 text-xs"
-                      title="Link alias recipe to primary SKU"
+                      title="Manually link a recipe to the primary SKU"
                     >
                       {linkingId === r.id ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Link2 className="w-3 h-3 mr-1" />}
                       Link Recipe
                     </Button>
-                  )}
-                  {r.status === "approved" && !aliasSkusWithRecipe.has(r.alias_sku) && (
-                    <span className="flex items-center gap-1 text-xs text-green-500/60">
-                      <CheckCircle2 className="w-3 h-3" /> Linked
-                    </span>
                   )}
                 </div>
               </TableCell>
@@ -139,5 +140,65 @@ export default function AliasTable({ records, onApprove, onReject, isUpdating, s
         </TableBody>
       </Table>
     </div>
+
+    {/* Link Recipe Dialog */}
+    <Dialog open={!!linkDialog} onOpenChange={(open) => { if (!open) setLinkDialog(null); }}>
+      <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Link2 className="w-4 h-4 text-blue-400" />
+            Link Recipe to Primary SKU
+          </DialogTitle>
+        </DialogHeader>
+        {linkDialog && (
+          <div className="space-y-4 py-1">
+            <div className="p-3 bg-zinc-800 rounded-lg text-sm space-y-1">
+              <p><span className="text-zinc-500">Primary SKU:</span> <span className="font-mono text-orange-400">{linkDialog.primary_sku}</span></p>
+              <p><span className="text-zinc-500">Alias SKU:</span> <span className="font-mono text-zinc-300">{linkDialog.alias_sku}</span></p>
+              <p className="text-xs text-zinc-500 mt-1">Select the recipe associated with the alias SKU. It will be remapped to the primary SKU.</p>
+            </div>
+
+            <Input
+              placeholder="Search by recipe name or SKU..."
+              value={recipeSearch}
+              onChange={(e) => setRecipeSearch(e.target.value)}
+              className="bg-zinc-800 border-zinc-700 text-zinc-100 h-9 text-sm"
+              autoFocus
+            />
+
+            <div className="max-h-64 overflow-y-auto space-y-1">
+              {filteredRecipes.length === 0 && (
+                <p className="text-xs text-zinc-500 text-center py-4">No recipes found</p>
+              )}
+              {filteredRecipes.map(r => (
+                <button
+                  key={r.id}
+                  onClick={() => setSelectedRecipe(r)}
+                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                    selectedRecipe?.id === r.id
+                      ? "bg-blue-500/20 border border-blue-500/40 text-blue-300"
+                      : "hover:bg-zinc-800 text-zinc-300"
+                  }`}
+                >
+                  <span className="font-mono text-xs text-orange-400 mr-2">{r.sku}</span>
+                  {r.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setLinkDialog(null)} className="border-zinc-700">Cancel</Button>
+          <Button
+            onClick={handleLinkRecipe}
+            disabled={!selectedRecipe || linkingId === linkDialog?.id}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            {linkingId ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Link2 className="w-4 h-4 mr-2" />}
+            Link Recipe
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
