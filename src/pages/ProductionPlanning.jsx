@@ -7,7 +7,7 @@ import {
   FileText, Plus, Minus, Search, ArrowRight, ArrowLeft, Package, Loader2,
   Check, X, ShoppingCart, AlertTriangle, CheckCircle2, ChevronDown, ChevronLeft,
   ChevronRight, Calculator, Clock, BarChart3, Calendar, Eye, EyeOff, Timer,
-  Send, Building2, MapPin, RotateCcw, ExternalLink, Pencil, Trash2, Copy, Beaker
+  Send, Building2, MapPin, RotateCcw, ExternalLink, Pencil, Trash2, Copy, Beaker, Link2
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -526,6 +526,10 @@ function MaterialCheckTab() {
   const [mcEditingId, setMcEditingId] = useState(null);
   const [mcEditForm, setMcEditForm] = useState(emptyForm);
   const [mcDeleteConfirmId, setMcDeleteConfirmId] = useState(null);
+  const [linkRecipeDialog, setLinkRecipeDialog] = useState(null); // { sku, product_name }
+  const [linkRecipeSearch, setLinkRecipeSearch] = useState("");
+  const [linkSelectedRecipe, setLinkSelectedRecipe] = useState(null);
+  const [linkingRecipe, setLinkingRecipe] = useState(false);
 
   // Items in material_check status from both sources
   const { data: mcForecasts = [], isLoading: loadingMcF } = useQuery({
@@ -786,6 +790,29 @@ function MaterialCheckTab() {
     });
   };
 
+  const filteredLinkRecipes = useMemo(() => {
+    if (!linkRecipeSearch.trim()) return recipes;
+    const q = linkRecipeSearch.toLowerCase();
+    return recipes.filter(r => r.sku?.toLowerCase().includes(q) || r.name?.toLowerCase().includes(q));
+  }, [recipes, linkRecipeSearch]);
+
+  const handleLinkRecipe = async () => {
+    if (!linkSelectedRecipe || !linkRecipeDialog) return;
+    setLinkingRecipe(true);
+    try {
+      // Update the recipe SKU to match the item's SKU (remap recipe to this SKU)
+      await base44.entities.Recipe.update(linkSelectedRecipe.id, { sku: linkRecipeDialog.sku });
+      toast.success(`Recipe "${linkSelectedRecipe.name}" linked to SKU ${linkRecipeDialog.sku}`);
+      queryClient.invalidateQueries({ queryKey: ["planning_recipes"] });
+      setLinkRecipeDialog(null);
+      setLinkRecipeSearch("");
+      setLinkSelectedRecipe(null);
+    } catch (err) {
+      toast.error(`Failed to link recipe: ${err?.message || String(err)}`);
+    }
+    setLinkingRecipe(false);
+  };
+
   return (
     <div className="space-y-4">
       {isLoading ? (
@@ -899,15 +926,24 @@ function MaterialCheckTab() {
                     <div className="flex items-start justify-between gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm">
                       <div className="flex items-center gap-2">
                         <AlertTriangle className="w-4 h-4 shrink-0" />
-                        No recipe found for SKU "{item.sku}". Create a recipe first or approve manually.
+                        No recipe found for SKU "{item.sku}". Link an existing recipe or create one first.
                       </div>
-                      <a
-                        href={`/Recipes`}
-                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-medium shrink-0 transition-colors"
-                      >
-                        <Beaker className="w-3.5 h-3.5" />
-                        Create Recipe
-                      </a>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          onClick={() => { setLinkRecipeDialog({ sku: item.sku, product_name: item.product_name }); setLinkRecipeSearch(""); setLinkSelectedRecipe(null); }}
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-medium transition-colors"
+                        >
+                          <Link2 className="w-3.5 h-3.5" />
+                          Link Recipe
+                        </button>
+                        <a
+                          href="/Recipes"
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-medium transition-colors"
+                        >
+                          <Beaker className="w-3.5 h-3.5" />
+                          Create
+                        </a>
+                      </div>
                     </div>
                   )}
 
@@ -1135,6 +1171,64 @@ function MaterialCheckTab() {
             <Button onClick={() => mcDeleteMutation.mutate(mcDeleteConfirmId)} disabled={mcDeleteMutation.isPending} className="bg-red-600 hover:bg-red-700 text-white">
               {mcDeleteMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
               Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Link Recipe Dialog */}
+      <Dialog open={!!linkRecipeDialog} onOpenChange={(open) => { if (!open) { setLinkRecipeDialog(null); setLinkRecipeSearch(""); setLinkSelectedRecipe(null); } }}>
+        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Link2 className="w-4 h-4 text-blue-400" />
+              Link Recipe to SKU
+            </DialogTitle>
+          </DialogHeader>
+          {linkRecipeDialog && (
+            <div className="space-y-4 py-1">
+              <div className="p-3 bg-zinc-800 rounded-lg text-sm space-y-1">
+                <p><span className="text-zinc-500">SKU:</span> <span className="font-mono text-orange-400">{linkRecipeDialog.sku}</span></p>
+                <p><span className="text-zinc-500">Product:</span> <span className="text-zinc-300">{linkRecipeDialog.product_name}</span></p>
+                <p className="text-xs text-zinc-500 mt-1">Select a recipe to link to this SKU. The recipe's SKU will be updated to match.</p>
+              </div>
+              <Input
+                placeholder="Search by recipe name or SKU..."
+                value={linkRecipeSearch}
+                onChange={(e) => setLinkRecipeSearch(e.target.value)}
+                className="bg-zinc-800 border-zinc-700 text-zinc-100 h-9 text-sm"
+                autoFocus
+              />
+              <div className="max-h-64 overflow-y-auto space-y-1">
+                {filteredLinkRecipes.length === 0 && (
+                  <p className="text-xs text-zinc-500 text-center py-4">No recipes found</p>
+                )}
+                {filteredLinkRecipes.map(r => (
+                  <button
+                    key={r.id}
+                    onClick={() => setLinkSelectedRecipe(r)}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                      linkSelectedRecipe?.id === r.id
+                        ? "bg-blue-500/20 border border-blue-500/40 text-blue-300"
+                        : "hover:bg-zinc-800 text-zinc-300"
+                    }`}
+                  >
+                    <span className="font-mono text-xs text-orange-400 mr-2">{r.sku}</span>
+                    {r.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setLinkRecipeDialog(null); setLinkRecipeSearch(""); setLinkSelectedRecipe(null); }} className="border-zinc-700">Cancel</Button>
+            <Button
+              onClick={handleLinkRecipe}
+              disabled={!linkSelectedRecipe || linkingRecipe}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {linkingRecipe ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Link2 className="w-4 h-4 mr-2" />}
+              Link Recipe
             </Button>
           </DialogFooter>
         </DialogContent>
