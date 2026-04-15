@@ -7,7 +7,7 @@ import {
   FileText, Plus, Minus, Search, ArrowRight, ArrowLeft, Package, Loader2,
   Check, X, ShoppingCart, AlertTriangle, CheckCircle2, ChevronDown, ChevronLeft,
   ChevronRight, Calculator, Clock, BarChart3, Calendar, Eye, EyeOff, Timer,
-  Send, Building2, MapPin, RotateCcw, ExternalLink, Pencil, Trash2, Copy, Beaker, Link2, CheckCircle2
+  Send, Building2, MapPin, RotateCcw, ExternalLink, Pencil, Trash2, Copy, Beaker, Link2
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
