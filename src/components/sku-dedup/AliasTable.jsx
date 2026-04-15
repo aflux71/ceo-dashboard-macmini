@@ -74,6 +74,7 @@ export default function AliasTable({ records, onApprove, onReject, isUpdating, s
   }
 
   return (
+    <>
     <div className="rounded-lg border border-zinc-800 overflow-hidden">
       <Table>
         <TableHeader>
@@ -141,7 +142,6 @@ export default function AliasTable({ records, onApprove, onReject, isUpdating, s
       </Table>
     </div>
 
-    {/* Link Recipe Dialog */}
     <Dialog open={!!linkDialog} onOpenChange={(open) => { if (!open) setLinkDialog(null); }}>
       <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 max-w-md">
         <DialogHeader>
@@ -200,5 +200,6 @@ export default function AliasTable({ records, onApprove, onReject, isUpdating, s
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    </>
   );
 }
