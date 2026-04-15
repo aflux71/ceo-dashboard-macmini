@@ -7,7 +7,7 @@ import {
   FileText, Plus, Minus, Search, ArrowRight, ArrowLeft, Package, Loader2,
   Check, X, ShoppingCart, AlertTriangle, CheckCircle2, ChevronDown, ChevronLeft,
   ChevronRight, Calculator, Clock, BarChart3, Calendar, Eye, EyeOff, Timer,
-  Send, Building2, MapPin, RotateCcw, ExternalLink, Pencil, Trash2, Copy
+  Send, Building2, MapPin, RotateCcw, ExternalLink, Pencil, Trash2, Copy, Beaker
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -896,9 +896,18 @@ function MaterialCheckTab() {
 
                   {/* No recipe warning */}
                   {!hasRecipe && !materialResult && (
-                    <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm">
-                      <AlertTriangle className="w-4 h-4 shrink-0" />
-                      No recipe found for SKU "{item.sku}". Create a recipe first or approve manually.
+                    <div className="flex items-start justify-between gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 shrink-0" />
+                        No recipe found for SKU "{item.sku}". Create a recipe first or approve manually.
+                      </div>
+                      <a
+                        href={`/Recipes`}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-medium shrink-0 transition-colors"
+                      >
+                        <Beaker className="w-3.5 h-3.5" />
+                        Create Recipe
+                      </a>
                     </div>
                   )}
 
