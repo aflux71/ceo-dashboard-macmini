@@ -7,6 +7,17 @@ export default function RecipeBatchSheet({ recipes, showVerifyCheckboxes = true 
     day: "numeric"
   });
 
+  function formatDateShort(dateStr) {
+    if (!dateStr) return "";
+    return new Date(dateStr.includes("T") ? dateStr : dateStr + "T00:00:00").toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+  }
+
+  function lineLabel(line) {
+    if (line === 1) return "Line 1"; if (line === 2) return "Line 2";
+    if (line === 3) return "Melter 1"; if (line === 4) return "Melter 2";
+    return line ? `Line ${line}` : "";
+  }
+
   return (
     <div className="print-batch-sheet bg-white text-black p-8">
       <style>{`
@@ -127,7 +138,9 @@ export default function RecipeBatchSheet({ recipes, showVerifyCheckboxes = true 
         }
       `}</style>
 
-      {recipes.map((recipe, recipeIdx) => (
+      {recipes.map((recipe, recipeIdx) => {
+        const bi = recipe._batchInfo;
+        return (
         <div key={recipe.id} className={`recipe-page ${recipeIdx < recipes.length - 1 ? 'page-break' : ''}`}>
           {/* Header */}
           <div className="batch-header">
@@ -148,27 +161,27 @@ export default function RecipeBatchSheet({ recipes, showVerifyCheckboxes = true 
             <div className="grid grid-cols-3 gap-4 p-4 border border-gray-300 rounded">
               <div>
                 <p className="text-xs text-gray-500 uppercase">Batch ID</p>
-                <p className="font-bold border-b border-gray-400 pb-1 min-h-6"></p>
+                <p className="font-bold border-b border-gray-400 pb-1 min-h-6">{bi?.batch_id || ""}</p>
               </div>
               <div>
                 <p className="text-xs text-gray-500 uppercase">Production Date</p>
-                <p className="font-bold border-b border-gray-400 pb-1 min-h-6"></p>
+                <p className="font-bold border-b border-gray-400 pb-1 min-h-6">{bi?.production_date ? formatDateShort(bi.production_date) : ""}</p>
               </div>
               <div>
                 <p className="text-xs text-gray-500 uppercase">Operator</p>
-                <p className="font-bold border-b border-gray-400 pb-1 min-h-6"></p>
+                <p className="font-bold border-b border-gray-400 pb-1 min-h-6">{bi?.operator || ""}</p>
               </div>
               <div>
                 <p className="text-xs text-gray-500 uppercase">Batch Size</p>
-                <p className="font-bold">{recipe.batch_size} units</p>
+                <p className="font-bold">{bi?.quantity?.toLocaleString() || recipe.batch_size} units</p>
               </div>
               <div>
                 <p className="text-xs text-gray-500 uppercase">Production Line</p>
-                <p className="font-bold">Line {recipe.production_line || 1}</p>
+                <p className="font-bold">{bi ? lineLabel(bi.production_line) : `Line ${recipe.production_line || 1}`}</p>
               </div>
               <div>
                 <p className="text-xs text-gray-500 uppercase">Expiry Date</p>
-                <p className="font-bold border-b border-gray-400 pb-1 min-h-6"></p>
+                <p className="font-bold border-b border-gray-400 pb-1 min-h-6">{bi?.expiry_date ? formatDateShort(bi.expiry_date) : ""}</p>
               </div>
             </div>
           </div>
@@ -406,7 +419,8 @@ export default function RecipeBatchSheet({ recipes, showVerifyCheckboxes = true 
             </div>
           )}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

@@ -1,14 +1,15 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
-import { ArrowRight, Loader2, CheckCircle2, Eye, EyeOff, Timer, Trash2 } from "lucide-react";
+import { ArrowRight, Loader2, CheckCircle2, Eye, EyeOff, Timer, Trash2, Printer } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import Badge from "@/components/ui/Badge";
+import RecipeBatchSheet from "@/components/recipes/RecipeBatchSheet";
 
 const STAGE_CONFIG = {
   batching:  { label: "Batching",  bg: "bg-blue-500/20",  border: "border-blue-500/30",  text: "text-blue-400",  dot: "bg-blue-500",  fill: "bg-blue-500" },
@@ -62,6 +63,10 @@ export default function WipInHouseTab() {
   const [yieldDialog, setYieldDialog] = useState(null);
   const [yieldUnits, setYieldUnits] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [printBatch, setPrintBatch] = useState(null);
+  const [printRecipe, setPrintRecipe] = useState(null);
+  const [printLoading, setPrintLoading] = useState(false);
+  const printRef = useRef(null);
 
   const { data: batches = [], isLoading } = useQuery({ queryKey: ["planning_wip_inhouse_batches"], queryFn: () => base44.entities.Batch.list("-created_date", 500) });
 
@@ -130,6 +135,23 @@ export default function WipInHouseTab() {
 
   const nextAction = (stage) => { if (stage === "batching") return "Move to QC Hold"; if (stage === "qc_hold") return "Move to Filling"; if (stage === "filling") return "Mark Complete"; return null; };
 
+  const handlePrintBatchSheet = async (batch) => {
+    setPrintLoading(true);
+    setPrintBatch(batch);
+    setPrintRecipe(null);
+    try {
+      const recipes = await base44.entities.Recipe.filter({ sku: batch.sku });
+      setPrintRecipe(recipes[0] || null);
+    } catch {
+      setPrintRecipe(null);
+    }
+    setPrintLoading(false);
+  };
+
+  const doPrint = () => {
+    window.print();
+  };
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -188,6 +210,7 @@ export default function WipInHouseTab() {
                             {b.stage !== "complete" && (
                               <div className="flex items-center gap-1.5 mt-1">
                                 {action && <Button size="sm" variant="outline" onClick={() => handleAdvance(b)} disabled={advanceMutation.isPending} className={`flex-1 text-xs ${b.stage === "batching" ? "border-amber-500/30 text-amber-400 hover:bg-amber-500/10" : b.stage === "qc_hold" ? "border-green-500/30 text-green-400 hover:bg-green-500/10" : "border-zinc-600 text-zinc-300 hover:bg-zinc-800"}`}>{advanceMutation.isPending ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> : <ArrowRight className="w-3 h-3 mr-1.5" />}{action}</Button>}
+                                <Button size="sm" variant="ghost" onClick={() => handlePrintBatchSheet(b)} className="h-8 w-8 p-0 text-zinc-500 hover:text-blue-400 hover:bg-blue-500/10 shrink-0" title="Print batch sheet"><Printer className="w-3.5 h-3.5" /></Button>
                                 <Button size="sm" variant="ghost" onClick={() => setDeleteConfirm(b)} className="h-8 w-8 p-0 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 shrink-0" title="Delete batch"><Trash2 className="w-3.5 h-3.5" /></Button>
                               </div>
                             )}
@@ -222,6 +245,43 @@ export default function WipInHouseTab() {
               </DialogFooter>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Print Batch Sheet Dialog */}
+      <Dialog open={!!printBatch} onOpenChange={(open) => { if (!open) { setPrintBatch(null); setPrintRecipe(null); } }}>
+        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Printer className="w-4 h-4" />
+              Batch Sheet — {printBatch?.batch_id}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            {printLoading ? (
+              <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-zinc-400" /></div>
+            ) : !printRecipe ? (
+              <div className="text-center py-8 text-zinc-400">
+                <p className="text-sm">No recipe found for SKU <span className="font-mono text-zinc-300">{printBatch?.sku}</span>.</p>
+                <p className="text-xs text-zinc-500 mt-1">A recipe must exist to print a batch sheet.</p>
+              </div>
+            ) : (
+              <div ref={printRef}>
+                <RecipeBatchSheet recipes={[{
+                  ...printRecipe,
+                  _batchInfo: printBatch,
+                }]} showVerifyCheckboxes={true} />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setPrintBatch(null); setPrintRecipe(null); }} className="border-zinc-700">Close</Button>
+            {printRecipe && (
+              <Button onClick={doPrint} className="bg-blue-600 hover:bg-blue-700 text-white">
+                <Printer className="w-4 h-4 mr-2" /> Print
+              </Button>
+            )}
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
