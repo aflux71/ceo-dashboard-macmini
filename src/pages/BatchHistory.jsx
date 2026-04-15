@@ -1,18 +1,19 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import {
   Search,
-  Filter,
-  Eye,
   Check,
   X,
-  Download,
   FileText,
   CheckCircle,
   Clock,
-  AlertCircle
+  AlertCircle,
+  ClipboardEdit,
+  Loader2,
+  MinusCircle
 } from "lucide-react";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +30,12 @@ export default function BatchHistory() {
   const [showDocModal, setShowDocModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [showAuditModal, setShowAuditModal] = useState(false);
+  const [auditBatch, setAuditBatch] = useState(null);
+  const [auditForm, setAuditForm] = useState({ notes: "", quantity_adjustment: "", adjustment_reason: "", new_status: "" });
+  const [auditUser, setAuditUser] = useState(null);
+
+  React.useEffect(() => { base44.auth.me().then(setAuditUser).catch(() => {}); }, []);
 
   const queryClient = useQueryClient();
 
@@ -90,6 +97,60 @@ export default function BatchHistory() {
   const openRejectModal = (batch) => {
     setSelectedBatch(batch);
     setShowRejectModal(true);
+  };
+
+  const auditMutation = useMutation({
+    mutationFn: async ({ batch, form }) => {
+      const user = await base44.auth.me();
+      const auditNote = `[AUDIT ${new Date().toLocaleString("en-CA")} by ${user.full_name || user.email}]`;
+      const updates = {};
+
+      if (form.new_status && form.new_status !== batch.status) updates.status = form.new_status;
+      if (form.notes.trim()) updates.notes = [batch.notes, `${auditNote} ${form.notes.trim()}`].filter(Boolean).join("\n");
+
+      if (form.quantity_adjustment && form.adjustment_reason) {
+        const adj = Number(form.quantity_adjustment);
+        const newQty = (batch.actual_yield_units ?? batch.quantity ?? 0) + adj;
+        updates.actual_yield_units = newQty;
+        updates.deviation_notes = [batch.deviation_notes, `${auditNote} Qty adjusted by ${adj > 0 ? "+" : ""}${adj}: ${form.adjustment_reason}`].filter(Boolean).join("\n");
+        updates.qty_override_by = user.full_name || user.email;
+        updates.qty_override_at = new Date().toISOString();
+
+        // Create inventory deduction if negative adjustment
+        if (adj < 0) {
+          await base44.entities.Inventory.filter({ sku: batch.sku }).then(async (items) => {
+            if (items.length > 0) {
+              const inv = items[0];
+              await base44.entities.Inventory.update(inv.id, { quantity: Math.max(0, (inv.quantity || 0) + adj) });
+            }
+          }).catch(() => {});
+        }
+      }
+
+      if (Object.keys(updates).length > 0) await base44.entities.Batch.update(batch.id, updates);
+
+      // Log to AuditLog
+      await base44.entities.AuditLog.create({
+        action: "batch_audit",
+        category: "production",
+        description: `Batch ${batch.batch_id} audited by ${user.full_name || user.email}. ${form.notes || ""}`.trim(),
+        entity_type: "Batch",
+        entity_id: batch.id,
+        performed_by_name: user.full_name || user.email,
+        performed_by_role: user.role,
+      }).catch(() => {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["batches"] });
+      setShowAuditModal(false);
+      setAuditForm({ notes: "", quantity_adjustment: "", adjustment_reason: "", new_status: "" });
+    },
+  });
+
+  const openAuditModal = (batch) => {
+    setAuditBatch(batch);
+    setAuditForm({ notes: "", quantity_adjustment: "", adjustment_reason: "", new_status: batch.status });
+    setShowAuditModal(true);
   };
 
   const openDocModal = (batch) => {
@@ -199,6 +260,17 @@ export default function BatchHistory() {
                           >
                             <FileText className="w-4 h-4" />
                           </Button>
+                          {["admin", "qc", "owner", "production_lead"].includes(auditUser?.role) && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => openAuditModal(batch)}
+                              className="text-amber-500 hover:text-amber-400 hover:bg-amber-500/10"
+                              title="Audit / Edit"
+                            >
+                              <ClipboardEdit className="w-4 h-4" />
+                            </Button>
+                          )}
                           {(batch.status === 'pending' || batch.status === 'pending_qc') && (
                             <>
                               <Button
@@ -239,6 +311,97 @@ export default function BatchHistory() {
             <DialogTitle>Batch Documents - {selectedBatch?.batch_id}</DialogTitle>
           </DialogHeader>
           {selectedBatch && <BatchDocument batch={selectedBatch} />}
+        </DialogContent>
+      </Dialog>
+
+      {/* Audit Modal */}
+      <Dialog open={showAuditModal} onOpenChange={setShowAuditModal}>
+        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ClipboardEdit className="w-4 h-4 text-amber-400" />
+              Audit Batch — <span className="font-mono text-orange-400">{auditBatch?.batch_id}</span>
+            </DialogTitle>
+          </DialogHeader>
+          {auditBatch && (
+            <div className="space-y-4 py-1">
+              <div className="p-3 rounded-lg bg-zinc-800 text-sm text-zinc-300 space-y-1">
+                <p><span className="text-zinc-500">Product:</span> {auditBatch.product_name}</p>
+                <p><span className="text-zinc-500">Current Qty:</span> {(auditBatch.actual_yield_units ?? auditBatch.quantity)?.toLocaleString()} units</p>
+                <p><span className="text-zinc-500">Status:</span> {auditBatch.status}</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-zinc-400 text-xs">Override Status</Label>
+                <Select value={auditForm.new_status} onValueChange={(v) => setAuditForm(f => ({ ...f, new_status: v }))}>
+                  <SelectTrigger className="bg-zinc-800 border-zinc-700 text-zinc-100 h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="started">Started</SelectItem>
+                    <SelectItem value="pending_qc">Pending QC</SelectItem>
+                    <SelectItem value="approved">Approved</SelectItem>
+                    <SelectItem value="added_to_inventory">Added to Inventory</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                    <SelectItem value="on_hold">On Hold</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-zinc-400 text-xs flex items-center gap-1.5">
+                  <MinusCircle className="w-3.5 h-3.5 text-red-400" />
+                  Inventory Quantity Adjustment <span className="text-zinc-600">(negative = deduction)</span>
+                </Label>
+                <Input
+                  type="number"
+                  placeholder="e.g. -5 to remove 5 units"
+                  value={auditForm.quantity_adjustment}
+                  onChange={(e) => setAuditForm(f => ({ ...f, quantity_adjustment: e.target.value }))}
+                  className="bg-zinc-800 border-zinc-700 text-zinc-100 h-9 text-sm"
+                />
+              </div>
+
+              {auditForm.quantity_adjustment && (
+                <div className="space-y-1.5">
+                  <Label className="text-zinc-400 text-xs">Reason for Adjustment *</Label>
+                  <Input
+                    placeholder="e.g. QC failure, damaged units..."
+                    value={auditForm.adjustment_reason}
+                    onChange={(e) => setAuditForm(f => ({ ...f, adjustment_reason: e.target.value }))}
+                    className="bg-zinc-800 border-zinc-700 text-zinc-100 h-9 text-sm"
+                  />
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <Label className="text-zinc-400 text-xs">Audit Notes</Label>
+                <Textarea
+                  placeholder="Add audit notes, observations, or corrections..."
+                  value={auditForm.notes}
+                  onChange={(e) => setAuditForm(f => ({ ...f, notes: e.target.value }))}
+                  className="bg-zinc-800 border-zinc-700 text-zinc-100 resize-none"
+                  rows={3}
+                />
+              </div>
+
+              {auditForm.quantity_adjustment && Number(auditForm.quantity_adjustment) < 0 && (
+                <div className="p-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
+                  This will deduct {Math.abs(Number(auditForm.quantity_adjustment))} units from the linked inventory SKU <span className="font-mono">{auditBatch.sku}</span>.
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAuditModal(false)} className="border-zinc-700">Cancel</Button>
+            <Button
+              onClick={() => auditMutation.mutate({ batch: auditBatch, form: auditForm })}
+              disabled={auditMutation.isPending || (!!auditForm.quantity_adjustment && !auditForm.adjustment_reason)}
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+            >
+              {auditMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ClipboardEdit className="w-4 h-4 mr-2" />}
+              Save Audit
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
