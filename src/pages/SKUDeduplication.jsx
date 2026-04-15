@@ -41,6 +41,11 @@ export default function SKUDeduplication() {
     queryFn: () => base44.entities.DemandSummary.list("-created_date", 2000),
   });
 
+  const { data: recipes = [] } = useQuery({
+    queryKey: ["recipes_skudedup"],
+    queryFn: () => base44.entities.Recipe.list(),
+  });
+
   const skuNames = useMemo(() => {
     const map = {};
     demandSummaries.forEach((s) => { if (s.sku) map[s.sku] = s.product; });
@@ -238,6 +243,8 @@ export default function SKUDeduplication() {
           onApprove={handleApprove}
           onReject={handleReject}
           isUpdating={updateMutation.isPending}
+          recipes={recipes}
+          onRecipeLinked={() => queryClient.invalidateQueries({ queryKey: ["recipes_skudedup"] })}
         />
       )}
 
