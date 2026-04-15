@@ -7,7 +7,7 @@ import {
   FileText, Plus, Minus, Search, ArrowRight, ArrowLeft, Package, Loader2,
   Check, X, ShoppingCart, AlertTriangle, CheckCircle2, ChevronDown, ChevronLeft,
   ChevronRight, Calculator, Clock, BarChart3, Calendar, Eye, EyeOff, Timer,
-  Send, Building2, MapPin, RotateCcw, ExternalLink, Pencil, Trash2, Copy, Beaker, Link2
+  Send, Building2, MapPin, RotateCcw, ExternalLink, Pencil, Trash2, Copy, Beaker, Link2, CheckCircle2
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -530,6 +530,7 @@ function MaterialCheckTab() {
   const [linkRecipeSearch, setLinkRecipeSearch] = useState("");
   const [linkSelectedRecipe, setLinkSelectedRecipe] = useState(null);
   const [linkingRecipe, setLinkingRecipe] = useState(false);
+  const [locallyLinkedSkus, setLocallyLinkedSkus] = useState({}); // { sku: recipeName }
 
   // Items in material_check status from both sources
   const { data: mcForecasts = [], isLoading: loadingMcF } = useQuery({
@@ -803,6 +804,7 @@ function MaterialCheckTab() {
       // Update the recipe SKU to match the item's SKU (remap recipe to this SKU)
       await base44.entities.Recipe.update(linkSelectedRecipe.id, { sku: linkRecipeDialog.sku });
       toast.success(`Recipe "${linkSelectedRecipe.name}" linked to SKU ${linkRecipeDialog.sku}`);
+      setLocallyLinkedSkus(prev => ({ ...prev, [linkRecipeDialog.sku]: linkSelectedRecipe.name }));
       queryClient.invalidateQueries({ queryKey: ["planning_recipes"] });
       setLinkRecipeDialog(null);
       setLinkRecipeSearch("");
@@ -921,8 +923,16 @@ function MaterialCheckTab() {
                     </div>
                   </div>
 
+                  {/* Recipe linked confirmation */}
+                  {locallyLinkedSkus[item.sku] && (
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-sm">
+                      <CheckCircle2 className="w-4 h-4 shrink-0" />
+                      Recipe linked: <span className="font-medium">{locallyLinkedSkus[item.sku]}</span>
+                    </div>
+                  )}
+
                   {/* No recipe warning */}
-                  {!hasRecipe && !materialResult && (
+                  {!hasRecipe && !materialResult && !locallyLinkedSkus[item.sku] && (
                     <div className="flex items-start justify-between gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm">
                       <div className="flex items-center gap-2">
                         <AlertTriangle className="w-4 h-4 shrink-0" />
