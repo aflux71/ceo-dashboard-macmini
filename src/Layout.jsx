@@ -78,7 +78,7 @@ const settingsItems = [
 export default function Layout({ children, currentPageName }) {
     const [sidebarOpen, setSidebarOpen] = useState(false);
       const [settingsOpen, setSettingsOpen] = useState(false);
-  const [navOpen, setNavOpen] = useState(false);
+  const [navOpen, setNavOpen] = useState(true);
       const [user, setUser] = useState(null);
       const [isFullScreen, setIsFullScreen] = useState(currentPageName === "Kiosk");
       const [issueCount, setIssueCount] = useState(0);
