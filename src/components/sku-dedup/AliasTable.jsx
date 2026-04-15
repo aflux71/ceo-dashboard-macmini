@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Check, X, Loader2, Link2 } from "lucide-react";
+import { Check, X, Loader2, Link2, CheckCircle2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
@@ -29,6 +29,7 @@ export default function AliasTable({ records, onApprove, onReject, isUpdating, s
   const [linkDialog, setLinkDialog] = useState(null); // { record }
   const [recipeSearch, setRecipeSearch] = useState("");
   const [selectedRecipe, setSelectedRecipe] = useState(null);
+  const [linkedRecipes, setLinkedRecipes] = useState({}); // { recordId: recipeName }
 
   const activeRecipes = recipes.filter(r => r.active !== false);
 
@@ -60,6 +61,7 @@ export default function AliasTable({ records, onApprove, onReject, isUpdating, s
         toast.success(`"${selectedRecipe.name}" linked and deactivated in favour of primary SKU recipe`);
       }
 
+      setLinkedRecipes(prev => ({ ...prev, [linkDialog.id]: selectedRecipe.name }));
       if (onRecipeLinked) onRecipeLinked();
       setLinkDialog(null);
     } catch (err) {
@@ -122,17 +124,24 @@ export default function AliasTable({ records, onApprove, onReject, isUpdating, s
                     </>
                   )}
                   {r.status === "approved" && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => openLinkDialog(r)}
-                      disabled={linkingId === r.id}
-                      className="border-blue-500/30 text-blue-400 hover:bg-blue-500/10 h-7 text-xs"
-                      title="Manually link a recipe to the primary SKU"
-                    >
-                      {linkingId === r.id ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Link2 className="w-3 h-3 mr-1" />}
-                      Link Recipe
-                    </Button>
+                    linkedRecipes[r.id] ? (
+                      <div className="flex items-center gap-1.5 text-xs text-green-400">
+                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                        <span>Recipe linked: <span className="font-medium">{linkedRecipes[r.id]}</span></span>
+                      </div>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openLinkDialog(r)}
+                        disabled={linkingId === r.id}
+                        className="border-blue-500/30 text-blue-400 hover:bg-blue-500/10 h-7 text-xs"
+                        title="Manually link a recipe to the primary SKU"
+                      >
+                        {linkingId === r.id ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Link2 className="w-3 h-3 mr-1" />}
+                        Link Recipe
+                      </Button>
+                    )
                   )}
                 </div>
               </TableCell>
