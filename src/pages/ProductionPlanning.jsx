@@ -45,6 +45,108 @@ const colorMap = {};
 const urgencyConfig = { critical: { variant: "red", label: "Critical" }, soon: { variant: "amber", label: "Soon" }, ok: { variant: "green", label: "OK" } };
 const emptyForm = { product_name: "", sku: "", quantity: "", reason: "", urgency: "ok" };
 
+// ─── Product Search Combobox ────────────────────────────────────────────────────
+
+function ProductSearchCombobox({ form, setForm, recipes }) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+
+  const options = useMemo(() => {
+    const seen = new Set();
+    return recipes
+      .filter((r) => r.sku && r.name && r.active !== false)
+      .filter((r) => {
+        const key = r.sku.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [recipes]);
+
+  const filtered = useMemo(() => {
+    if (!query.trim()) return options;
+    const q = query.toLowerCase();
+    return options.filter(
+      (r) => r.name?.toLowerCase().includes(q) || r.sku?.toLowerCase().includes(q)
+    );
+  }, [options, query]);
+
+  const handleSelect = (recipe) => {
+    setForm((f) => ({ ...f, product_name: recipe.name, sku: recipe.sku }));
+    setQuery("");
+    setOpen(false);
+  };
+
+  const handleQueryChange = (val) => {
+    setQuery(val);
+    setForm((f) => ({ ...f, product_name: val }));
+    setOpen(true);
+  };
+
+  return (
+    <div className="space-y-3" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false); }}>
+      {/* Mode toggle */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-zinc-500">Select from existing recipes or enter manually below</span>
+      </div>
+      {/* Search existing */}
+      <div className="relative">
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
+        <Input
+          placeholder="Search existing recipes by name or SKU..."
+          value={query}
+          onChange={(e) => handleQueryChange(e.target.value)}
+          onFocus={() => setOpen(true)}
+          className="pl-9 bg-zinc-800 border-zinc-700 text-zinc-100"
+        />
+        {open && query.trim() && (
+          <div className="absolute z-50 top-full mt-1 w-full bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl max-h-52 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <div className="px-3 py-3 text-xs text-zinc-500 text-center">
+                No existing recipes match — fill in the fields below to add manually
+              </div>
+            ) : (
+              filtered.map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => handleSelect(r)}
+                  className="w-full text-left px-3 py-2 hover:bg-zinc-700 transition-colors flex items-center gap-3"
+                >
+                  <span className="font-mono text-xs text-orange-400 shrink-0">{r.sku}</span>
+                  <span className="text-sm text-zinc-200 truncate">{r.name}</span>
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+      {/* Manual fields */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label className="text-zinc-400 text-xs">Product Name *</Label>
+          <Input
+            placeholder="e.g. Lavender Body Lotion"
+            value={form.product_name}
+            onChange={(e) => setForm((f) => ({ ...f, product_name: e.target.value }))}
+            className="bg-zinc-800 border-zinc-700 text-zinc-100"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-zinc-400 text-xs">SKU *</Label>
+          <Input
+            placeholder="e.g. LBL-250ML"
+            value={form.sku}
+            onChange={(e) => setForm((f) => ({ ...f, sku: e.target.value }))}
+            className="bg-zinc-800 border-zinc-700 text-zinc-100"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Requests Tab ──────────────────────────────────────────────────────────────
 
 function RequestsTab() {
@@ -55,6 +157,11 @@ function RequestsTab() {
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null); // null = create mode, id = edit mode
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+
+  const { data: requestRecipes = [] } = useQuery({
+    queryKey: ["planning_recipes"],
+    queryFn: () => base44.entities.Recipe.list(),
+  });
 
   const { data: forecastItems = [], isLoading: loadingForecasts } = useQuery({
     queryKey: ["planning_forecast_suggestions"],
@@ -395,26 +502,7 @@ function RequestsTab() {
             <DialogTitle>{editingId ? "Edit Production Request" : "New Production Request"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-zinc-400">Product Name *</Label>
-                <Input
-                  placeholder="e.g. Lavender Body Lotion"
-                  value={form.product_name}
-                  onChange={(e) => setForm({ ...form, product_name: e.target.value })}
-                  className="bg-zinc-800 border-zinc-700 text-zinc-100"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-zinc-400">SKU *</Label>
-                <Input
-                  placeholder="e.g. LBL-250ML"
-                  value={form.sku}
-                  onChange={(e) => setForm({ ...form, sku: e.target.value })}
-                  className="bg-zinc-800 border-zinc-700 text-zinc-100"
-                />
-              </div>
-            </div>
+            <ProductSearchCombobox form={form} setForm={setForm} recipes={requestRecipes} />
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-zinc-400">Quantity Needed *</Label>
