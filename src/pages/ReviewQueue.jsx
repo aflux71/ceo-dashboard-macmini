@@ -15,7 +15,7 @@ export default function ReviewQueue() {
   const [rejectionReason, setRejectionReason] = useState({});
   const [yieldOverride, setYieldOverride] = useState({}); // { [batchId]: { qty, notes } }
   const [unlabeledForm, setUnlabeledForm] = useState({}); // { [batchId]: { qty_unlabeled, qty_labeled, notes } }
-  const [savedUnlabeled, setSavedUnlabeled] = useState({}); // tracks which batchIds have been saved
+  const [savedUnlabeled, setSavedUnlabeled] = useState({});
   const queryClient = useQueryClient();
   const { floorUser, hasPermission } = useFloorPin();
 
@@ -116,6 +116,10 @@ export default function ReviewQueue() {
       }),
     onSuccess: (_, vars) => {
       setSavedUnlabeled(prev => ({ ...prev, [vars.batch.batch_id]: true }));
+      queryClient.invalidateQueries({ queryKey: ["unlabeled_products"] });
+      // Reset form after save so another entry can be added
+      setUnlabeledForm(prev => { const n = { ...prev }; delete n[vars.batch.batch_id]; return n; });
+      setTimeout(() => setSavedUnlabeled(prev => { const n = { ...prev }; delete n[vars.batch.batch_id]; return n; }), 3000);
       toast.success("Unlabeled record saved");
     },
     onError: () => toast.error("Failed to save unlabeled record"),
