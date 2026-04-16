@@ -13,17 +13,19 @@ import RecipeBatchSheet from "@/components/recipes/RecipeBatchSheet";
 import BatchTraveller from "@/components/recipes/BatchTraveller";
 
 const STAGE_CONFIG = {
-  batching:  { label: "Batching",  bg: "bg-blue-500/20",  border: "border-blue-500/30",  text: "text-blue-400",  dot: "bg-blue-500",  fill: "bg-blue-500" },
-  qc_hold:   { label: "QC Hold",   bg: "bg-amber-500/20", border: "border-amber-500/30", text: "text-amber-400", dot: "bg-amber-500", fill: "bg-amber-500" },
-  filling:   { label: "Filling",   bg: "bg-green-500/20", border: "border-green-500/30", text: "text-green-400", dot: "bg-green-500", fill: "bg-green-500" },
-  complete:  { label: "Complete",  bg: "bg-zinc-700/40",  border: "border-zinc-600/30",  text: "text-zinc-400",  dot: "bg-zinc-500",  fill: "bg-zinc-500" },
+  batching:     { label: "Batching",     bg: "bg-blue-500/20",   border: "border-blue-500/30",   text: "text-blue-400",   dot: "bg-blue-500",   fill: "bg-blue-500" },
+  qc_hold:      { label: "QC Hold",      bg: "bg-amber-500/20",  border: "border-amber-500/30",  text: "text-amber-400",  dot: "bg-amber-500",  fill: "bg-amber-500" },
+  filling:      { label: "Filling",      bg: "bg-green-500/20",  border: "border-green-500/30",  text: "text-green-400",  dot: "bg-green-500",  fill: "bg-green-500" },
+  review_queue: { label: "Review Queue", bg: "bg-purple-500/20", border: "border-purple-500/30", text: "text-purple-400", dot: "bg-purple-500",  fill: "bg-purple-500" },
+  complete:     { label: "Complete",     bg: "bg-zinc-700/40",   border: "border-zinc-600/30",   text: "text-zinc-400",   dot: "bg-zinc-500",   fill: "bg-zinc-500" },
 };
 
 const KANBAN_COLUMNS = [
-  { key: "batching", label: "Batching", cfg: STAGE_CONFIG.batching },
-  { key: "qc_hold",  label: "QC Hold",  cfg: STAGE_CONFIG.qc_hold },
-  { key: "filling",  label: "Filling",  cfg: STAGE_CONFIG.filling },
-  { key: "complete", label: "Complete", cfg: STAGE_CONFIG.complete },
+  { key: "batching",     label: "Batching",     cfg: STAGE_CONFIG.batching },
+  { key: "qc_hold",      label: "QC Hold",      cfg: STAGE_CONFIG.qc_hold },
+  { key: "filling",      label: "Filling",      cfg: STAGE_CONFIG.filling },
+  { key: "review_queue", label: "Review Queue", cfg: STAGE_CONFIG.review_queue },
+  { key: "complete",     label: "Complete",     cfg: STAGE_CONFIG.complete },
 ];
 
 function addDays(dateStr, days) { if (!dateStr) return ""; const d = new Date(dateStr); d.setDate(d.getDate() + days); return d.toISOString().split("T")[0]; }
@@ -33,6 +35,7 @@ function getMonday(d) { const date = new Date(d); const day = date.getDay(); con
 function batchStage(batch) {
   const s = batch.status;
   if (s === "added_to_inventory") return "complete";
+  if (s === "in_review") return "review_queue";
   if (s === "approved") return "filling";
   if (s === "pending_qc" || s === "on_hold") return "qc_hold";
   return "batching";
@@ -89,7 +92,7 @@ export default function WipInHouseTab() {
   }, [enriched, today, thisWeekEnd]);
 
   const columns = useMemo(() => {
-    const map = { batching: [], qc_hold: [], filling: [], complete: [] };
+    const map = { batching: [], qc_hold: [], filling: [], review_queue: [], complete: [] };
     enriched.forEach((b) => {
       if (b.stage === "complete") {
         if (showCompleted) { const updatedAt = b.updated_date || b.created_date; if (updatedAt && (Date.now() - new Date(updatedAt).getTime()) / 3600000 <= 24) map.complete.push(b); }
@@ -119,7 +122,7 @@ export default function WipInHouseTab() {
 
   const handleComplete = () => {
     if (!yieldDialog) return;
-    advanceMutation.mutate({ id: yieldDialog.id, newStatus: "pending_qc", extraFields: { actual_yield_units: Number(yieldUnits) || 0 } }, {
+    advanceMutation.mutate({ id: yieldDialog.id, newStatus: "in_review", extraFields: { actual_yield_units: Number(yieldUnits) || 0 } }, {
       onSuccess: () => {
         base44.entities.ReviewQueue.create({
           batch_id: yieldDialog.batch_id,
@@ -146,7 +149,7 @@ export default function WipInHouseTab() {
     return Math.ceil((new Date(targetDate) - new Date(today)) / 86400000);
   };
 
-  const nextAction = (stage) => { if (stage === "batching") return "Move to QC Hold"; if (stage === "qc_hold") return "Move to Filling"; if (stage === "filling") return "Submit for Review"; return null; };
+  const nextAction = (stage) => { if (stage === "batching") return "Move to QC Hold"; if (stage === "qc_hold") return "Move to Filling"; if (stage === "filling") return "Submit for Review"; if (stage === "review_queue") return null; return null; };
 
   const handlePrintBatchSheet = async (batch) => {
     setPrintLoading(true);

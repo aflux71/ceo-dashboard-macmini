@@ -60,11 +60,12 @@
         "on_hold",
         "pending_qc",
         "approved",
+        "in_review",
         "added_to_inventory",
         "rejected"
       ],
       "default": "draft",
-      "description": "Batch status"
+      "description": "Batch status \u2014 pending_qc = batching QC hold, in_review = final product review queue"
     },
     "current_step": {
       "type": "number",

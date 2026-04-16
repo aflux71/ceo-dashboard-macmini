@@ -31,14 +31,26 @@ export default function ReviewQueue() {
     floorUser?.role === "owner" || 
     floorUser?.role === "admin";
 
-  // Fetch pending QC batches
-  const { data: batches = [] } = useQuery({
+  // Fetch pending QC batches (batching QC step)
+  const { data: qcBatches = [] } = useQuery({
     queryKey: ["pendingQcBatches"],
     queryFn: async () => {
       const result = await base44.entities.Batch.filter({ status: "pending_qc" });
       return result || [];
     }
   });
+
+  // Fetch in-review batches (final product review step)
+  const { data: reviewBatches = [] } = useQuery({
+    queryKey: ["inReviewBatches"],
+    queryFn: async () => {
+      const result = await base44.entities.Batch.filter({ status: "in_review" });
+      return result || [];
+    }
+  });
+
+  const [activeTab, setActiveTab] = useState("review"); // "qc" | "review"
+  const batches = activeTab === "qc" ? qcBatches : reviewBatches;
 
   // Fetch recipes and inventory for cost calculation
   const { data: recipes = [] } = useQuery({
@@ -58,15 +70,17 @@ export default function ReviewQueue() {
     return calculateBatchCost(recipe, inventory);
   };
 
-  // Approve mutation
+  // Approve mutation — for pending_qc: move to approved (→ filling); for in_review: move to added_to_inventory
   const approveMutation = useMutation({
-    mutationFn: (batchId) =>
+    mutationFn: ({ batchId, currentStatus }) =>
       base44.entities.Batch.update(batchId, {
-        status: "approved",
+        status: currentStatus === "in_review" ? "added_to_inventory" : "approved",
         approved_date: new Date().toISOString()
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pendingQcBatches"] });
+      queryClient.invalidateQueries({ queryKey: ["inReviewBatches"] });
+      queryClient.invalidateQueries({ queryKey: ["planning_wip_inhouse_batches"] });
       toast.success("Batch approved");
     }
   });
@@ -80,6 +94,7 @@ export default function ReviewQueue() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pendingQcBatches"] });
+      queryClient.invalidateQueries({ queryKey: ["inReviewBatches"] });
       toast.success("Batch rejected");
       setRejectionReason({});
     }
@@ -108,19 +123,40 @@ export default function ReviewQueue() {
     }
   });
 
-  const pendingCount = batches.length;
-
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-zinc-100">QC Review Queue</h1>
-          <p className="text-sm text-zinc-400 mt-1">Review and approve batches pending quality control</p>
+          <h1 className="text-3xl font-bold text-zinc-100">Review Queue</h1>
+          <p className="text-sm text-zinc-400 mt-1">QC hold for batching · Final review for finished products</p>
         </div>
-        <div className="bg-amber-500/20 border border-amber-500/30 rounded-lg px-4 py-2">
-          <span className="text-2xl font-bold text-amber-400">{pendingCount}</span>
+        <div className="flex gap-2">
+          <div className="bg-amber-500/20 border border-amber-500/30 rounded-lg px-4 py-2 text-center">
+            <p className="text-xs text-amber-400 font-medium">QC Hold</p>
+            <span className="text-2xl font-bold text-amber-400">{qcBatches.length}</span>
+          </div>
+          <div className="bg-purple-500/20 border border-purple-500/30 rounded-lg px-4 py-2 text-center">
+            <p className="text-xs text-purple-400 font-medium">Final Review</p>
+            <span className="text-2xl font-bold text-purple-400">{reviewBatches.length}</span>
+          </div>
         </div>
+      </div>
+
+      {/* Tab Toggle */}
+      <div className="flex gap-2 border-b border-zinc-800 pb-3">
+        <button
+          onClick={() => setActiveTab("review")}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === "review" ? "bg-purple-500/20 text-purple-400 border border-purple-500/30" : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800"}`}
+        >
+          Final Product Review ({reviewBatches.length})
+        </button>
+        <button
+          onClick={() => setActiveTab("qc")}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === "qc" ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800"}`}
+        >
+          Batching QC Hold ({qcBatches.length})
+        </button>
       </div>
 
       {/* Queue Items */}
@@ -336,12 +372,12 @@ export default function ReviewQueue() {
                     {/* Action Buttons */}
                     <div className="flex gap-3 pt-4 border-t border-zinc-800">
                       <Button
-                        onClick={() => approveMutation.mutate(batch.id)}
+                        onClick={() => approveMutation.mutate({ batchId: batch.id, currentStatus: batch.status })}
                         disabled={approveMutation.isPending}
                         className="bg-green-600 hover:bg-green-700 gap-2 flex-1"
                       >
                         <CheckCircle className="w-4 h-4" />
-                        Approve Batch
+                        {batch.status === "in_review" ? "Approve & Add to Inventory" : "Approve → Move to Filling"}
                       </Button>
                       
                       <div className="flex-1">
