@@ -6,11 +6,7 @@ import { Activity, AlertTriangle, CheckCircle2, Clock, Gauge } from "lucide-reac
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 
-// How many minutes ago is considered "active" for a batch
-const ACTIVE_WINDOW_MINUTES = 480; // 8-hour shift
-
-function computeLineStats(batches, recipes, lineCapacities) {
-  const now = Date.now();
+function computeLineStats(batches, lineCapacities) {
   const activeStatuses = ["started", "on_hold", "pending_qc", "in_review"];
 
   // Group active batches by production line
@@ -105,7 +101,7 @@ function ThroughputBar({ rate, status }) {
   );
 }
 
-export default function ProductionLineThroughput({ batches = [], recipes = [] }) {
+export default function ProductionLineThroughput({ batches = [] }) {
   const { data: lineCapacities = [] } = useQuery({
     queryKey: ["line_capacity"],
     queryFn: () => base44.entities.ProductionLineCapacity.list(),
@@ -113,8 +109,8 @@ export default function ProductionLineThroughput({ batches = [], recipes = [] })
   });
 
   const lines = useMemo(
-    () => computeLineStats(batches, recipes, lineCapacities),
-    [batches, recipes, lineCapacities]
+    () => computeLineStats(batches, lineCapacities),
+    [batches, lineCapacities]
   );
 
   if (lines.length === 0) {

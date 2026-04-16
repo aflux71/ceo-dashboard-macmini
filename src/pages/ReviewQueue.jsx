@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { CheckCircle, XCircle, AlertTriangle, ChevronDown, ChevronUp, DollarSign, PackageX, AlertCircle, Tag, Save, Printer, FileText, ClipboardList, Loader2 } from "lucide-react";
+import { CheckCircle, XCircle, ChevronDown, ChevronUp, DollarSign, PackageX, AlertCircle, Tag, Save, Printer, FileText, ClipboardList, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { calculateBatchCost } from "@/components/recipes/BatchCostCalculator";
 import { useFloorPin } from "@/components/auth/FloorPinContext";

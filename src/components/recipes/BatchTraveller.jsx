@@ -21,7 +21,6 @@ export default function BatchTraveller({ batch, recipe }) {
     label: { fontSize: 9, textTransform: "uppercase", color: "#6b7280", letterSpacing: "0.06em", marginBottom: 2 },
     val: { fontWeight: "bold", fontSize: 13, borderBottom: "1px solid #9ca3af", minHeight: 22, paddingBottom: 2, marginBottom: 0 },
     grid3: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px 16px", marginBottom: 14 },
-    grid2: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 16px", marginBottom: 14 },
     sectionTitle: { fontWeight: "bold", fontSize: 10, textTransform: "uppercase", color: "#374151", background: "#f3f4f6", padding: "5px 8px", border: "1px solid #d1d5db", marginBottom: 0 },
     table: { width: "100%", borderCollapse: "collapse", marginBottom: 14, fontSize: 11 },
     th: { border: "1px solid #d1d5db", padding: "5px 8px", background: "#f3f4f6", fontWeight: "bold", textAlign: "left" },

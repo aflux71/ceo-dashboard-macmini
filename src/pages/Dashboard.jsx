@@ -191,7 +191,7 @@ export default function Dashboard() {
       <RequisitionAlerts requisitions={requisitions} />
 
       {/* Production Line Throughput */}
-      <ProductionLineThroughput batches={batches} recipes={recipes} />
+      <ProductionLineThroughput batches={batches} />
 
       {/* Two Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
