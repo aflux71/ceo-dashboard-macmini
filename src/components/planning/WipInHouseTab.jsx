@@ -119,10 +119,21 @@ export default function WipInHouseTab() {
 
   const handleComplete = () => {
     if (!yieldDialog) return;
-    advanceMutation.mutate({ id: yieldDialog.id, newStatus: "added_to_inventory", extraFields: { actual_yield_units: Number(yieldUnits) || 0 } }, {
+    advanceMutation.mutate({ id: yieldDialog.id, newStatus: "pending_qc", extraFields: { actual_yield_units: Number(yieldUnits) || 0 } }, {
       onSuccess: () => {
-        base44.entities.ReviewQueue?.create?.({ batch_id: yieldDialog.batch_id || yieldDialog.id, sku: yieldDialog.sku, product_name: yieldDialog.product_name, quantity: Number(yieldUnits) || 0, planned_quantity: yieldDialog.quantity, status: "pending", created_at: new Date().toISOString() }).catch(() => {});
-        setYieldDialog(null); setYieldUnits("");
+        base44.entities.ReviewQueue.create({
+          batch_id: yieldDialog.batch_id,
+          batch_entity_id: yieldDialog.id,
+          sku: yieldDialog.sku,
+          product_name: yieldDialog.product_name,
+          quantity: Number(yieldUnits) || 0,
+          planned_quantity: yieldDialog.quantity,
+          status: "pending",
+          submitted_at: new Date().toISOString(),
+        }).catch(() => {});
+        setYieldDialog(null);
+        setYieldUnits("");
+        toast.success("Submitted for review");
       },
     });
   };
@@ -135,7 +146,7 @@ export default function WipInHouseTab() {
     return Math.ceil((new Date(targetDate) - new Date(today)) / 86400000);
   };
 
-  const nextAction = (stage) => { if (stage === "batching") return "Move to QC Hold"; if (stage === "qc_hold") return "Move to Filling"; if (stage === "filling") return "Mark Complete"; return null; };
+  const nextAction = (stage) => { if (stage === "batching") return "Move to QC Hold"; if (stage === "qc_hold") return "Move to Filling"; if (stage === "filling") return "Submit for Review"; return null; };
 
   const handlePrintBatchSheet = async (batch) => {
     setPrintLoading(true);
@@ -242,7 +253,7 @@ export default function WipInHouseTab() {
         <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 max-w-sm">
           {yieldDialog && (
             <>
-              <DialogHeader><DialogTitle>Mark Complete — Yield</DialogTitle></DialogHeader>
+              <DialogHeader><DialogTitle>Submit for Review — Yield</DialogTitle></DialogHeader>
               <div className="space-y-4 py-2">
                 <div className="text-sm text-zinc-400"><span className="text-zinc-200 font-medium">{yieldDialog.product_name}</span><span className="text-zinc-600 mx-1.5">·</span><span className="font-mono text-zinc-500">{yieldDialog.batch_id}</span></div>
                 <div className="grid grid-cols-2 gap-3">
@@ -253,7 +264,7 @@ export default function WipInHouseTab() {
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => { setYieldDialog(null); setYieldUnits(""); }} className="border-zinc-700">Cancel</Button>
-                <Button onClick={handleComplete} disabled={advanceMutation.isPending || !yieldUnits} className="bg-green-600 hover:bg-green-700 text-white">{advanceMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}Mark Complete</Button>
+                <Button onClick={handleComplete} disabled={advanceMutation.isPending || !yieldUnits} className="bg-green-600 hover:bg-green-700 text-white">{advanceMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}Submit for Review</Button>
               </DialogFooter>
             </>
           )}

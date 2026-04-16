@@ -1,0 +1,65 @@
+{
+  "name": "ReviewQueue",
+  "type": "object",
+  "properties": {
+    "batch_id": {
+      "type": "string",
+      "description": "Batch ID string (e.g. 990-260415-3)"
+    },
+    "batch_entity_id": {
+      "type": "string",
+      "description": "Entity ID of the linked Batch record"
+    },
+    "sku": {
+      "type": "string",
+      "description": "Product SKU"
+    },
+    "product_name": {
+      "type": "string",
+      "description": "Product name"
+    },
+    "quantity": {
+      "type": "number",
+      "description": "Actual units produced"
+    },
+    "planned_quantity": {
+      "type": "number",
+      "description": "Planned quantity for the batch"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "rejected"
+      ],
+      "default": "pending",
+      "description": "Review status"
+    },
+    "submitted_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When submitted for review"
+    },
+    "reviewed_by": {
+      "type": "string",
+      "description": "User who completed the review"
+    },
+    "reviewed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the review was completed"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Review notes or rejection reason"
+    }
+  },
+  "required": [
+    "batch_id",
+    "sku",
+    "product_name",
+    "quantity",
+    "status"
+  ]
+}
