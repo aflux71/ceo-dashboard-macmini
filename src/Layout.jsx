@@ -54,7 +54,6 @@ const navItems = [
         { name: "Purchase Orders", icon: ShoppingCart, page: "PurchaseOrders" },
         { name: "Requisitions", icon: FileText, page: "PurchaseRequisitions", badge: true },
         { name: "Planning", icon: Factory, page: "ProductionPlanning" },
-        { name: "Demand Planner", icon: BarChart3, page: "DemandPlanner" },
         { name: "SKU Dedup", icon: GitMerge, page: "SKUDeduplication" },
         { name: "AI Assistant", icon: BrainCircuit, page: "AIAssistant" },
         { name: "Bug Reports", icon: AlertOctagon, page: "BugReports" },

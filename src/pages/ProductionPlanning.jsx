@@ -1341,6 +1341,7 @@ import WipCopackTab from "@/components/planning/WipCopackTab";
 import WipInHouseTab from "@/components/planning/WipInHouseTab";
 import ScheduleTab from "@/components/planning/ScheduleTab";
 import PlanningAssistant from "@/components/ai/PlanningAssistant";
+import DemandPlanner from "./DemandPlanner";
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
@@ -1522,6 +1523,15 @@ export default function ProductionPlanning() {
             <span className="hidden sm:inline">Recipe Sheets</span>
           </TabsTrigger>
 
+          {/* Demand Planner tab */}
+          <TabsTrigger
+            value="demand-planner"
+            className="flex items-center gap-2 data-[state=active]:bg-zinc-700"
+          >
+            <BarChart3 className="w-4 h-4" />
+            <span className="hidden sm:inline">Demand Planner</span>
+          </TabsTrigger>
+
           {/* Remaining placeholder tabs */}
           {placeholderTabs.map((tab) => {
             const Icon = tab.icon;
@@ -1571,6 +1581,11 @@ export default function ProductionPlanning() {
         {/* Recipe Sheets tab */}
         <TabsContent value="recipe-sheets" className="space-y-4">
           <RecipeSheetsTab />
+        </TabsContent>
+
+        {/* Demand Planner tab */}
+        <TabsContent value="demand-planner" className="space-y-4">
+          <DemandPlanner />
         </TabsContent>
 
         {/* Placeholder tabs */}
