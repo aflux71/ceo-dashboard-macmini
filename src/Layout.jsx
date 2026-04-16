@@ -54,7 +54,7 @@ const navItems = [
         { name: "Purchase Orders", icon: ShoppingCart, page: "PurchaseOrders" },
         { name: "Requisitions", icon: FileText, page: "PurchaseRequisitions", badge: true },
         { name: "Planning", icon: Factory, page: "ProductionPlanning" },
-        { name: "SKU Dedup", icon: GitMerge, page: "SKUDeduplication" },
+
         { name: "AI Assistant", icon: BrainCircuit, page: "AIAssistant" },
         { name: "Bug Reports", icon: AlertOctagon, page: "BugReports" },
       ];
@@ -68,6 +68,7 @@ const settingsItems = [
         { name: "Bulk Upload", icon: FileText, page: "BulkUpload" },
         { name: "Product Categories", icon: Tag, page: "CategorySettings" },
         { name: "Measurement Units", icon: Package, page: "MeasurementSettings" },
+        { name: "SKU Dedup", icon: GitMerge, page: "SKUDeduplication" },
         { name: "Audit Log", icon: ClipboardList, page: "AuditLog" },
         { name: "Recipe Versions", icon: History, page: "RecipeVersions" },
         { name: "Sync Log", icon: History, page: "SyncLog" },
