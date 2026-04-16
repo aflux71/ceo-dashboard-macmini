@@ -26,6 +26,7 @@ import SyncLogMini from "@/components/dashboard/SyncLogMini";
 import Badge from "@/components/ui/Badge";
 import PinLoginScreen from "@/components/auth/PinLoginScreen";
 import SKUMappingAlert from "@/components/dashboard/SKUMappingAlert.jsx";
+import ProductionLineThroughput from "@/components/dashboard/ProductionLineThroughput";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -188,6 +189,9 @@ export default function Dashboard() {
 
       {/* Requisition Alerts */}
       <RequisitionAlerts requisitions={requisitions} />
+
+      {/* Production Line Throughput */}
+      <ProductionLineThroughput batches={batches} recipes={recipes} />
 
       {/* Two Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
