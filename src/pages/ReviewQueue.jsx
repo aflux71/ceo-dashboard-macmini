@@ -76,7 +76,7 @@ export default function ReviewQueue() {
   const approveMutation = useMutation({
     mutationFn: ({ batchId, currentStatus }) =>
       base44.entities.Batch.update(batchId, {
-        status: currentStatus === "in_review" ? "added_to_inventory" : "approved",
+        status: "approved",
         approved_date: new Date().toISOString()
       }),
     onSuccess: () => {
@@ -465,7 +465,7 @@ export default function ReviewQueue() {
                         className="bg-green-600 hover:bg-green-700 gap-2 flex-1"
                       >
                         <CheckCircle className="w-4 h-4" />
-                        {batch.status === "in_review" ? "Approve & Add to Inventory" : "Approve → Move to Filling"}
+                        {batch.status === "in_review" ? "Approve → Add to Inventory Queue" : "Approve → Move to Filling"}
                       </Button>
                       
                       <div className="flex-1">
