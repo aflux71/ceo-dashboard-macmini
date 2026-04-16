@@ -47,12 +47,12 @@ const navItems = [
         { name: "Review Queue", icon: ClipboardList, page: "ReviewQueue", badge: true },
 
         { name: "Add to Inventory", icon: ShoppingCart, page: "AddToInventory", badge: true, isAddToInventoryLink: true },
+        { name: "Unlabeled Products", icon: Tag, page: "UnlabeledProducts", isUnlabeledLink: true },
         { name: "Batch History", icon: History, page: "BatchHistory" },
         { name: "Inventory", icon: Package, page: "Inventory" },
         { name: "Recipes", icon: Beaker, page: "Recipes" },
 
         { name: "Purchase Orders", icon: ShoppingCart, page: "PurchaseOrders" },
-        { name: "Unlabeled Products", icon: Tag, page: "UnlabeledProducts", isUnlabeledLink: true },
         { name: "Requisitions", icon: FileText, page: "PurchaseRequisitions", badge: true },
         { name: "Planning", icon: Factory, page: "ProductionPlanning" },
 
