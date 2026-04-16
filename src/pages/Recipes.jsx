@@ -23,8 +23,10 @@ import {
   FileInput,
   Save,
   ChevronRight,
-  Zap
+  Zap,
+  Boxes
 } from "lucide-react";
+import AssemblyGuides from "./AssemblyGuides";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -592,6 +594,8 @@ export default function Recipes() {
     return colors[category] || 'default';
   };
 
+  const [activeTab, setActiveTab] = useState("recipes");
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -602,18 +606,41 @@ export default function Recipes() {
             Manage product formulations and manufacturing procedures
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setShowPrintDialog(true)}>
-            <Printer className="w-4 h-4 mr-2" />
-            Print Batch Sheets
-          </Button>
-          <Button onClick={() => openModal()} className="bg-orange-500 hover:bg-orange-600 text-white">
-            <Plus className="w-4 h-4 mr-2" />
-            Add Recipe
-          </Button>
-        </div>
+        {activeTab === "recipes" && (
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowPrintDialog(true)}>
+              <Printer className="w-4 h-4 mr-2" />
+              Print Batch Sheets
+            </Button>
+            <Button onClick={() => openModal()} className="bg-orange-500 hover:bg-orange-600 text-white">
+              <Plus className="w-4 h-4 mr-2" />
+              Add Recipe
+            </Button>
+          </div>
+        )}
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-1 p-1 bg-zinc-900 border border-zinc-800 rounded-lg w-fit">
+        <button
+          onClick={() => setActiveTab("recipes")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === "recipes" ? "bg-orange-500/20 text-orange-400 border border-orange-500/30" : "text-zinc-400 hover:text-zinc-200"}`}
+        >
+          <Beaker className="w-4 h-4" />
+          Recipes
+        </button>
+        <button
+          onClick={() => setActiveTab("assembly")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === "assembly" ? "bg-orange-500/20 text-orange-400 border border-orange-500/30" : "text-zinc-400 hover:text-zinc-200"}`}
+        >
+          <Boxes className="w-4 h-4" />
+          Assembly Guides
+        </button>
+      </div>
+
+      {activeTab === "assembly" && <AssemblyGuides />}
+
+      {activeTab === "recipes" && <>
       {/* Filters */}
       <Card className="bg-zinc-900 border-zinc-800">
         <CardContent className="pt-6">
@@ -1264,6 +1291,8 @@ export default function Recipes() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      </>}
 
       {/* Template Selection Dialog */}
       <Dialog open={showTemplateSelect} onOpenChange={setShowTemplateSelect}>

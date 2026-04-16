@@ -50,7 +50,7 @@ const navItems = [
         { name: "Batch History", icon: History, page: "BatchHistory" },
         { name: "Inventory", icon: Package, page: "Inventory" },
         { name: "Recipes", icon: Beaker, page: "Recipes" },
-        { name: "Assembly Guides", icon: Boxes, page: "AssemblyGuides" },
+
         { name: "Purchase Orders", icon: ShoppingCart, page: "PurchaseOrders" },
         { name: "Requisitions", icon: FileText, page: "PurchaseRequisitions", badge: true },
         { name: "Planning", icon: Factory, page: "ProductionPlanning" },
