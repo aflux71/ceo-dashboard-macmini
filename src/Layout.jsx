@@ -163,6 +163,22 @@ export default function Layout({ children, currentPageName }) {
 
   // Fetch approved batch count for Add to Inventory
   const [approvedBatchCount, setApprovedBatchCount] = useState(0);
+  const [reviewQueueCount, setReviewQueueCount] = useState(0);
+
+  // Fetch review queue count (staggered)
+  useEffect(() => {
+    const fetchReviewQueueCount = async () => {
+      try {
+        const batches = await base44.entities.Batch.filter({ status: 'in_review' });
+        setReviewQueueCount(batches.length);
+      } catch (err) {
+        setReviewQueueCount(0);
+      }
+    };
+    const timeout = setTimeout(fetchReviewQueueCount, 1500);
+    const interval = setInterval(fetchReviewQueueCount, 60000);
+    return () => { clearTimeout(timeout); clearInterval(interval); };
+  }, []);
 
   // Fetch low label count (staggered)
   const [lowLabelCount, setLowLabelCount] = useState(0);
@@ -335,6 +351,8 @@ export default function Layout({ children, currentPageName }) {
                 const hasLowLabels = lowLabelCount > 0;
                 const isAddToInventoryItem = item.isAddToInventoryLink;
                 const hasApprovedBatches = approvedBatchCount > 0;
+                const isReviewQueueItem = item.page === "ReviewQueue";
+                const hasReviewItems = reviewQueueCount > 0;
                 const isQueueItem = item.isQueueLink;
                 const queueHasItems = productionQueueCount.total > 0;
                 return (
@@ -348,7 +366,9 @@ export default function Layout({ children, currentPageName }) {
                       ${isActive
                         ? showAlertStyle
                           ? 'bg-red-500/10 text-red-400 border border-red-500/20'
-                          : 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
+                          : isReviewQueueItem
+                            ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
+                            : 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
                         : showAlertStyle
                           ? 'text-red-400 hover:text-red-300 hover:bg-red-500/10'
                           : isRepairItem && hasNewRepairs
@@ -359,14 +379,16 @@ export default function Layout({ children, currentPageName }) {
                                 ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
                                 : isAddToInventoryItem && hasApprovedBatches
                                   ? 'text-green-400 hover:text-green-300 hover:bg-green-500/10'
-                                  : isQueueItem
-                                    ? 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 ml-4 border-l-2 border-zinc-700'
-                                    : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
+                                  : isReviewQueueItem && hasReviewItems
+                                    ? 'text-purple-400 hover:text-purple-300 hover:bg-purple-500/10'
+                                    : isQueueItem
+                                      ? 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 ml-4 border-l-2 border-zinc-700'
+                                      : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
                       }
                     `}
                   >
                     <div className="flex items-center gap-3">
-                      <item.icon className={`w-5 h-5 ${showAlertStyle ? 'text-red-400' : isRepairItem && hasNewRepairs ? 'text-amber-400' : isConsumablesItem && hasPendingConsumables ? 'text-orange-400' : isLabelsItem && hasLowLabels ? 'text-amber-400' : isAddToInventoryItem && hasApprovedBatches ? 'text-green-400' : ''}`} />
+                      <item.icon className={`w-5 h-5 ${showAlertStyle ? 'text-red-400' : isRepairItem && hasNewRepairs ? 'text-amber-400' : isConsumablesItem && hasPendingConsumables ? 'text-orange-400' : isLabelsItem && hasLowLabels ? 'text-amber-400' : isAddToInventoryItem && hasApprovedBatches ? 'text-green-400' : isReviewQueueItem && hasReviewItems ? 'text-purple-400' : ''}`} />
                       {item.name}
                     </div>
                     {item.badge && pendingQcCount > 0 && (
@@ -394,6 +416,12 @@ export default function Layout({ children, currentPageName }) {
                       <span className="flex items-center gap-1 text-xs text-green-400">
                         <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></span>
                         {approvedBatchCount}
+                      </span>
+                    )}
+                    {isReviewQueueItem && hasReviewItems && (
+                      <span className="flex items-center gap-1 text-xs text-purple-400">
+                        <span className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-pulse"></span>
+                        {reviewQueueCount}
                       </span>
                     )}
                     {isQueueItem && queueHasItems && (
