@@ -24,7 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 import Badge from "@/components/ui/Badge";
 import LotNumbersDialog from "@/components/inventory/LotNumbersDialog";
 import PhotoCaptureMode from "@/components/inventory/PhotoCaptureMode";
-import { Camera } from "lucide-react";
+import { Camera, Tag } from "lucide-react";
 
 const DEFAULT_UNITS = ["units", "Cases", "L", "ml", "Kg", "gram"];
 const DEFAULT_INVENTORY_TYPES = [
@@ -34,6 +34,7 @@ const DEFAULT_INVENTORY_TYPES = [
 ];
 
 export default function Inventory() {
+  const [activeTab, setActiveTab] = useState("inventory");
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [showModal, setShowModal] = useState(false);
@@ -140,6 +141,17 @@ export default function Inventory() {
     queryKey: ['suppliers'],
     queryFn: () => base44.entities.Supplier.list(),
   });
+
+  const { data: labels = [] } = useQuery({
+    queryKey: ['labels'],
+    queryFn: () => base44.entities.Label.list(),
+  });
+
+  // Finished products with no matching label
+  const unlabeledInventory = React.useMemo(() => {
+    const labeledSkus = new Set(labels.map(l => l.product_sku).filter(Boolean));
+    return inventory.filter(item => item.type === 'finished_product' && !labeledSkus.has(item.sku));
+  }, [inventory, labels]);
 
   const createMutation = useMutation({
     mutationFn: async (data) => {
@@ -425,6 +437,80 @@ export default function Inventory() {
         </div>
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-1 p-1 bg-zinc-900 border border-zinc-800 rounded-lg w-fit">
+        <button
+          onClick={() => setActiveTab("inventory")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === "inventory" ? "bg-orange-500/20 text-orange-400 border border-orange-500/30" : "text-zinc-400 hover:text-zinc-200"}`}
+        >
+          <Package className="w-4 h-4" />
+          Inventory
+        </button>
+        <button
+          onClick={() => setActiveTab("unlabeled")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === "unlabeled" ? "bg-orange-500/20 text-orange-400 border border-orange-500/30" : "text-zinc-400 hover:text-zinc-200"}`}
+        >
+          <Tag className="w-4 h-4" />
+          Unlabeled Inventory
+          {unlabeledInventory.length > 0 && (
+            <span className="ml-1 px-1.5 py-0.5 bg-amber-500/20 text-amber-400 text-xs rounded-full">{unlabeledInventory.length}</span>
+          )}
+        </button>
+      </div>
+
+      {/* Unlabeled Inventory Tab */}
+      {activeTab === "unlabeled" && (
+        <div className="space-y-4">
+          <p className="text-sm text-zinc-500">Finished products in inventory with no label record linked via product SKU.</p>
+          <Card className="bg-zinc-900 border-zinc-800">
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-zinc-800 bg-zinc-800/50">
+                      <th className="text-left p-4 text-xs font-semibold text-zinc-400 uppercase">SKU</th>
+                      <th className="text-left p-4 text-xs font-semibold text-zinc-400 uppercase">Name</th>
+                      <th className="text-right p-4 text-xs font-semibold text-zinc-400 uppercase">Quantity</th>
+                      <th className="text-left p-4 text-xs font-semibold text-zinc-400 uppercase">Supplier</th>
+                      <th className="text-right p-4 text-xs font-semibold text-zinc-400 uppercase">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {unlabeledInventory.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="p-8 text-center text-zinc-500">All finished products have labels assigned</td>
+                      </tr>
+                    ) : (
+                      unlabeledInventory.map((item) => (
+                        <tr key={item.id} className="border-b border-zinc-800 hover:bg-zinc-800/30">
+                          <td className="p-4">
+                            <span className="font-mono text-sm font-semibold text-orange-400">{item.sku}</span>
+                          </td>
+                          <td className="p-4 text-zinc-200">{item.name}</td>
+                          <td className="p-4 text-right">
+                            <span className="font-semibold text-zinc-200">{item.quantity}</span>
+                            <span className="text-zinc-500 ml-1">{item.unit}</span>
+                          </td>
+                          <td className="p-4 text-zinc-400">{item.supplier || '-'}</td>
+                          <td className="p-4">
+                            <div className="flex justify-end gap-2">
+                              <Button size="sm" variant="ghost" onClick={() => openModal(item)} className="text-zinc-400 hover:text-zinc-100">
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {activeTab === "inventory" && <>
       {/* Low Stock Alert */}
       {lowStock.length > 0 && (
         <div className="bg-red-500/10 border border-red-500/30 rounded-lg overflow-hidden">
@@ -670,6 +756,8 @@ export default function Inventory() {
           </div>
         </CardContent>
       </Card>
+
+      </>}
 
       {/* Add/Edit Modal */}
       <Dialog open={showModal} onOpenChange={setShowModal}>
