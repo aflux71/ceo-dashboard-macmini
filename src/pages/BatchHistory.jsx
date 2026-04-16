@@ -11,7 +11,12 @@ import {
   AlertCircle,
   ClipboardEdit,
   Loader2,
-  MinusCircle
+  MinusCircle,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  SlidersHorizontal,
+  RotateCcw
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +31,12 @@ import BatchDocument from "@/components/batch/BatchDocument";
 export default function BatchHistory() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [sortField, setSortField] = useState("created_date");
+  const [sortDir, setSortDir] = useState("desc");
+  const [showFilters, setShowFilters] = useState(false);
+
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [showDocModal, setShowDocModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
@@ -36,6 +47,33 @@ export default function BatchHistory() {
   const [auditUser, setAuditUser] = useState(null);
 
   React.useEffect(() => { base44.auth.me().then(setAuditUser).catch(() => {}); }, []);
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDir(d => d === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDir("desc");
+    }
+  };
+
+  const SortIcon = ({ field }) => {
+    if (sortField !== field) return <ArrowUpDown className="w-3.5 h-3.5 ml-1 text-zinc-600 inline" />;
+    return sortDir === "asc"
+      ? <ArrowUp className="w-3.5 h-3.5 ml-1 text-orange-400 inline" />
+      : <ArrowDown className="w-3.5 h-3.5 ml-1 text-orange-400 inline" />;
+  };
+
+  const resetFilters = () => {
+    setSearch("");
+    setStatusFilter("all");
+    setDateFrom("");
+    setDateTo("");
+    setSortField("created_date");
+    setSortDir("desc");
+  };
+
+  const hasActiveFilters = search || statusFilter !== "all" || dateFrom || dateTo;
 
   const queryClient = useQueryClient();
 
@@ -68,14 +106,53 @@ export default function BatchHistory() {
     }
   });
 
-  const filtered = batches.filter(batch => {
-    const matchesSearch = !search || 
-      batch.batch_id?.toLowerCase().includes(search.toLowerCase()) ||
-      batch.product_name?.toLowerCase().includes(search.toLowerCase()) ||
-      batch.sku?.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === "all" || batch.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filtered = batches
+    .filter(batch => {
+      const q = search.toLowerCase();
+      const matchesSearch = !search ||
+        batch.batch_id?.toLowerCase().includes(q) ||
+        batch.product_name?.toLowerCase().includes(q) ||
+        batch.sku?.toLowerCase().includes(q) ||
+        batch.operator?.toLowerCase().includes(q);
+      const matchesStatus = statusFilter === "all" || batch.status === statusFilter;
+      const batchDate = new Date(batch.production_date || batch.created_date);
+      const matchesFrom = !dateFrom || batchDate >= new Date(dateFrom);
+      const matchesTo = !dateTo || batchDate <= new Date(dateTo + "T23:59:59");
+      return matchesSearch && matchesStatus && matchesFrom && matchesTo;
+    })
+    .sort((a, b) => {
+      let aVal, bVal;
+      switch (sortField) {
+        case "batch_id":
+          aVal = a.batch_id || ""; bVal = b.batch_id || "";
+          break;
+        case "product_name":
+          aVal = a.product_name || ""; bVal = b.product_name || "";
+          break;
+        case "sku":
+          aVal = a.sku || ""; bVal = b.sku || "";
+          break;
+        case "quantity":
+          aVal = a.quantity || 0; bVal = b.quantity || 0;
+          return sortDir === "asc" ? aVal - bVal : bVal - aVal;
+        case "operator":
+          aVal = a.operator || ""; bVal = b.operator || "";
+          break;
+        case "status":
+          aVal = a.status || ""; bVal = b.status || "";
+          break;
+        case "production_date":
+          aVal = new Date(a.production_date || a.created_date);
+          bVal = new Date(b.production_date || b.created_date);
+          return sortDir === "asc" ? aVal - bVal : bVal - aVal;
+        default: // created_date
+          aVal = new Date(a.created_date);
+          bVal = new Date(b.created_date);
+          return sortDir === "asc" ? aVal - bVal : bVal - aVal;
+      }
+      const cmp = aVal.toString().localeCompare(bVal.toString());
+      return sortDir === "asc" ? cmp : -cmp;
+    });
 
   const getStatusBadge = (status) => {
     switch (status) {
@@ -172,12 +249,13 @@ export default function BatchHistory() {
 
       {/* Filters */}
       <Card className="bg-zinc-900 border-zinc-800">
-        <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row gap-4">
+        <CardContent className="pt-4 pb-4">
+          {/* Primary row */}
+          <div className="flex flex-col md:flex-row gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
               <Input
-                placeholder="Search by batch ID, product, or SKU..."
+                placeholder="Search batch ID, product, SKU, operator..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9 bg-zinc-800 border-zinc-700 text-zinc-100"
@@ -188,18 +266,100 @@ export default function BatchHistory() {
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="in_progress">In Progress</SelectItem>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="draft">Draft</SelectItem>
+                <SelectItem value="started">Started</SelectItem>
+                <SelectItem value="on_hold">On Hold</SelectItem>
                 <SelectItem value="pending_qc">Pending QC</SelectItem>
                 <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="in_review">In Review</SelectItem>
                 <SelectItem value="added_to_inventory">Added to Inventory</SelectItem>
                 <SelectItem value="rejected">Rejected</SelectItem>
               </SelectContent>
             </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowFilters(f => !f)}
+              className={`border-zinc-700 gap-2 ${showFilters ? "bg-zinc-700 text-zinc-100" : "text-zinc-400"}`}
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+              Date Range
+            </Button>
+            {hasActiveFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={resetFilters}
+                className="text-zinc-500 hover:text-zinc-300 gap-1.5"
+                title="Clear all filters"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Reset
+              </Button>
+            )}
           </div>
+
+          {/* Expanded date range row */}
+          {showFilters && (
+            <div className="flex flex-col sm:flex-row gap-3 mt-3 pt-3 border-t border-zinc-800">
+              <div className="flex-1 space-y-1">
+                <Label className="text-xs text-zinc-500">Production Date From</Label>
+                <Input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="bg-zinc-800 border-zinc-700 text-zinc-100"
+                />
+              </div>
+              <div className="flex-1 space-y-1">
+                <Label className="text-xs text-zinc-500">Production Date To</Label>
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="bg-zinc-800 border-zinc-700 text-zinc-100"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Active filter summary */}
+          {hasActiveFilters && (
+            <div className="flex flex-wrap gap-1.5 mt-3">
+              {search && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-400 text-xs border border-orange-500/20">
+                  Search: "{search}"
+                  <button onClick={() => setSearch("")}><X className="w-3 h-3" /></button>
+                </span>
+              )}
+              {statusFilter !== "all" && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 text-xs border border-blue-500/20">
+                  Status: {statusFilter.replace(/_/g, " ")}
+                  <button onClick={() => setStatusFilter("all")}><X className="w-3 h-3" /></button>
+                </span>
+              )}
+              {dateFrom && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-700 text-zinc-300 text-xs border border-zinc-600">
+                  From: {dateFrom}
+                  <button onClick={() => setDateFrom("")}><X className="w-3 h-3" /></button>
+                </span>
+              )}
+              {dateTo && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-700 text-zinc-300 text-xs border border-zinc-600">
+                  To: {dateTo}
+                  <button onClick={() => setDateTo("")}><X className="w-3 h-3" /></button>
+                </span>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* Results count */}
+      <div className="text-xs text-zinc-500 -mt-2">
+        {isLoading ? "Loading..." : `${filtered.length} of ${batches.length} batch${batches.length !== 1 ? "es" : ""}`}
+      </div>
 
       {/* Batches Table */}
       <Card className="bg-zinc-900 border-zinc-800">
@@ -208,23 +368,40 @@ export default function BatchHistory() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-zinc-800 bg-zinc-800/50">
-                  <th className="text-left p-4 text-xs font-semibold text-zinc-400 uppercase">Batch ID</th>
-                  <th className="text-left p-4 text-xs font-semibold text-zinc-400 uppercase">Product</th>
-                  <th className="text-right p-4 text-xs font-semibold text-zinc-400 uppercase">Quantity</th>
-                  <th className="text-left p-4 text-xs font-semibold text-zinc-400 uppercase">Operator</th>
-                  <th className="text-left p-4 text-xs font-semibold text-zinc-400 uppercase">Date</th>
-                  <th className="text-left p-4 text-xs font-semibold text-zinc-400 uppercase">Status</th>
+                  <th className="text-left p-4 text-xs font-semibold text-zinc-400 uppercase cursor-pointer hover:text-zinc-200 select-none" onClick={() => handleSort("batch_id")}>
+                    Batch ID <SortIcon field="batch_id" />
+                  </th>
+                  <th className="text-left p-4 text-xs font-semibold text-zinc-400 uppercase cursor-pointer hover:text-zinc-200 select-none" onClick={() => handleSort("product_name")}>
+                    Product <SortIcon field="product_name" />
+                  </th>
+                  <th className="text-left p-4 text-xs font-semibold text-zinc-400 uppercase cursor-pointer hover:text-zinc-200 select-none hidden md:table-cell" onClick={() => handleSort("sku")}>
+                    SKU <SortIcon field="sku" />
+                  </th>
+                  <th className="text-right p-4 text-xs font-semibold text-zinc-400 uppercase cursor-pointer hover:text-zinc-200 select-none" onClick={() => handleSort("quantity")}>
+                    Quantity <SortIcon field="quantity" />
+                  </th>
+                  <th className="text-left p-4 text-xs font-semibold text-zinc-400 uppercase cursor-pointer hover:text-zinc-200 select-none hidden lg:table-cell" onClick={() => handleSort("operator")}>
+                    Operator <SortIcon field="operator" />
+                  </th>
+                  <th className="text-left p-4 text-xs font-semibold text-zinc-400 uppercase cursor-pointer hover:text-zinc-200 select-none" onClick={() => handleSort("production_date")}>
+                    Date <SortIcon field="production_date" />
+                  </th>
+                  <th className="text-left p-4 text-xs font-semibold text-zinc-400 uppercase cursor-pointer hover:text-zinc-200 select-none" onClick={() => handleSort("status")}>
+                    Status <SortIcon field="status" />
+                  </th>
                   <th className="text-right p-4 text-xs font-semibold text-zinc-400 uppercase">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-zinc-500">Loading...</td>
+                    <td colSpan={8} className="p-8 text-center text-zinc-500">Loading...</td>
                   </tr>
                 ) : filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-zinc-500">No batches found</td>
+                    <td colSpan={8} className="p-8 text-center text-zinc-500">
+                      {hasActiveFilters ? "No batches match your filters." : "No batches found."}
+                    </td>
                   </tr>
                 ) : (
                   filtered.map((batch) => (
@@ -235,17 +412,17 @@ export default function BatchHistory() {
                         </span>
                       </td>
                       <td className="p-4">
-                        <div>
-                          <p className="text-zinc-200">{batch.product_name}</p>
-                          <p className="text-xs text-zinc-500">{batch.sku}</p>
-                        </div>
+                        <p className="text-zinc-200">{batch.product_name}</p>
+                      </td>
+                      <td className="p-4 hidden md:table-cell">
+                        <span className="font-mono text-xs text-zinc-400">{batch.sku}</span>
                       </td>
                       <td className="p-4 text-right text-zinc-200 font-semibold">
                         {batch.quantity?.toLocaleString()} units
                       </td>
-                      <td className="p-4 text-zinc-400">{batch.operator}</td>
+                      <td className="p-4 text-zinc-400 hidden lg:table-cell">{batch.operator}</td>
                       <td className="p-4 text-zinc-400 text-sm">
-                        {batch.production_date ? new Date(batch.production_date).toLocaleDateString() : 
+                        {batch.production_date ? new Date(batch.production_date).toLocaleDateString() :
                          new Date(batch.created_date).toLocaleDateString()}
                       </td>
                       <td className="p-4">{getStatusBadge(batch.status)}</td>
