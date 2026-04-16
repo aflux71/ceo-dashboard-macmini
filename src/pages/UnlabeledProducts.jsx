@@ -1,14 +1,82 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Trash2, Tag, Pencil, Check, X, Plus } from "lucide-react";
+import { Trash2, Tag, Pencil, Check, X, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 
 const EMPTY_FORM = { product_name: "", sku: "", batch_id: "", qty_unlabeled: "", qty_labeled: "", notes: "" };
+
+function ProductSearch({ value, onSelect }) {
+  const [query, setQuery] = useState(value || "");
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  const { data: inventory = [] } = useQuery({
+    queryKey: ["inventory_finished"],
+    queryFn: () => base44.entities.Inventory.filter({ type: "finished_product" }),
+  });
+  const { data: recipes = [] } = useQuery({
+    queryKey: ["recipes_active"],
+    queryFn: () => base44.entities.Recipe.filter({ active: true }),
+  });
+
+  // Merge inventory finished products + recipes into one searchable list
+  const options = [
+    ...inventory.map(i => ({ label: i.name, sku: i.sku, source: "inventory" })),
+    ...recipes.filter(r => !inventory.find(i => i.sku === r.sku)).map(r => ({ label: r.name, sku: r.sku, source: "recipe" })),
+  ];
+
+  const filtered = query.length > 0
+    ? options.filter(o =>
+        o.label.toLowerCase().includes(query.toLowerCase()) ||
+        o.sku?.toLowerCase().includes(query.toLowerCase())
+      ).slice(0, 10)
+    : [];
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <div className="relative">
+        <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-zinc-500" />
+        <Input
+          value={query}
+          onChange={e => { setQuery(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          placeholder="Search product name or SKU..."
+          className="bg-zinc-800 border-zinc-700 text-zinc-100 text-sm pl-8"
+        />
+      </div>
+      {open && filtered.length > 0 && (
+        <div className="absolute z-50 mt-1 w-full bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl max-h-52 overflow-y-auto">
+          {filtered.map((opt, i) => (
+            <button
+              key={i}
+              type="button"
+              className="w-full text-left px-3 py-2 hover:bg-zinc-700 transition-colors flex items-center justify-between gap-2"
+              onClick={() => {
+                setQuery(opt.label);
+                setOpen(false);
+                onSelect({ product_name: opt.label, sku: opt.sku });
+              }}
+            >
+              <span className="text-sm text-zinc-100 truncate">{opt.label}</span>
+              <span className="text-xs text-zinc-500 font-mono shrink-0">{opt.sku}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function UnlabeledProducts() {
   const queryClient = useQueryClient();
@@ -90,13 +158,15 @@ export default function UnlabeledProducts() {
         <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-5 space-y-3">
           <h3 className="text-sm font-semibold text-zinc-300">Add Unlabeled Product</h3>
           <div className="grid grid-cols-2 gap-3">
-            <div>
+            <div className="col-span-2">
               <label className="text-xs text-zinc-400 block mb-1">Product Name <span className="text-red-400">*</span></label>
-              <Input value={addForm.product_name} onChange={e => setAddForm(p => ({ ...p, product_name: e.target.value }))} placeholder="e.g. Lavender Body Wash 500ml" className="bg-zinc-800 border-zinc-700 text-zinc-100 text-sm" />
-            </div>
-            <div>
-              <label className="text-xs text-zinc-400 block mb-1">SKU</label>
-              <Input value={addForm.sku} onChange={e => setAddForm(p => ({ ...p, sku: e.target.value }))} placeholder="e.g. 9901234567" className="bg-zinc-800 border-zinc-700 text-zinc-100 text-sm" />
+              <ProductSearch
+                value={addForm.product_name}
+                onSelect={({ product_name, sku }) => setAddForm(p => ({ ...p, product_name, sku }))}
+              />
+              {addForm.sku && (
+                <p className="text-xs text-zinc-500 font-mono mt-1">SKU: {addForm.sku}</p>
+              )}
             </div>
             <div>
               <label className="text-xs text-zinc-400 block mb-1">Batch ID</label>
