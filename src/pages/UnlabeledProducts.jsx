@@ -19,19 +19,8 @@ function ProductSearch({ value, onSelect }) {
     queryKey: ["inventory_finished"],
     queryFn: () => base44.entities.Inventory.filter({ type: "finished_product" }),
   });
-  const { data: recipes = [] } = useQuery({
-    queryKey: ["recipes_active"],
-    queryFn: () => base44.entities.Recipe.filter({ active: true }),
-  });
-
-  // Merge inventory finished products + recipes into one searchable list
-  // Recipes take priority — inventory may be missing items
-  const inventoryMap = new Map(inventory.map(i => [i.sku, i]));
-  const recipeOptions = recipes.map(r => ({ label: r.name, sku: r.sku, source: "recipe" }));
-  const inventoryOnly = inventory
-    .filter(i => !recipes.find(r => r.sku === i.sku))
-    .map(i => ({ label: i.name, sku: i.sku, source: "inventory" }));
-  const options = [...recipeOptions, ...inventoryOnly];
+  // Use inventory finished products as primary source
+  const options = inventory.map(i => ({ label: i.name, sku: i.sku, source: "inventory" }));
 
   const filtered = query.length > 1
     ? options.filter(o =>
