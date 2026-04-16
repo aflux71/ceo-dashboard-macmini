@@ -1,0 +1,41 @@
+{
+  "name": "UnlabeledProduct",
+  "type": "object",
+  "properties": {
+    "batch_entity_id": {
+      "type": "string",
+      "description": "ID of the linked Batch entity"
+    },
+    "batch_id": {
+      "type": "string",
+      "description": "Batch ID string (e.g. 990-260415-3)"
+    },
+    "sku": {
+      "type": "string",
+      "description": "Product SKU"
+    },
+    "product_name": {
+      "type": "string",
+      "description": "Product name"
+    },
+    "qty_unlabeled": {
+      "type": "number",
+      "description": "Quantity of unlabeled units"
+    },
+    "qty_labeled": {
+      "type": "number",
+      "description": "Quantity of labeled units"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Notes related to unlabeled products"
+    }
+  },
+  "required": [
+    "batch_entity_id",
+    "sku",
+    "product_name",
+    "qty_unlabeled",
+    "qty_labeled"
+  ]
+}

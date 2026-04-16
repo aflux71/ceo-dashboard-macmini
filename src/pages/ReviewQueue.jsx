@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { CheckCircle, XCircle, AlertTriangle, ChevronDown, ChevronUp, DollarSign, PackageX, AlertCircle } from "lucide-react";
+import { CheckCircle, XCircle, AlertTriangle, ChevronDown, ChevronUp, DollarSign, PackageX, AlertCircle, Tag, Save } from "lucide-react";
 import { toast } from "sonner";
 import { calculateBatchCost } from "@/components/recipes/BatchCostCalculator";
 import { useFloorPin } from "@/components/auth/FloorPinContext";
@@ -14,6 +14,8 @@ export default function ReviewQueue() {
   const [expandedBatch, setExpandedBatch] = useState(null);
   const [rejectionReason, setRejectionReason] = useState({});
   const [yieldOverride, setYieldOverride] = useState({}); // { [batchId]: { qty, notes } }
+  const [unlabeledForm, setUnlabeledForm] = useState({}); // { [batchId]: { qty_unlabeled, qty_labeled, notes } }
+  const [savedUnlabeled, setSavedUnlabeled] = useState({}); // tracks which batchIds have been saved
   const queryClient = useQueryClient();
   const { floorUser, hasPermission } = useFloorPin();
 
@@ -98,6 +100,25 @@ export default function ReviewQueue() {
       toast.success("Batch rejected");
       setRejectionReason({});
     }
+  });
+
+  // Save unlabeled product mutation
+  const unlabeledMutation = useMutation({
+    mutationFn: ({ batch, form }) =>
+      base44.entities.UnlabeledProduct.create({
+        batch_entity_id: batch.id,
+        batch_id: batch.batch_id,
+        sku: batch.sku,
+        product_name: batch.product_name,
+        qty_unlabeled: Number(form.qty_unlabeled),
+        qty_labeled: Number(form.qty_labeled),
+        notes: form.notes || "",
+      }),
+    onSuccess: (_, vars) => {
+      setSavedUnlabeled(prev => ({ ...prev, [vars.batch.batch_id]: true }));
+      toast.success("Unlabeled record saved");
+    },
+    onError: () => toast.error("Failed to save unlabeled record"),
   });
 
   // Qty override mutation
@@ -368,6 +389,73 @@ export default function ReviewQueue() {
                         )}
                       </div>
                     )}
+
+                    {/* Unlabeled Products Section */}
+                    <div className="border border-zinc-600/40 bg-zinc-800/20 rounded-lg p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Tag className="w-4 h-4 text-zinc-400" />
+                        <h4 className="text-sm font-semibold text-zinc-300">Unlabeled Products</h4>
+                        <span className="text-xs text-zinc-500">— Record any units sent without labels</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs text-zinc-400 mb-1 block">Qty Unlabeled</label>
+                          <Input
+                            type="number"
+                            min={0}
+                            placeholder="0"
+                            value={unlabeledForm[batch.batch_id]?.qty_unlabeled ?? ""}
+                            onChange={(e) => setUnlabeledForm(prev => ({
+                              ...prev,
+                              [batch.batch_id]: { ...prev[batch.batch_id], qty_unlabeled: e.target.value }
+                            }))}
+                            className="bg-zinc-800 border-zinc-700 text-zinc-100 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-zinc-400 mb-1 block">Qty Labeled</label>
+                          <Input
+                            type="number"
+                            min={0}
+                            placeholder="0"
+                            value={unlabeledForm[batch.batch_id]?.qty_labeled ?? ""}
+                            onChange={(e) => setUnlabeledForm(prev => ({
+                              ...prev,
+                              [batch.batch_id]: { ...prev[batch.batch_id], qty_labeled: e.target.value }
+                            }))}
+                            className="bg-zinc-800 border-zinc-700 text-zinc-100 text-sm"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs text-zinc-400 mb-1 block">Notes</label>
+                        <Textarea
+                          placeholder="Optional notes about unlabeled units..."
+                          value={unlabeledForm[batch.batch_id]?.notes ?? ""}
+                          onChange={(e) => setUnlabeledForm(prev => ({
+                            ...prev,
+                            [batch.batch_id]: { ...prev[batch.batch_id], notes: e.target.value }
+                          }))}
+                          className="bg-zinc-800 border-zinc-700 text-zinc-100 text-xs min-h-[50px]"
+                        />
+                      </div>
+                      {(() => {
+                        const form = unlabeledForm[batch.batch_id];
+                        const hasData = form?.qty_unlabeled || form?.qty_labeled;
+                        const isSaved = savedUnlabeled[batch.batch_id];
+                        return (
+                          <Button
+                            size="sm"
+                            disabled={!hasData || unlabeledMutation.isPending || isSaved}
+                            onClick={() => unlabeledMutation.mutate({ batch, form })}
+                            className={`text-xs gap-1 ${isSaved ? "bg-green-700 text-white" : "bg-zinc-700 hover:bg-zinc-600 text-zinc-200"}`}
+                          >
+                            <Save className="w-3 h-3" />
+                            {isSaved ? "Saved to Unlabeled Products" : "Save Unlabeled Record"}
+                          </Button>
+                        );
+                      })()}
+                    </div>
 
                     {/* Action Buttons */}
                     <div className="flex gap-3 pt-4 border-t border-zinc-800">

@@ -52,6 +52,7 @@ const navItems = [
         { name: "Recipes", icon: Beaker, page: "Recipes" },
 
         { name: "Purchase Orders", icon: ShoppingCart, page: "PurchaseOrders" },
+        { name: "Unlabeled Products", icon: Tag, page: "UnlabeledProducts", isUnlabeledLink: true },
         { name: "Requisitions", icon: FileText, page: "PurchaseRequisitions", badge: true },
         { name: "Planning", icon: Factory, page: "ProductionPlanning" },
 
@@ -180,6 +181,19 @@ export default function Layout({ children, currentPageName }) {
   }, []);
 
   // Fetch low label count (staggered)
+  const [unlabeledCount, setUnlabeledCount] = useState(0);
+  useEffect(() => {
+    const fetchUnlabeledCount = async () => {
+      try {
+        const items = await base44.entities.UnlabeledProduct.list();
+        setUnlabeledCount(items.length);
+      } catch { setUnlabeledCount(0); }
+    };
+    const timeout = setTimeout(fetchUnlabeledCount, 4000);
+    const interval = setInterval(fetchUnlabeledCount, 60000);
+    return () => { clearTimeout(timeout); clearInterval(interval); };
+  }, []);
+
   const [lowLabelCount, setLowLabelCount] = useState(0);
   useEffect(() => {
     const fetchLabelCount = async () => {
@@ -348,6 +362,8 @@ export default function Layout({ children, currentPageName }) {
                 const hasPendingConsumables = pendingConsumablesCount > 0;
                 const isLabelsItem = item.isLabelsLink;
                 const hasLowLabels = lowLabelCount > 0;
+                const isUnlabeledItem = item.isUnlabeledLink;
+                const hasUnlabeled = unlabeledCount > 0;
                 const isAddToInventoryItem = item.isAddToInventoryLink;
                 const hasApprovedBatches = approvedBatchCount > 0;
                 const isReviewQueueItem = item.page === "ReviewQueue";
@@ -376,6 +392,8 @@ export default function Layout({ children, currentPageName }) {
                               ? 'text-orange-400 hover:text-orange-300 hover:bg-orange-500/10'
                               : isLabelsItem && hasLowLabels
                                 ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
+                                : isUnlabeledItem && hasUnlabeled
+                                  ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
                                 : isAddToInventoryItem && hasApprovedBatches
                                   ? 'text-green-400 hover:text-green-300 hover:bg-green-500/10'
                                   : isReviewQueueItem && hasReviewItems
@@ -387,7 +405,7 @@ export default function Layout({ children, currentPageName }) {
                     `}
                   >
                     <div className="flex items-center gap-3">
-                      <item.icon className={`w-5 h-5 ${showAlertStyle ? 'text-red-400' : isRepairItem && hasNewRepairs ? 'text-amber-400' : isConsumablesItem && hasPendingConsumables ? 'text-orange-400' : isLabelsItem && hasLowLabels ? 'text-amber-400' : isAddToInventoryItem && hasApprovedBatches ? 'text-green-400' : isReviewQueueItem && hasReviewItems ? 'text-purple-400' : ''}`} />
+                      <item.icon className={`w-5 h-5 ${showAlertStyle ? 'text-red-400' : isRepairItem && hasNewRepairs ? 'text-amber-400' : isConsumablesItem && hasPendingConsumables ? 'text-orange-400' : isLabelsItem && hasLowLabels ? 'text-amber-400' : isUnlabeledItem && hasUnlabeled ? 'text-amber-400' : isAddToInventoryItem && hasApprovedBatches ? 'text-green-400' : isReviewQueueItem && hasReviewItems ? 'text-purple-400' : ''}`} />
                       {item.name}
                     </div>
                     {item.badge && pendingQcCount > 0 && (
@@ -415,6 +433,12 @@ export default function Layout({ children, currentPageName }) {
                       <span className="flex items-center gap-1 text-xs text-green-400">
                         <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></span>
                         {approvedBatchCount}
+                      </span>
+                    )}
+                    {isUnlabeledItem && hasUnlabeled && (
+                      <span className="flex items-center gap-1 text-xs text-amber-400">
+                        <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse"></span>
+                        {unlabeledCount}
                       </span>
                     )}
                     {isReviewQueueItem && hasReviewItems && (
