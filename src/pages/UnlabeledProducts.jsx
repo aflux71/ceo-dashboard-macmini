@@ -25,16 +25,19 @@ function ProductSearch({ value, onSelect }) {
   });
 
   // Merge inventory finished products + recipes into one searchable list
-  const options = [
-    ...inventory.map(i => ({ label: i.name, sku: i.sku, source: "inventory" })),
-    ...recipes.filter(r => !inventory.find(i => i.sku === r.sku)).map(r => ({ label: r.name, sku: r.sku, source: "recipe" })),
-  ];
+  // Recipes take priority — inventory may be missing items
+  const inventoryMap = new Map(inventory.map(i => [i.sku, i]));
+  const recipeOptions = recipes.map(r => ({ label: r.name, sku: r.sku, source: "recipe" }));
+  const inventoryOnly = inventory
+    .filter(i => !recipes.find(r => r.sku === i.sku))
+    .map(i => ({ label: i.name, sku: i.sku, source: "inventory" }));
+  const options = [...recipeOptions, ...inventoryOnly];
 
-  const filtered = query.length > 0
+  const filtered = query.length > 1
     ? options.filter(o =>
         o.label.toLowerCase().includes(query.toLowerCase()) ||
         o.sku?.toLowerCase().includes(query.toLowerCase())
-      ).slice(0, 10)
+      ).slice(0, 20)
     : [];
 
   useEffect(() => {
