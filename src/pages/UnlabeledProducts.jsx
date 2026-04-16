@@ -5,12 +5,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Trash2, Tag, Pencil, Check, X } from "lucide-react";
+import { Trash2, Tag, Pencil, Check, X, Plus } from "lucide-react";
 import { toast } from "sonner";
+
+const EMPTY_FORM = { product_name: "", sku: "", batch_id: "", qty_unlabeled: "", qty_labeled: "", notes: "" };
 
 export default function UnlabeledProducts() {
   const queryClient = useQueryClient();
-  const [editing, setEditing] = useState(null); // { id, qty_unlabeled, qty_labeled, notes }
+  const [editing, setEditing] = useState(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addForm, setAddForm] = useState(EMPTY_FORM);
 
   const { data: items = [] } = useQuery({
     queryKey: ["unlabeled_products"],
@@ -31,6 +35,21 @@ export default function UnlabeledProducts() {
       queryClient.invalidateQueries({ queryKey: ["unlabeled_products"] });
       setEditing(null);
       toast.success("Updated");
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (data) => base44.entities.UnlabeledProduct.create({
+      ...data,
+      qty_unlabeled: Number(data.qty_unlabeled),
+      qty_labeled: Number(data.qty_labeled),
+      batch_entity_id: "manual",
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["unlabeled_products"] });
+      setShowAddForm(false);
+      setAddForm(EMPTY_FORM);
+      toast.success("Added");
     },
   });
 
@@ -56,11 +75,58 @@ export default function UnlabeledProducts() {
           <h1 className="text-3xl font-bold text-zinc-100">Unlabeled Products</h1>
           <p className="text-sm text-zinc-400 mt-1">Products pending labeling from the review queue</p>
         </div>
-        <div className="bg-amber-500/20 border border-amber-500/30 rounded-lg px-4 py-2 text-center">
-          <p className="text-xs text-amber-400 font-medium">Unlabeled</p>
-          <span className="text-2xl font-bold text-amber-400">{items.length}</span>
+        <div className="flex items-center gap-3">
+          <div className="bg-amber-500/20 border border-amber-500/30 rounded-lg px-4 py-2 text-center">
+            <p className="text-xs text-amber-400 font-medium">Unlabeled</p>
+            <span className="text-2xl font-bold text-amber-400">{items.length}</span>
+          </div>
+          <Button onClick={() => setShowAddForm(v => !v)} className="bg-zinc-700 hover:bg-zinc-600 gap-2">
+            <Plus className="w-4 h-4" /> Add Manually
+          </Button>
         </div>
       </div>
+
+      {showAddForm && (
+        <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-5 space-y-3">
+          <h3 className="text-sm font-semibold text-zinc-300">Add Unlabeled Product</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-zinc-400 block mb-1">Product Name <span className="text-red-400">*</span></label>
+              <Input value={addForm.product_name} onChange={e => setAddForm(p => ({ ...p, product_name: e.target.value }))} placeholder="e.g. Lavender Body Wash 500ml" className="bg-zinc-800 border-zinc-700 text-zinc-100 text-sm" />
+            </div>
+            <div>
+              <label className="text-xs text-zinc-400 block mb-1">SKU</label>
+              <Input value={addForm.sku} onChange={e => setAddForm(p => ({ ...p, sku: e.target.value }))} placeholder="e.g. 9901234567" className="bg-zinc-800 border-zinc-700 text-zinc-100 text-sm" />
+            </div>
+            <div>
+              <label className="text-xs text-zinc-400 block mb-1">Batch ID</label>
+              <Input value={addForm.batch_id} onChange={e => setAddForm(p => ({ ...p, batch_id: e.target.value }))} placeholder="e.g. 990-260415-3" className="bg-zinc-800 border-zinc-700 text-zinc-100 text-sm" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-zinc-400 block mb-1">Qty Unlabeled</label>
+                <Input type="number" min={0} value={addForm.qty_unlabeled} onChange={e => setAddForm(p => ({ ...p, qty_unlabeled: e.target.value }))} placeholder="0" className="bg-zinc-800 border-zinc-700 text-zinc-100 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs text-zinc-400 block mb-1">Qty Labeled</label>
+                <Input type="number" min={0} value={addForm.qty_labeled} onChange={e => setAddForm(p => ({ ...p, qty_labeled: e.target.value }))} placeholder="0" className="bg-zinc-800 border-zinc-700 text-zinc-100 text-sm" />
+              </div>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-zinc-400 block mb-1">Notes</label>
+            <Textarea value={addForm.notes} onChange={e => setAddForm(p => ({ ...p, notes: e.target.value }))} placeholder="Optional notes..." className="bg-zinc-800 border-zinc-700 text-zinc-100 text-xs min-h-[50px]" />
+          </div>
+          <div className="flex gap-2 pt-1">
+            <Button size="sm" disabled={!addForm.product_name || createMutation.isPending} onClick={() => createMutation.mutate(addForm)} className="bg-green-600 hover:bg-green-700 gap-1 text-xs">
+              <Check className="w-3 h-3" /> Save
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => { setShowAddForm(false); setAddForm(EMPTY_FORM); }} className="border-zinc-700 text-zinc-400 text-xs gap-1">
+              <X className="w-3 h-3" /> Cancel
+            </Button>
+          </div>
+        </div>
+      )}
 
       {items.length === 0 ? (
         <Card className="bg-zinc-900 border-zinc-800">
