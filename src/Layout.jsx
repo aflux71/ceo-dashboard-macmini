@@ -45,7 +45,7 @@ const navItems = [
         { name: "Labels", icon: Tag, page: "Labels", isLabelsLink: true },
         { name: "Label Usage", icon: Tag, page: "LabelUsage" },
         { name: "Review Queue", icon: ClipboardList, page: "ReviewQueue", badge: true },
-        { name: "Receive Shipment", icon: Truck, page: "ReceiveShipment" },
+
         { name: "Add to Inventory", icon: ShoppingCart, page: "AddToInventory", badge: true, isAddToInventoryLink: true },
         { name: "Batch History", icon: History, page: "BatchHistory" },
         { name: "Inventory", icon: Package, page: "Inventory" },

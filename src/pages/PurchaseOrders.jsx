@@ -14,6 +14,7 @@ import {
   Package,
   AlertTriangle,
   Tag,
+  PackageOpen,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ import Badge from "@/components/ui/Badge";
 import PODocument from "@/components/purchase/PODocument";
 import SuggestedReorders from "@/components/purchase/SuggestedReorders";
 import LabelPurchaseOrders from "./LabelPurchaseOrders";
+import ReceiveShipment from "./ReceiveShipment";
 
 export default function PurchaseOrders() {
   const [activeTab, setActiveTab] = useState("inventory");
@@ -366,9 +368,17 @@ export default function PurchaseOrders() {
           <Tag className="w-4 h-4" />
           Label POs
         </button>
+        <button
+          onClick={() => setActiveTab("receive")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === "receive" ? "bg-orange-500/20 text-orange-400 border border-orange-500/30" : "text-zinc-400 hover:text-zinc-200"}`}
+        >
+          <PackageOpen className="w-4 h-4" />
+          Receive Shipments
+        </button>
       </div>
 
       {activeTab === "labels" && <LabelPurchaseOrders />}
+      {activeTab === "receive" && <ReceiveShipment />}
       {activeTab === "inventory" && <div className="space-y-6">
 
       {/* Filters & Quick Actions */}
