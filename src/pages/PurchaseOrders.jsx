@@ -5,7 +5,6 @@ import {
   ShoppingCart,
   Plus,
   Search,
-  Download,
   Eye,
   Edit,
   Trash2,
@@ -13,7 +12,8 @@ import {
   Check,
   Truck,
   Package,
-  AlertTriangle
+  AlertTriangle,
+  Tag,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,8 +25,10 @@ import { Textarea } from "@/components/ui/textarea";
 import Badge from "@/components/ui/Badge";
 import PODocument from "@/components/purchase/PODocument";
 import SuggestedReorders from "@/components/purchase/SuggestedReorders";
+import LabelPurchaseOrders from "./LabelPurchaseOrders";
 
 export default function PurchaseOrders() {
+  const [activeTab, setActiveTab] = useState("inventory");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showModal, setShowModal] = useState(false);
@@ -337,14 +339,37 @@ export default function PurchaseOrders() {
         <div>
           <h1 className="text-2xl font-bold text-zinc-100">Purchase Orders</h1>
           <p className="text-zinc-500 text-sm mt-1">
-            Create and manage purchase orders with suggested reorder points
+            Manage inventory and label purchase orders
           </p>
         </div>
-        <Button onClick={openNewModal} className="bg-orange-500 hover:bg-orange-600 text-white">
-          <Plus className="w-4 h-4 mr-2" />
-          New Purchase Order
-        </Button>
+        {activeTab === "inventory" && (
+          <Button onClick={openNewModal} className="bg-orange-500 hover:bg-orange-600 text-white">
+            <Plus className="w-4 h-4 mr-2" />
+            New Purchase Order
+          </Button>
+        )}
       </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 p-1 bg-zinc-900 border border-zinc-800 rounded-lg w-fit">
+        <button
+          onClick={() => setActiveTab("inventory")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === "inventory" ? "bg-orange-500/20 text-orange-400 border border-orange-500/30" : "text-zinc-400 hover:text-zinc-200"}`}
+        >
+          <ShoppingCart className="w-4 h-4" />
+          Inventory POs
+        </button>
+        <button
+          onClick={() => setActiveTab("labels")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === "labels" ? "bg-orange-500/20 text-orange-400 border border-orange-500/30" : "text-zinc-400 hover:text-zinc-200"}`}
+        >
+          <Tag className="w-4 h-4" />
+          Label POs
+        </button>
+      </div>
+
+      {activeTab === "labels" && <LabelPurchaseOrders />}
+      {activeTab === "inventory" && <div className="space-y-6">
 
       {/* Filters & Quick Actions */}
       <Card className="bg-zinc-900 border-zinc-800">
@@ -502,6 +527,8 @@ export default function PurchaseOrders() {
           </div>
         </CardContent>
       </Card>
+
+      </div>}
 
       {/* Create/Edit PO Modal */}
       <Dialog open={showModal} onOpenChange={setShowModal}>

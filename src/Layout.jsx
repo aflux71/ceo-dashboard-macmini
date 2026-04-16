@@ -44,7 +44,6 @@ const navItems = [
         { name: "Low Consumables", icon: PackageOpen, page: "LowConsumables", isConsumablesLink: true },
         { name: "Labels", icon: Tag, page: "Labels", isLabelsLink: true },
         { name: "Label Usage", icon: Tag, page: "LabelUsage" },
-        { name: "Label POs", icon: ShoppingCart, page: "LabelPurchaseOrders" },
         { name: "Review Queue", icon: ClipboardList, page: "ReviewQueue", badge: true },
         { name: "Receive Shipment", icon: Truck, page: "ReceiveShipment" },
         { name: "Add to Inventory", icon: ShoppingCart, page: "AddToInventory", badge: true, isAddToInventoryLink: true },
