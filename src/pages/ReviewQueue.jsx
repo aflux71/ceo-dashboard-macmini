@@ -1,14 +1,17 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { CheckCircle, XCircle, AlertTriangle, ChevronDown, ChevronUp, DollarSign, PackageX, AlertCircle, Tag, Save } from "lucide-react";
+import { CheckCircle, XCircle, AlertTriangle, ChevronDown, ChevronUp, DollarSign, PackageX, AlertCircle, Tag, Save, Printer, FileText, ClipboardList, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { calculateBatchCost } from "@/components/recipes/BatchCostCalculator";
 import { useFloorPin } from "@/components/auth/FloorPinContext";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import BatchTraveller from "@/components/recipes/BatchTraveller";
+import RecipeBatchSheet from "@/components/recipes/RecipeBatchSheet";
 
 export default function ReviewQueue() {
   const [expandedBatch, setExpandedBatch] = useState(null);
@@ -16,6 +19,11 @@ export default function ReviewQueue() {
   const [yieldOverride, setYieldOverride] = useState({}); // { [batchId]: { qty, notes } }
   const [unlabeledForm, setUnlabeledForm] = useState({}); // { [batchId]: { qty_unlabeled, qty_labeled, notes } }
   const [savedUnlabeled, setSavedUnlabeled] = useState({});
+  const [printBatch, setPrintBatch] = useState(null);
+  const [printRecipe, setPrintRecipe] = useState(null);
+  const [printLoading, setPrintLoading] = useState(false);
+  const [printType, setPrintType] = useState("traveller");
+  const printRef = useRef(null);
   const queryClient = useQueryClient();
   const { floorUser, hasPermission } = useFloorPin();
 
@@ -53,6 +61,31 @@ export default function ReviewQueue() {
 
   const [activeTab, setActiveTab] = useState("review"); // "qc" | "review"
   const batches = activeTab === "qc" ? qcBatches : reviewBatches;
+
+  const handlePrintTraveller = async (batch) => {
+    setPrintLoading(true);
+    setPrintBatch(batch);
+    setPrintRecipe(null);
+    try {
+      const recipes = await base44.entities.Recipe.filter({ sku: batch.sku });
+      setPrintRecipe(recipes[0] || null);
+    } catch { setPrintRecipe(null); }
+    setPrintLoading(false);
+  };
+
+  const doPrint = () => {
+    const printContent = printRef.current;
+    if (!printContent) return;
+    const win = window.open("", "_blank", "width=900,height=700");
+    win.document.write(`<!DOCTYPE html><html><head><title>Print</title><style>
+      @page { margin: 0.5in; size: letter; }
+      body { margin: 0; padding: 0; font-family: Arial, sans-serif; font-size: 12px; color: #111; background: white; }
+      * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    </style></head><body>${printContent.innerHTML}</body></html>`);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); win.close(); }, 400);
+  };
 
   // Fetch recipes and inventory for cost calculation
   const { data: recipes = [] } = useQuery({
@@ -238,11 +271,20 @@ export default function ReviewQueue() {
                     </p>
                   </div>
                   
-                  {isExpanded ? (
-                    <ChevronUp className="w-5 h-5 text-zinc-400" />
-                  ) : (
-                    <ChevronDown className="w-5 h-5 text-zinc-400" />
-                  )}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handlePrintTraveller(batch); }}
+                      className="p-1.5 text-zinc-500 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-colors"
+                      title="Print Traveller"
+                    >
+                      <Printer className="w-4 h-4" />
+                    </button>
+                    {isExpanded ? (
+                      <ChevronUp className="w-5 h-5 text-zinc-400" />
+                    ) : (
+                      <ChevronDown className="w-5 h-5 text-zinc-400" />
+                    )}
+                  </div>
                 </button>
 
                 {/* Details */}
@@ -508,6 +550,48 @@ export default function ReviewQueue() {
           })
         )}
       </div>
+
+      {/* Print Traveller Dialog */}
+      <Dialog open={!!printBatch} onOpenChange={(open) => { if (!open) { setPrintBatch(null); setPrintRecipe(null); } }}>
+        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Printer className="w-4 h-4" />
+              Print — {printBatch?.batch_id}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex gap-2 border-b border-zinc-800 pb-3">
+            <button onClick={() => setPrintType("traveller")} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${printType === "traveller" ? "bg-orange-500/20 text-orange-400 border border-orange-500/30" : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800"}`}>
+              <FileText className="w-4 h-4" /> Traveller Card
+            </button>
+            <button onClick={() => setPrintType("batch_sheet")} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${printType === "batch_sheet" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800"}`}>
+              <ClipboardList className="w-4 h-4" /> Full Batch Sheet
+            </button>
+          </div>
+          <div className="py-2">
+            {printLoading ? (
+              <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-zinc-400" /></div>
+            ) : printType === "traveller" ? (
+              <div ref={printRef}><BatchTraveller batch={printBatch} recipe={printRecipe} /></div>
+            ) : !printRecipe ? (
+              <div className="text-center py-8 text-zinc-400">
+                <p className="text-sm">No recipe found for SKU <span className="font-mono text-zinc-300">{printBatch?.sku}</span>.</p>
+                <p className="text-xs text-zinc-500 mt-1">A recipe must exist to print a full batch sheet.</p>
+              </div>
+            ) : (
+              <div ref={printRef}><RecipeBatchSheet recipes={[{ ...printRecipe, _batchInfo: printBatch }]} showVerifyCheckboxes={true} /></div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setPrintBatch(null); setPrintRecipe(null); }} className="border-zinc-700">Close</Button>
+            {(printType === "traveller" || printRecipe) && (
+              <Button onClick={doPrint} className="bg-blue-600 hover:bg-blue-700 text-white">
+                <Printer className="w-4 h-4 mr-2" /> Print
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
