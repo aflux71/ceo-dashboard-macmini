@@ -445,9 +445,7 @@ export default function ReviewQueue() {
                       </div>
                       {(() => {
                         const form = unlabeledForm[batch.batch_id];
-                        const qtyUnlabeled = Number(form?.qty_unlabeled);
-                        const qtyLabeled = Number(form?.qty_labeled);
-                        const hasData = qtyUnlabeled > 0 || qtyLabeled > 0;
+                        const hasData = form?.qty_unlabeled !== undefined && form?.qty_unlabeled !== "" && form?.qty_unlabeled !== null;
                         const isSaved = savedUnlabeled[batch.batch_id];
                         return (
                           <Button
