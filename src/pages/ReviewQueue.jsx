@@ -445,17 +445,19 @@ export default function ReviewQueue() {
                       </div>
                       {(() => {
                         const form = unlabeledForm[batch.batch_id];
-                        const hasData = form?.qty_unlabeled || form?.qty_labeled;
+                        const qtyUnlabeled = Number(form?.qty_unlabeled);
+                        const qtyLabeled = Number(form?.qty_labeled);
+                        const hasData = qtyUnlabeled > 0 || qtyLabeled > 0;
                         const isSaved = savedUnlabeled[batch.batch_id];
                         return (
                           <Button
                             size="sm"
-                            disabled={!hasData || unlabeledMutation.isPending || isSaved}
+                            disabled={!hasData || unlabeledMutation.isPending}
                             onClick={() => unlabeledMutation.mutate({ batch, form })}
                             className={`text-xs gap-1 ${isSaved ? "bg-green-700 text-white" : "bg-zinc-700 hover:bg-zinc-600 text-zinc-200"}`}
                           >
                             <Save className="w-3 h-3" />
-                            {isSaved ? "Saved to Unlabeled Products" : "Save Unlabeled Record"}
+                            {isSaved ? "Saved ✓" : "Save Unlabeled Record"}
                           </Button>
                         );
                       })()}
