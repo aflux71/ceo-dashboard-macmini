@@ -19,7 +19,11 @@ import {
   Check,
   Clock,
   CheckCircle,
-  AlertTriangle
+  AlertTriangle,
+  Pencil,
+  Trash2,
+  X,
+  Save
 } from "lucide-react";
 import { useFloorPin } from "@/components/auth/FloorPinContext";
 
@@ -52,6 +56,8 @@ export default function LowConsumables() {
   const [customItem, setCustomItem] = useState("");
   const [notes, setNotes] = useState("");
   const [showSuccess, setShowSuccess] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [editForm, setEditForm] = useState({ item_name: "", notes: "" });
 
   const { data: reports = [], isLoading } = useQuery({
     queryKey: ["consumable-reports"],
@@ -103,6 +109,24 @@ export default function LowConsumables() {
       id: report.id,
       data: { status: "restocked" },
     });
+  };
+
+  const deleteMutation = useMutation({
+    mutationFn: (id) => base44.entities.ConsumableReport.delete(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["consumable-reports"] }),
+  });
+
+  const startEdit = (report) => {
+    setEditingId(report.id);
+    setEditForm({ item_name: report.item_name, notes: report.notes || "" });
+  };
+
+  const saveEdit = (report) => {
+    updateMutation.mutate({
+      id: report.id,
+      data: { item_name: editForm.item_name, notes: editForm.notes },
+    });
+    setEditingId(null);
   };
 
   const pendingReports = reports.filter(r => r.status === "pending");
@@ -193,24 +217,53 @@ export default function LowConsumables() {
               {pendingReports.map((report) => (
                 <div
                   key={report.id}
-                  className="flex items-center justify-between p-3 bg-zinc-800 rounded-lg border border-amber-500/20"
+                  className="p-3 bg-zinc-800 rounded-lg border border-amber-500/20"
                 >
-                  <div>
-                    <span className="text-white font-medium">{report.item_name}</span>
-                    <div className="flex items-center gap-3 text-xs text-zinc-500 mt-1">
-                      <span>By: {report.reported_by}</span>
-                      <span>{new Date(report.created_date).toLocaleString()}</span>
+                  {editingId === report.id ? (
+                    <div className="space-y-2">
+                      <Input
+                        value={editForm.item_name}
+                        onChange={(e) => setEditForm(f => ({ ...f, item_name: e.target.value }))}
+                        className="bg-zinc-700 border-zinc-600 text-white"
+                      />
+                      <Textarea
+                        value={editForm.notes}
+                        onChange={(e) => setEditForm(f => ({ ...f, notes: e.target.value }))}
+                        placeholder="Notes..."
+                        className="bg-zinc-700 border-zinc-600 text-white text-sm min-h-[60px]"
+                      />
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={() => saveEdit(report)} className="bg-green-600 hover:bg-green-700 gap-1">
+                          <Save className="w-3.5 h-3.5" /> Save
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setEditingId(null)} className="text-zinc-400">
+                          <X className="w-3.5 h-3.5" /> Cancel
+                        </Button>
+                      </div>
                     </div>
-                    {report.notes && <p className="text-sm text-zinc-400 mt-1">{report.notes}</p>}
-                  </div>
-                  <Button
-                    size="sm"
-                    onClick={() => handleAcknowledge(report)}
-                    className="bg-blue-500 hover:bg-blue-600"
-                  >
-                    <Check className="w-4 h-4 mr-1" />
-                    Acknowledge
-                  </Button>
+                  ) : (
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <span className="text-white font-medium">{report.item_name}</span>
+                        <div className="flex items-center gap-3 text-xs text-zinc-500 mt-1">
+                          <span>By: {report.reported_by}</span>
+                          <span>{new Date(report.created_date).toLocaleString()}</span>
+                        </div>
+                        {report.notes && <p className="text-sm text-zinc-400 mt-1">{report.notes}</p>}
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <button onClick={() => startEdit(report)} className="p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 rounded transition-colors" title="Edit">
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => deleteMutation.mutate(report.id)} className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Delete">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                        <Button size="sm" onClick={() => handleAcknowledge(report)} className="bg-blue-500 hover:bg-blue-600">
+                          <Check className="w-4 h-4 mr-1" /> Acknowledge
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -232,23 +285,24 @@ export default function LowConsumables() {
               {acknowledgedReports.map((report) => (
                 <div
                   key={report.id}
-                  className="flex items-center justify-between p-3 bg-zinc-800 rounded-lg border border-blue-500/20"
+                  className="flex items-start justify-between gap-3 p-3 bg-zinc-800 rounded-lg border border-blue-500/20"
                 >
-                  <div>
+                  <div className="flex-1 min-w-0">
                     <span className="text-white font-medium">{report.item_name}</span>
                     <div className="flex items-center gap-3 text-xs text-zinc-500 mt-1">
                       <span>Ack by: {report.acknowledged_by}</span>
                       <span>{new Date(report.acknowledged_date).toLocaleString()}</span>
                     </div>
+                    {report.notes && <p className="text-sm text-zinc-400 mt-1">{report.notes}</p>}
                   </div>
-                  <Button
-                    size="sm"
-                    onClick={() => handleRestock(report)}
-                    className="bg-green-500 hover:bg-green-600"
-                  >
-                    <CheckCircle className="w-4 h-4 mr-1" />
-                    Mark Restocked
-                  </Button>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button onClick={() => deleteMutation.mutate(report.id)} className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Delete">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                    <Button size="sm" onClick={() => handleRestock(report)} className="bg-green-500 hover:bg-green-600">
+                      <CheckCircle className="w-4 h-4 mr-1" /> Mark Restocked
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -275,7 +329,12 @@ export default function LowConsumables() {
                       {new Date(report.created_date).toLocaleDateString()}
                     </div>
                   </div>
-                  <Badge variant="green">Restocked</Badge>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => deleteMutation.mutate(report.id)} className="p-1.5 text-zinc-600 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Delete">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                    <Badge variant="green">Restocked</Badge>
+                  </div>
                 </div>
               ))}
             </div>
