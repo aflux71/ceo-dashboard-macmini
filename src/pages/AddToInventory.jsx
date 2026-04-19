@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ShoppingCart, Check, AlertCircle, Pencil } from "lucide-react";
 import { toast } from "sonner";
+import { format } from "date-fns";
 
 export default function AddToInventory() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -38,11 +39,19 @@ export default function AddToInventory() {
     }
   });
 
+  // Fetch current user
+  const { data: currentUser } = useQuery({
+    queryKey: ["me"],
+    queryFn: () => base44.auth.me(),
+  });
+
   // Mutation to mark batch as added to inventory and deduct labels
   const updateBatchMutation = useMutation({
     mutationFn: async (batch) => {
       const finalQty = editingQty[batch.id] ?? batch.quantity;
-      
+      const today = format(new Date(), "yyyy-MM-dd");
+      const addedByName = currentUser?.full_name || currentUser?.email || "";
+
       // Save quantity if it was edited
       if (editingQty[batch.id] !== undefined && editingQty[batch.id] !== batch.quantity) {
         await base44.entities.Batch.update(batch.id, { quantity: finalQty });
@@ -59,12 +68,18 @@ export default function AddToInventory() {
         });
       }
       
-      // Update batch status
-      return base44.entities.Batch.update(batch.id, { status: "added_to_inventory" });
+      // Update batch status AND traveller inventory fields together
+      return base44.entities.Batch.update(batch.id, {
+        status: "added_to_inventory",
+        inventory_added_checkbox: true,
+        inventory_added_by: addedByName,
+        inventory_added_date: today,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["approvedBatches"] });
       queryClient.invalidateQueries({ queryKey: ["labels"] });
+      queryClient.invalidateQueries({ queryKey: ["batches-traveler"] });
       toast.success("Batch marked as added to Shopify (labels deducted)");
     }
   });
