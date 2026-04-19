@@ -2,7 +2,7 @@ import React, { useState, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Printer, Search, ChevronDown, ChevronUp, Plus, Save, CheckCircle, Clock, FileText } from "lucide-react";
+import { Printer, Search, ChevronDown, ChevronUp, Plus, Save, CheckCircle, Clock, FileText, Eye } from "lucide-react";
 
 const STATUS_COLORS = {
   draft: "bg-zinc-700 text-zinc-300",
@@ -524,7 +524,7 @@ export default function BatchTraveler() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedBatch, setSelectedBatch] = useState(null);
-  const [mode, setMode] = useState(null); // "edit" | "print"
+  const [mode, setMode] = useState(null); // "edit" | "print" | "view"
   const printRef = useRef(null);
 
   const { data: batches = [], isLoading } = useQuery({
@@ -602,6 +602,10 @@ export default function BatchTraveler() {
             className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/20 border border-blue-500/30 text-blue-400 hover:bg-blue-600/40 rounded text-xs transition-colors">
             <FileText className="w-3 h-3" /> Edit
           </button>
+          <button onClick={() => { setSelectedBatch(b); setMode("view"); }}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-700/50 border border-zinc-600 text-zinc-300 hover:bg-zinc-700 rounded text-xs transition-colors">
+            <Eye className="w-3 h-3" /> View
+          </button>
           <button onClick={() => handlePrint(b)}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-700 border border-zinc-600 text-zinc-300 hover:bg-zinc-600 rounded text-xs transition-colors">
             <Printer className="w-3 h-3" /> Print
@@ -638,7 +642,33 @@ export default function BatchTraveler() {
         {selectedBatch && <PrintableTraveler batch={selectedBatch} />}
       </div>
 
-      {mode === "edit" && selectedBatch ? (
+      {mode === "view" && selectedBatch ? (
+        <div className="max-w-4xl mx-auto">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-2xl font-bold text-white">Manufacturing Traveller</h1>
+              <p className="text-zinc-400 text-sm mt-1 font-mono">{selectedBatch.batch_id} — {selectedBatch.product_name}</p>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => { setMode("edit"); }}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600/20 border border-blue-500/30 text-blue-400 hover:bg-blue-600/40 text-sm rounded-lg transition-colors">
+                <FileText className="w-4 h-4" /> Edit
+              </button>
+              <button onClick={() => handlePrint(selectedBatch)}
+                className="flex items-center gap-2 px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-white text-sm rounded-lg transition-colors">
+                <Printer className="w-4 h-4" /> Print
+              </button>
+              <button onClick={() => { setMode(null); setSelectedBatch(null); }}
+                className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm rounded-lg transition-colors">
+                ← Back
+              </button>
+            </div>
+          </div>
+          <div className="bg-white rounded-lg overflow-hidden shadow-xl">
+            <PrintableTraveler batch={selectedBatch} />
+          </div>
+        </div>
+      ) : mode === "edit" && selectedBatch ? (
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between mb-6">
             <div>
