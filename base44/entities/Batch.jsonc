@@ -18,6 +18,27 @@
       "type": "string",
       "description": "Product name"
     },
+    "product_code": {
+      "type": "string",
+      "enum": [
+        "LS",
+        "FS",
+        "RO",
+        "BB",
+        "SB",
+        "EO",
+        "OTHER"
+      ],
+      "description": "Product type code: LS=Liquid Soap, FS=Face Serum, RO=Roll-on, BB=Bath Bomb, SB=Shampoo Bar, EO=Essential Oil"
+    },
+    "batch_prepped_by": {
+      "type": "string",
+      "description": "Name of person who prepped the batch"
+    },
+    "total_theoretical_volume_weight": {
+      "type": "string",
+      "description": "Total theoretical volume or weight for the batch"
+    },
     "quantity": {
       "type": "number",
       "description": "Units produced"
@@ -65,7 +86,7 @@
         "rejected"
       ],
       "default": "draft",
-      "description": "Batch status \u2014 pending_qc = batching QC hold, in_review = final product review queue"
+      "description": "Batch status"
     },
     "current_step": {
       "type": "number",
@@ -187,6 +208,132 @@
           }
         }
       }
+    },
+    "sanitization_vessel_cleaned": {
+      "type": "boolean",
+      "default": false,
+      "description": "Filling vessel cleaned & sanitized"
+    },
+    "sanitization_equipment_flushed": {
+      "type": "boolean",
+      "default": false,
+      "description": "Filling equipment/pumps flushed"
+    },
+    "sanitization_utensils_wiped": {
+      "type": "boolean",
+      "default": false,
+      "description": "Utensils/Scales wiped (70% IPA)"
+    },
+    "sanitization_work_surface": {
+      "type": "boolean",
+      "default": false,
+      "description": "Work surface cleared & sanitized"
+    },
+    "sanitization_hands_gloves": {
+      "type": "boolean",
+      "default": false,
+      "description": "Operator hands/gloves sanitized"
+    },
+    "sanitization_verified_by": {
+      "type": "string",
+      "description": "Name of person who verified sanitization"
+    },
+    "sanitization_time": {
+      "type": "string",
+      "description": "Time sanitization was verified"
+    },
+    "sanitizer_used": {
+      "type": "string",
+      "description": "Type of sanitizer used"
+    },
+    "qc_final_ph": {
+      "type": "string",
+      "description": "Measured final pH value"
+    },
+    "qc_final_ph_target": {
+      "type": "string",
+      "description": "Target pH value"
+    },
+    "qc_color_scent_pass": {
+      "type": "boolean",
+      "description": "Color/Scent check passed"
+    },
+    "qc_viscosity_texture_pass": {
+      "type": "boolean",
+      "description": "Viscosity/Texture check passed"
+    },
+    "filling_yield_data": {
+      "type": "array",
+      "description": "Filling and yield calculation rows",
+      "items": {
+        "type": "object",
+        "properties": {
+          "container": {
+            "type": "string"
+          },
+          "size": {
+            "type": "string"
+          },
+          "expected_qty": {
+            "type": "number"
+          },
+          "actual_qty": {
+            "type": "number"
+          },
+          "waste_loss": {
+            "type": "number"
+          },
+          "yield_percent": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "label_batch_match": {
+      "type": "boolean",
+      "default": false,
+      "description": "Batch number on label matches this Traveller"
+    },
+    "label_expiry_correct": {
+      "type": "boolean",
+      "default": false,
+      "description": "Expiry Date / PAO is correct"
+    },
+    "label_straight_clean": {
+      "type": "boolean",
+      "default": false,
+      "description": "Label is straight and free of air bubbles"
+    },
+    "sample_label_url": {
+      "type": "string",
+      "description": "URL to uploaded sample label image"
+    },
+    "production_manager": {
+      "type": "string",
+      "description": "Production manager who authorized"
+    },
+    "authorization_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Final authorization date"
+    },
+    "inventory_added_checkbox": {
+      "type": "boolean",
+      "default": false,
+      "description": "Added to inventory checkbox"
+    },
+    "inventory_added_by": {
+      "type": "string",
+      "description": "Name of person who added to inventory"
+    },
+    "inventory_added_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date added to inventory"
+    },
+    "traveler_notes": {
+      "type": "string",
+      "description": "Notes section for the manufacturing traveller"
     },
     "notes": {
       "type": "string",

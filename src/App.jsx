@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ReceiveShipment from './pages/ReceiveShipment';
 import UnlabeledProducts from './pages/UnlabeledProducts';
+import BatchTraveler from './pages/BatchTraveler';
 import AIAssistant from './pages/AIAssistant';
 import AssemblyGuides from './pages/AssemblyGuides';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -67,6 +68,7 @@ const AuthenticatedApp = () => {
       <Route path="/AssemblyGuides" element={<LayoutWrapper currentPageName="AssemblyGuides"><AssemblyGuides /></LayoutWrapper>} />
       <Route path="/AIAssistant" element={<LayoutWrapper currentPageName="AIAssistant"><AIAssistant /></LayoutWrapper>} />
       <Route path="/UnlabeledProducts" element={<LayoutWrapper currentPageName="UnlabeledProducts"><UnlabeledProducts /></LayoutWrapper>} />
+      <Route path="/BatchTraveler" element={<LayoutWrapper currentPageName="BatchTraveler"><BatchTraveler /></LayoutWrapper>} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
