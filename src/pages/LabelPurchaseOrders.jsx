@@ -59,6 +59,7 @@ export default function LabelPurchaseOrders() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedPO, setSelectedPO] = useState(null);
+  const [editPO, setEditPO] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -153,6 +154,12 @@ export default function LabelPurchaseOrders() {
 
   const handleCancel = (po) => {
     updateMutation.mutate({ id: po.id, data: { status: "cancelled" } });
+  };
+
+  const handleEditSave = (po, updatedData) => {
+    updateMutation.mutate({ id: po.id, data: updatedData }, {
+      onSuccess: () => setEditPO(null),
+    });
   };
 
   const filteredOrders = orders.filter((order) => {
@@ -414,7 +421,7 @@ export default function LabelPurchaseOrders() {
 
       {/* Detail Dialog */}
       <Dialog open={!!selectedPO} onOpenChange={() => setSelectedPO(null)}>
-        <DialogContent className="bg-zinc-900 border-zinc-800 max-w-2xl">
+        <DialogContent className="bg-zinc-900 border-zinc-800 max-w-2xl max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="text-white flex items-center gap-2">
               {selectedPO?.po_number}
@@ -424,7 +431,7 @@ export default function LabelPurchaseOrders() {
             </DialogTitle>
           </DialogHeader>
           {selectedPO && (
-            <div className="space-y-4">
+            <div className="space-y-4 overflow-y-auto flex-1 pr-1">
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <p className="text-zinc-500">Supplier</p>
@@ -495,14 +502,230 @@ export default function LabelPurchaseOrders() {
               </div>
             </div>
           )}
-          <DialogFooter>
+          <DialogFooter className="pt-2 border-t border-zinc-800 mt-2">
             <Button variant="outline" onClick={() => setSelectedPO(null)} className="border-zinc-700">
               Close
             </Button>
+            {selectedPO && !["received", "cancelled"].includes(selectedPO.status) && (
+              <Button
+                className="bg-orange-500 hover:bg-orange-600"
+                onClick={() => { setEditPO(selectedPO); setSelectedPO(null); }}
+              >
+                Edit PO
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit PO Dialog */}
+      <EditPODialog
+        open={!!editPO}
+        po={editPO}
+        labels={labels}
+        onClose={() => setEditPO(null)}
+        onSave={(updatedData) => handleEditSave(editPO, updatedData)}
+        isPending={updateMutation.isPending}
+      />
     </div>
+  );
+}
+
+function EditPODialog({ open, po, labels, onClose, onSave, isPending }) {
+  const [supplierName, setSupplierName] = useState("");
+  const [expectedDate, setExpectedDate] = useState("");
+  const [notes, setNotes] = useState("");
+  const [items, setItems] = useState([]);
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    if (po) {
+      setSupplierName(po.supplier_name || "");
+      setExpectedDate(po.expected_delivery_date || "");
+      setNotes(po.notes || "");
+      setItems(po.items ? po.items.map(i => ({ ...i })) : []);
+    }
+  }, [po]);
+
+  const filteredLabels = useMemo(() => {
+    if (!search.trim()) return [];
+    const q = search.toLowerCase();
+    return labels.filter(l =>
+      l.name?.toLowerCase().includes(q) ||
+      l.sku?.toLowerCase().includes(q) ||
+      l.product_name?.toLowerCase().includes(q)
+    ).slice(0, 20);
+  }, [labels, search]);
+
+  const addLabel = (label) => {
+    if (items.find(i => i.label_id === label.id)) return;
+    setItems(prev => [...prev, {
+      label_id: label.id,
+      label_name: label.name,
+      label_sku: label.sku,
+      quantity: label.reorder_qty || 500,
+      unit_cost: label.cost_per_unit || 0,
+      total_cost: (label.reorder_qty || 500) * (label.cost_per_unit || 0),
+    }]);
+    setSearch("");
+  };
+
+  const updateItem = (labelId, field, value) => {
+    setItems(prev => prev.map(item => {
+      if (item.label_id !== labelId) return item;
+      const updated = { ...item, [field]: Number(value) };
+      updated.total_cost = updated.quantity * updated.unit_cost;
+      return updated;
+    }));
+  };
+
+  const removeItem = (labelId) => {
+    setItems(prev => prev.filter(i => i.label_id !== labelId));
+  };
+
+  const total = items.reduce((sum, i) => sum + (i.total_cost || 0), 0);
+
+  const handleSave = () => {
+    onSave({
+      supplier_name: supplierName,
+      expected_delivery_date: expectedDate || null,
+      notes,
+      items,
+      total,
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="bg-zinc-900 border-zinc-800 max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="text-white flex items-center gap-2">
+            Edit PO — {po?.po_number}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto space-y-5 py-2 pr-1">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs text-zinc-400 mb-1 block">Supplier Name</label>
+              <Input value={supplierName} onChange={(e) => setSupplierName(e.target.value)} className="bg-zinc-800 border-zinc-700 h-9 text-sm" />
+            </div>
+            <div>
+              <label className="text-xs text-zinc-400 mb-1 block">Expected Delivery Date</label>
+              <Input type="date" value={expectedDate} onChange={(e) => setExpectedDate(e.target.value)} className="bg-zinc-800 border-zinc-700 h-9 text-sm" />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs text-zinc-400 mb-1 block">Add Labels</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by label name or SKU..."
+                className="bg-zinc-800 border-zinc-700 h-9 text-sm pl-9"
+              />
+            </div>
+            {filteredLabels.length > 0 && (
+              <div className="mt-1 border border-zinc-700 rounded-lg overflow-hidden max-h-40 overflow-y-auto bg-zinc-800">
+                {filteredLabels.map((label) => {
+                  const alreadyAdded = items.find(i => i.label_id === label.id);
+                  return (
+                    <button
+                      key={label.id}
+                      onClick={() => addLabel(label)}
+                      disabled={!!alreadyAdded}
+                      className="w-full text-left px-3 py-2 hover:bg-zinc-700 flex items-center justify-between transition-colors disabled:opacity-40"
+                    >
+                      <div>
+                        <p className="text-sm text-zinc-200">{label.name}</p>
+                        <p className="text-xs text-zinc-500">{label.sku}</p>
+                      </div>
+                      {alreadyAdded ? <span className="text-xs text-zinc-500">Added</span> : <Plus className="w-4 h-4 text-orange-400" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {items.length > 0 && (
+            <div>
+              <label className="text-xs text-zinc-400 mb-2 block">Order Items ({items.length})</label>
+              <div className="border border-zinc-800 rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-zinc-800">
+                      <TableHead className="text-zinc-400 text-xs">Label</TableHead>
+                      <TableHead className="text-zinc-400 text-xs text-right">Qty</TableHead>
+                      <TableHead className="text-zinc-400 text-xs text-right">Unit Cost</TableHead>
+                      <TableHead className="text-zinc-400 text-xs text-right">Total</TableHead>
+                      <TableHead className="w-8" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {items.map((item) => (
+                      <TableRow key={item.label_id} className="border-zinc-800">
+                        <TableCell>
+                          <p className="text-white text-sm">{item.label_name}</p>
+                          <p className="text-xs text-zinc-500">{item.label_sku}</p>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Input
+                            type="number"
+                            value={item.quantity}
+                            onChange={(e) => updateItem(item.label_id, "quantity", e.target.value)}
+                            className="bg-zinc-800 border-zinc-700 h-7 text-sm w-20 text-right ml-auto"
+                          />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Input
+                            type="number"
+                            step="0.001"
+                            value={item.unit_cost}
+                            onChange={(e) => updateItem(item.label_id, "unit_cost", e.target.value)}
+                            className="bg-zinc-800 border-zinc-700 h-7 text-sm w-24 text-right ml-auto"
+                          />
+                        </TableCell>
+                        <TableCell className="text-right text-white text-sm font-medium">
+                          ${(item.total_cost || 0).toFixed(2)}
+                        </TableCell>
+                        <TableCell>
+                          <button onClick={() => removeItem(item.label_id)} className="text-zinc-500 hover:text-red-400">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                <div className="flex justify-end px-4 py-2 border-t border-zinc-800">
+                  <span className="text-sm text-zinc-400 mr-2">Total:</span>
+                  <span className="text-white font-bold">${total.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label className="text-xs text-zinc-400 mb-1 block">Notes</label>
+            <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional notes..." className="bg-zinc-800 border-zinc-700 h-9 text-sm" />
+          </div>
+        </div>
+
+        <DialogFooter className="pt-2 border-t border-zinc-800">
+          <Button variant="outline" onClick={onClose} className="border-zinc-700">Cancel</Button>
+          <Button
+            onClick={handleSave}
+            disabled={items.length === 0 || isPending}
+            className="bg-orange-500 hover:bg-orange-600"
+          >
+            {isPending ? "Saving..." : "Save Changes"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
