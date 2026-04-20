@@ -14,7 +14,8 @@ import {
   ArrowRight,
   FileText,
   AlertOctagon,
-  LogOut
+  LogOut,
+  RefreshCw
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,19 @@ import ProductionLineThroughput from "@/components/dashboard/ProductionLineThrou
 export default function Dashboard() {
   const navigate = useNavigate();
   const [showPinScreen, setShowPinScreen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const { refetch: refetchBatches } = useQuery({ queryKey: ['batches'], queryFn: () => base44.entities.Batch.list('-created_date', 100), enabled: false });
+  const { refetch: refetchInventory } = useQuery({ queryKey: ['inventory'], queryFn: () => base44.entities.Inventory.list(), enabled: false });
+  const { refetch: refetchPOs } = useQuery({ queryKey: ['purchase_orders'], queryFn: () => base44.entities.PurchaseOrder.list('-created_date', 50), enabled: false });
+  const { refetch: refetchReqs } = useQuery({ queryKey: ['purchase_requisitions'], queryFn: () => base44.entities.PurchaseRequisition.list('-created_date', 50), enabled: false });
+  const { refetch: refetchRecipes } = useQuery({ queryKey: ['recipes'], queryFn: () => base44.entities.Recipe.list(), enabled: false });
+  const { refetch: refetchScheduled } = useQuery({ queryKey: ['forecast-suggestions-all'], queryFn: () => base44.entities.ForecastSuggestion.filter({ status: { $in: ['suggested', 'scheduled', 'on_hold', 'in_progress'] } }), enabled: false });
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([refetchBatches(), refetchInventory(), refetchPOs(), refetchReqs(), refetchRecipes(), refetchScheduled()]);
+    setRefreshing(false);
+  };
 
   const { data: batches = [] } = useQuery({
     queryKey: ['batches'],
@@ -104,7 +118,12 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-100">Operations Dashboard</h1>
+          <h1 className="text-2xl font-bold text-zinc-100 flex items-center gap-2">
+            Operations Dashboard
+            <button onClick={handleRefresh} className="p-1 rounded hover:bg-zinc-800 transition-colors text-zinc-500 hover:text-zinc-300" title="Refresh">
+              <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin text-orange-400" : ""}`} />
+            </button>
+          </h1>
           <p className="text-zinc-500 text-sm mt-1">
             Overview of production, inventory, and orders
           </p>
