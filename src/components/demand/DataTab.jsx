@@ -30,7 +30,7 @@ export default function DataTab({
   const [isRerunning, setIsRerunning] = useState(false);
   const pollRef = useRef(null);
 
-  // Poll job status on mount and keep polling while running
+  // Check status on mount only (rebuild is now synchronous)
   useEffect(() => {
     checkStatus();
     return () => clearInterval(pollRef.current);
@@ -41,54 +41,43 @@ export default function DataTab({
       const res = await base44.functions.invoke("rebuildDemandSummariesBackground", { action: "status" });
       const status = res.data;
       setJobStatus(status);
-      if (status?.state === 'running') {
-        startPolling();
-      } else if (status?.state === 'done') {
-        stopPolling();
-        // Notify parent to refresh summaries
-        if (onRebuildComplete) onRebuildComplete(status);
+      if (status?.state === 'done' && onRebuildComplete) {
+        onRebuildComplete(status);
       }
     } catch (e) {
-      // Function may not exist yet or network error
       setJobStatus(null);
     }
   };
 
-  const startPolling = () => {
-    if (pollRef.current) return;
-    pollRef.current = setInterval(async () => {
-      try {
-        const res = await base44.functions.invoke("rebuildDemandSummariesBackground", { action: "status" });
-        const status = res.data;
-        setJobStatus(status);
-        if (status?.state !== 'running') {
-          stopPolling();
-          if (status?.state === 'done' && onRebuildComplete) {
-            onRebuildComplete(status);
-          }
-        }
-      } catch (e) {}
-    }, 4000);
-  };
-
+  const startPolling = () => {};
   const stopPolling = () => {
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
   };
 
   const handleStartRebuild = async () => {
     setIsStarting(true);
     try {
-      await base44.functions.invoke("rebuildDemandSummariesBackground", { action: "start" });
-      // Immediately check status and start polling
-      await checkStatus();
-      startPolling();
+      // Run synchronously — this call will stay open until rebuild completes
+      const res = await base44.functions.invoke("rebuildDemandSummariesBackground", { action: "start" });
+      const result = res.data;
+      if (result?.state === 'error' || result?.error) {
+        setJobStatus({ state: 'error', error: result.error || 'Unknown error' });
+      } else {
+        // Fetch final status
+        await checkStatus();
+      }
     } catch (e) {
-      alert("Failed to start rebuild: " + e.message);
+      setJobStatus({ state: 'error', error: e.message });
     }
     setIsStarting(false);
+  };
+
+  const handleReset = async () => {
+    try {
+      await base44.functions.invoke("rebuildDemandSummariesBackground", { action: "reset" });
+      setJobStatus(null);
+      stopPolling();
+    } catch (e) {}
   };
 
   const handleRerun = async () => {
@@ -100,6 +89,10 @@ export default function DataTab({
   const isRunning = jobStatus?.state === 'running';
   const isDone = jobStatus?.state === 'done';
   const isError = jobStatus?.state === 'error';
+
+  // Detect stale job: running but startedAt > 10 minutes ago
+  const isStale = isRunning && jobStatus?.startedAt &&
+    (Date.now() - new Date(jobStatus.startedAt).getTime()) > 10 * 60 * 1000;
 
   const progressPct = isRunning && jobStatus.total > 0
     ? Math.round((jobStatus.current / jobStatus.total) * 100)
@@ -171,7 +164,16 @@ export default function DataTab({
               </div>
               <Progress value={progressPct} className="h-1.5" />
               <p className="text-[10px] text-zinc-500">{jobStatus.detail}</p>
-              <p className="text-[10px] text-zinc-600">Running server-side — safe to close this tab</p>
+              {isStale ? (
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] text-amber-400">⚠ Job may be stale — it was started over 10 minutes ago.</p>
+                  <button onClick={handleReset} className="text-[10px] px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded hover:bg-amber-500/30">
+                    Reset & Retry
+                  </button>
+                </div>
+              ) : (
+                <p className="text-[10px] text-zinc-600">Keep this tab open — rebuild runs synchronously.</p>
+              )}
             </div>
           )}
 
@@ -197,18 +199,28 @@ export default function DataTab({
           )}
 
           {/* Start button */}
-          <button
-            onClick={handleStartRebuild}
-            disabled={isRunning || isStarting}
-            className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white text-sm font-medium rounded transition-colors"
-          >
-            {isRunning || isStarting
-              ? <Loader2 className="w-4 h-4 animate-spin" />
-              : <RefreshCw className="w-4 h-4" />}
-            {isRunning ? "Rebuilding in background…" : isStarting ? "Starting…" : "Rebuild from ShopifySaleRecord"}
-          </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={handleStartRebuild}
+              disabled={isStarting || (isRunning && !isStale)}
+              className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white text-sm font-medium rounded transition-colors"
+            >
+              {isStarting
+                ? <Loader2 className="w-4 h-4 animate-spin" />
+                : <RefreshCw className="w-4 h-4" />}
+              {isStarting ? "Rebuilding… keep tab open" : "Rebuild from ShopifySaleRecord"}
+            </button>
+            {(isRunning || isError || isStale) && (
+              <button
+                onClick={handleReset}
+                className="flex items-center gap-2 px-3 py-2 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 text-sm font-medium rounded transition-colors"
+              >
+                Reset
+              </button>
+            )}
+          </div>
           <p className="text-[10px] text-zinc-500 mt-2">
-            Runs entirely server-side — you can close this tab and come back. Progress updates every 4 seconds.
+            Keep this tab open while rebuilding — the process runs synchronously and may take 1–3 minutes.
           </p>
 
           {/* Re-run aliases */}
