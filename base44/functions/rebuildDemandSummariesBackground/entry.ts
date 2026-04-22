@@ -44,7 +44,6 @@ function categorize(name) {
 }
 
 const STATUS_KEY = 'demand_rebuild_status';
-const MERGED_KEY = 'demand_rebuild_merged';
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 async function withRetry(fn, maxAttempts = 4) {
@@ -54,7 +53,7 @@ async function withRetry(fn, maxAttempts = 4) {
     } catch (e) {
       const is429 = e.message?.includes('Rate limit') || e.message?.includes('429');
       if (is429 && attempt < maxAttempts - 1) {
-        const delay = Math.pow(2, attempt + 1) * 1500;
+        const delay = Math.pow(2, attempt + 1) * 2000;
         console.log(`Rate limited, retrying in ${delay}ms`);
         await sleep(delay);
       } else {
@@ -92,32 +91,6 @@ function buildMonthList() {
   return months;
 }
 
-function mergeRecord(merged, r, monthIdx, year, monthStr) {
-  const sku = r.sku?.trim();
-  if (!sku || (r.quantity || 0) <= 0) return;
-  const channel = r.channel || (r.location_id ? 'pos' : 'online');
-  const location = r.location_name || (channel === 'online' ? 'Online' : 'Unknown');
-  if (!merged[sku]) {
-    merged[sku] = {
-      sku, product: r.product_name || sku,
-      monthly: [0,0,0,0,0,0,0,0,0,0,0,0],
-      byChannel: { online: 0, pos: 0 },
-      byLocation: {}, totalQty: 0,
-      periodStart: `${year}-${monthStr}-01`,
-      periodEnd: `${year}-${monthStr}-28`,
-    };
-  }
-  const m = merged[sku];
-  m.monthly[monthIdx] += r.quantity;
-  m.totalQty += r.quantity;
-  if (channel === 'pos') m.byChannel.pos += r.quantity;
-  else m.byChannel.online += r.quantity;
-  m.byLocation[location] = (m.byLocation[location] || 0) + r.quantity;
-  const dateKey = `${year}-${monthStr}`;
-  if (dateKey < m.periodStart.substring(0, 7)) m.periodStart = `${dateKey}-01`;
-  if (dateKey > m.periodEnd.substring(0, 7)) m.periodEnd = `${dateKey}-28`;
-}
-
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -137,12 +110,11 @@ Deno.serve(async (req) => {
     // ── reset ─────────────────────────────────────────────────────────────
     if (body.action === 'reset') {
       await writeSetting(base44, STATUS_KEY, { state: null });
-      await writeSetting(base44, MERGED_KEY, {});
       return Response.json({ success: true });
     }
 
-    // ── step: fetch ONE PAGE (100 records) for a given month ──────────────
-    // Frontend calls this in a loop, incrementing pageSkip until monthDone=true
+    // ── step: fetch ONE PAGE (100 records) — NO AppSettings write, just return data ──
+    // Frontend accumulates the merged map in memory
     if (body.action === 'step') {
       const months = buildMonthList();
       const monthIndex = body.monthIndex ?? 0;
@@ -150,7 +122,7 @@ Deno.serve(async (req) => {
       const PAGE_SIZE = 100;
 
       if (monthIndex >= months.length) {
-        return Response.json({ monthDone: true, monthIndex, allDone: true });
+        return Response.json({ monthDone: true, monthIndex, allDone: true, records: [] });
       }
 
       const { year, month } = months[monthIndex];
@@ -162,7 +134,6 @@ Deno.serve(async (req) => {
 
       console.log(`Step: ${year}-${monthStr} skip=${pageSkip}`);
 
-      // Fetch one page
       const page = await withRetry(() =>
         base44.asServiceRole.entities.ShopifySaleRecord.filter(
           { order_date: { $gte: startDate, $lt: endDate } },
@@ -171,80 +142,39 @@ Deno.serve(async (req) => {
       );
 
       const records = page || [];
-
-      // Dedup & API-over-CSV preference for this page
-      const seenLineItems = new Set();
-      const deduped = [];
-      for (const r of records) {
-        const key = `${r.order_id || r.id}|${r.sku || ''}|${r.location_name || ''}`;
-        if (seenLineItems.has(key)) continue;
-        seenLineItems.add(key);
-        deduped.push(r);
-      }
-
-      // Track API keys in this page for CSV suppression
-      const apiDateKeys = new Set();
-      for (const r of deduped) {
-        if (r.order_id && !r.order_id.startsWith('CSV-')) {
-          apiDateKeys.add(`${r.sku}|${(r.order_date || '').substring(0, 10)}|${r.location_name || 'Unknown'}`);
-        }
-      }
-      const final = deduped.filter(r => {
-        if (r.order_id?.startsWith('CSV-')) {
-          return !apiDateKeys.has(`${r.sku}|${(r.order_date || '').substring(0, 10)}|${r.location_name || 'Unknown'}`);
-        }
-        return true;
-      });
-
-      // Load merged, update, save
-      const merged = (await readSetting(base44, MERGED_KEY)) || {};
-      const monthIdx = month - 1;
-      for (const r of final) {
-        mergeRecord(merged, r, monthIdx, year, monthStr);
-      }
-      await writeSetting(base44, MERGED_KEY, merged);
-
       const monthDone = records.length < PAGE_SIZE;
-      const nextSkip = pageSkip + PAGE_SIZE;
 
-      // Update status
-      await writeSetting(base44, STATUS_KEY, {
-        state: 'running', phase: 'aggregating',
-        monthIndex: monthDone ? monthIndex + 1 : monthIndex,
-        pageSkip: monthDone ? 0 : nextSkip,
-        totalMonths: months.length,
-        detail: `${year}-${monthStr} — page ${Math.floor(pageSkip / PAGE_SIZE) + 1} (${records.length} records)`,
-        startedAt: body.startedAt || new Date().toISOString(),
-        startedBy: user.email,
-      });
-
+      // Return raw records — frontend merges them into its local map
       return Response.json({
         monthDone,
         monthIndex: monthDone ? monthIndex + 1 : monthIndex,
-        pageSkip: monthDone ? 0 : nextSkip,
+        pageSkip: monthDone ? 0 : pageSkip + PAGE_SIZE,
         totalMonths: months.length,
-        recordCount: records.length,
-        skuCount: Object.keys(merged).length,
+        monthLabel: `${year}-${monthStr}`,
+        records: records.map(r => ({
+          sku: r.sku?.trim(),
+          product_name: r.product_name,
+          quantity: r.quantity || 0,
+          order_id: r.order_id,
+          order_date: r.order_date,
+          channel: r.channel,
+          location_name: r.location_name,
+        })),
         allDone: monthDone && (monthIndex + 1 >= months.length),
       });
     }
 
-    // ── finalize: delete old + write new summaries ────────────────────────
+    // ── finalize: receive completed merged map from frontend, write to DB ─
     if (body.action === 'finalize') {
-      const merged = (await readSetting(base44, MERGED_KEY)) || {};
+      const merged = body.merged || {};
       const skuCount = Object.keys(merged).length;
       console.log(`Finalizing: ${skuCount} SKUs`);
 
-      // Compute dataMonths per SKU
-      for (const m of Object.values(merged)) {
-        const start = new Date(m.periodStart);
-        const end = new Date(m.periodEnd);
-        m.dataMonths = Math.max(1,
-          (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1
-        );
+      if (skuCount === 0) {
+        return Response.json({ error: 'No merged data received' }, { status: 400 });
       }
 
-      // Delete old records
+      // Delete old DemandSummary records
       let deleted = 0;
       while (true) {
         const batch = await withRetry(() =>
@@ -253,13 +183,13 @@ Deno.serve(async (req) => {
         if (!batch || batch.length === 0) break;
         for (const r of batch) {
           await withRetry(() => base44.asServiceRole.entities.DemandSummary.delete(r.id));
-          await sleep(80);
+          await sleep(60);
         }
         deleted += batch.length;
-        await sleep(200);
+        await sleep(150);
       }
 
-      // Write new records
+      // Build and write new summary records
       const nowISO = new Date().toISOString();
       const records = Object.values(merged).map(s => {
         const dataMonths = Math.max(1, s.dataMonths || 1);
@@ -281,7 +211,7 @@ Deno.serve(async (req) => {
         const batch = records.slice(i, i + 10);
         await withRetry(() => base44.asServiceRole.entities.DemandSummary.bulkCreate(batch));
         created += batch.length;
-        await sleep(300);
+        await sleep(200);
       }
 
       try {
@@ -292,8 +222,6 @@ Deno.serve(async (req) => {
           notes: `Rebuild complete: ${deleted} deleted, ${created} summaries written`,
         });
       } catch (e) { console.warn('SyncLog failed:', e.message); }
-
-      await writeSetting(base44, MERGED_KEY, {});
 
       const finalStatus = {
         state: 'done', phase: 'complete', created, deleted,

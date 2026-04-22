@@ -16,7 +16,76 @@ function formatDate(dateStr) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-const TOTAL_MONTHS = 16; // 12 months 2025 + up to 4 months 2026
+const TOTAL_MONTHS = 16;
+
+// Merge a page of records into the in-memory SKU map
+function mergeRecords(merged, records, monthLabel) {
+  if (!records || records.length === 0) return;
+  const [yearStr, monthStr] = monthLabel.split('-');
+  const year = parseInt(yearStr);
+  const month = parseInt(monthStr);
+  const monthIdx = month - 1; // 0-based index for monthly[12] array
+
+  // Track API keys to suppress CSV duplicates
+  const apiKeys = new Set();
+  for (const r of records) {
+    if (r.order_id && !r.order_id.startsWith('CSV-') && r.sku) {
+      apiKeys.add(`${r.sku}|${(r.order_date || '').substring(0, 10)}|${r.location_name || ''}`);
+    }
+  }
+
+  // Dedup within page
+  const seen = new Set();
+  for (const r of records) {
+    const sku = r.sku?.trim();
+    if (!sku || (r.quantity || 0) <= 0) continue;
+
+    const lineKey = `${r.order_id}|${sku}|${r.location_name || ''}`;
+    if (seen.has(lineKey)) continue;
+    seen.add(lineKey);
+
+    // Suppress CSV if API version exists
+    if (r.order_id?.startsWith('CSV-')) {
+      const apiKey = `${sku}|${(r.order_date || '').substring(0, 10)}|${r.location_name || ''}`;
+      if (apiKeys.has(apiKey)) continue;
+    }
+
+    const channel = r.channel || 'online';
+    const location = r.location_name || (channel === 'pos' ? 'Unknown' : 'Online');
+    const dateKey = `${year}-${monthStr}`;
+
+    if (!merged[sku]) {
+      merged[sku] = {
+        sku, product: r.product_name || sku,
+        monthly: [0,0,0,0,0,0,0,0,0,0,0,0],
+        byChannel: { online: 0, pos: 0 },
+        byLocation: {}, totalQty: 0,
+        periodStart: `${dateKey}-01`,
+        periodEnd: `${dateKey}-28`,
+        dataMonths: 0,
+      };
+    }
+
+    const m = merged[sku];
+    m.monthly[monthIdx] += r.quantity;
+    m.totalQty += r.quantity;
+    if (channel === 'pos') m.byChannel.pos += r.quantity;
+    else m.byChannel.online += r.quantity;
+    m.byLocation[location] = (m.byLocation[location] || 0) + r.quantity;
+    if (dateKey < m.periodStart.substring(0, 7)) m.periodStart = `${dateKey}-01`;
+    if (dateKey > m.periodEnd.substring(0, 7)) m.periodEnd = `${dateKey}-28`;
+  }
+}
+
+function computeDataMonths(merged) {
+  for (const m of Object.values(merged)) {
+    const start = new Date(m.periodStart);
+    const end = new Date(m.periodEnd);
+    m.dataMonths = Math.max(1,
+      (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1
+    );
+  }
+}
 
 export default function DataTab({
   baselineInfo,
@@ -31,7 +100,7 @@ export default function DataTab({
   const [isRunning, setIsRunning] = useState(false);
   const [isRerunning, setIsRerunning] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
-  const [progress, setProgress] = useState({ monthIndex: 0, detail: '' });
+  const [progress, setProgress] = useState({ monthIndex: 0, totalMonths: TOTAL_MONTHS, detail: '', skuCount: 0, phase: 'idle' });
 
   useEffect(() => {
     checkStatus();
@@ -51,20 +120,26 @@ export default function DataTab({
     setJobStatus(null);
     setIsRunning(false);
     setErrorMsg(null);
-    setProgress({ monthIndex: 0, detail: '' });
+    setProgress({ monthIndex: 0, totalMonths: TOTAL_MONTHS, detail: '', skuCount: 0, phase: 'idle' });
   };
 
   const handleStartRebuild = async () => {
     setIsRunning(true);
     setErrorMsg(null);
-    setProgress({ monthIndex: 0, detail: 'Starting...' });
+    setProgress({ monthIndex: 0, totalMonths: TOTAL_MONTHS, detail: 'Starting…', skuCount: 0, phase: 'aggregating' });
 
     const startedAt = new Date().toISOString();
+
+    // In-memory merged SKU map — lives in the browser, no AppSettings writes
+    const merged = {};
+
     let monthIndex = 0;
     let pageSkip = 0;
+    let totalMonths = TOTAL_MONTHS;
+    let pageCount = 0;
 
     try {
-      // Phase 1: page through all months, one page (100 records) per API call
+      // ── Phase 1: page through all months ──────────────────────────────
       while (true) {
         const res = await base44.functions.invoke("rebuildDemandSummariesBackground", {
           action: "step",
@@ -74,29 +149,46 @@ export default function DataTab({
         });
 
         if (res.data?.error) throw new Error(res.data.error);
-
         const data = res.data;
+
+        // Merge returned records into local map
+        if (data.records?.length > 0) {
+          mergeRecords(merged, data.records, data.monthLabel);
+        }
+
+        pageCount++;
         monthIndex = data.monthIndex;
         pageSkip = data.pageSkip ?? 0;
+        totalMonths = data.totalMonths || TOTAL_MONTHS;
+        const skuCount = Object.keys(merged).length;
 
         setProgress({
           monthIndex,
-          detail: data.detail || `Month ${monthIndex}/${data.totalMonths}`,
-          totalMonths: data.totalMonths || TOTAL_MONTHS,
-          skuCount: data.skuCount,
+          totalMonths,
+          skuCount,
+          phase: 'aggregating',
+          detail: `${data.monthLabel} — page ${pageCount} (${data.records?.length ?? 0} records this page)`,
         });
 
         if (data.allDone) break;
 
-        // Small pause between calls to avoid hammering the API
-        await new Promise(r => setTimeout(r, 300));
+        // Small pause to avoid hammering the API
+        await new Promise(r => setTimeout(r, 150));
       }
 
-      // Phase 2: finalize
-      setProgress(prev => ({ ...prev, detail: 'Finalizing — deleting old & writing new summaries...' }));
+      // ── Phase 2: finalize — send merged map to backend for DB write ───
+      computeDataMonths(merged);
+      const skuCount = Object.keys(merged).length;
+
+      setProgress(prev => ({
+        ...prev,
+        phase: 'finalizing',
+        detail: `Writing ${skuCount} summaries to database…`,
+      }));
 
       const finalRes = await base44.functions.invoke("rebuildDemandSummariesBackground", {
         action: "finalize",
+        merged,
       });
 
       if (finalRes.data?.error) throw new Error(finalRes.data.error);
@@ -128,7 +220,9 @@ export default function DataTab({
   const isDone = !isRunning && jobStatus?.state === 'done';
   const isError = !isRunning && (jobStatus?.state === 'error' || !!errorMsg);
   const progressPct = isRunning
-    ? Math.min(99, Math.round(((progress.monthIndex || 0) / (progress.totalMonths || TOTAL_MONTHS)) * 95))
+    ? progress.phase === 'finalizing'
+      ? 98
+      : Math.min(95, Math.round(((progress.monthIndex || 0) / (progress.totalMonths || TOTAL_MONTHS)) * 95))
     : 0;
 
   return (
@@ -144,7 +238,7 @@ export default function DataTab({
         <CardContent>
           <div className="grid grid-cols-2 gap-4">
             <DataField label="Status">
-              <Badge variant="green" className="text-xs">Loaded</Badge>
+              <Badge className="text-xs bg-green-500/20 text-green-400 border-green-500/30">Loaded</Badge>
             </DataField>
             <DataField label="Period">
               <span className="text-sm text-zinc-200">
@@ -191,11 +285,14 @@ export default function DataTab({
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2 text-orange-400">
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span className="font-medium">Aggregating…</span>
+                  <span className="font-medium">
+                    {progress.phase === 'finalizing' ? 'Writing to database…' : 'Aggregating…'}
+                  </span>
                 </div>
                 <span className="text-zinc-400">
-                  Month {progress.monthIndex}/{progress.totalMonths || TOTAL_MONTHS}
-                  {progress.skuCount ? ` · ${formatNumber(progress.skuCount)} SKUs` : ''}
+                  {progress.phase === 'aggregating'
+                    ? `Month ${progress.monthIndex}/${progress.totalMonths} · ${formatNumber(progress.skuCount)} SKUs`
+                    : `${formatNumber(progress.skuCount)} SKUs`}
                 </span>
               </div>
               <Progress value={progressPct} className="h-1.5" />
@@ -237,10 +334,10 @@ export default function DataTab({
                 ? <Loader2 className="w-4 h-4 animate-spin" />
                 : <RefreshCw className="w-4 h-4" />}
               {isRunning
-                ? `Processing month ${progress.monthIndex}/${progress.totalMonths || TOTAL_MONTHS}…`
+                ? `${progress.phase === 'finalizing' ? 'Writing…' : `Month ${progress.monthIndex}/${progress.totalMonths}…`}`
                 : "Rebuild from ShopifySaleRecord"}
             </button>
-            {isError && (
+            {(isError) && (
               <button
                 onClick={handleReset}
                 className="flex items-center gap-2 px-3 py-2 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 text-sm font-medium rounded transition-colors"
@@ -250,7 +347,7 @@ export default function DataTab({
             )}
           </div>
           <p className="text-[10px] text-zinc-500 mt-2">
-            Processes 100 records at a time — keep this tab open. Typically takes 5–10 minutes.
+            Data is aggregated in your browser — keep this tab open. Typically 5–15 minutes.
           </p>
 
           {/* Re-run aliases */}
@@ -295,9 +392,9 @@ export default function DataTab({
         <AlertCircle className="w-4 h-4 text-zinc-500 mt-0.5 shrink-0" />
         <div className="text-xs text-zinc-500">
           <p className="mb-1">
-            Demand summaries are built from ShopifySaleRecord data. The rebuild fetches 100 records per
-            request to stay within timeouts, deduplicates overlapping CSV/API imports, and writes clean
-            DemandSummary records for the forecasting engine.
+            Each backend call fetches 100 records and returns them. Your browser accumulates all the data,
+            then sends the final merged map to the backend in one shot to write to the database. This avoids
+            AppSettings bloat and rate limits entirely.
           </p>
           <p>
             Inventory on-hand values are pulled from Shopify "neob HQ". You can override individual SKUs
