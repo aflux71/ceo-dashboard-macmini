@@ -16,20 +16,7 @@ function formatDate(dateStr) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-// Build month list (mirrors server)
-function buildMonthList() {
-  const now = new Date();
-  const months = [];
-  for (let m = 1; m <= 12; m++) months.push({ year: 2025, month: m });
-  if (now.getFullYear() > 2025) {
-    for (let m = 1; m <= now.getMonth() + 1; m++) {
-      months.push({ year: now.getFullYear(), month: m });
-    }
-  }
-  return months;
-}
-
-const TOTAL_MONTHS = buildMonthList().length;
+const TOTAL_MONTHS = 16; // 12 months 2025 + up to 4 months 2026
 
 export default function DataTab({
   baselineInfo,
@@ -44,9 +31,8 @@ export default function DataTab({
   const [isRunning, setIsRunning] = useState(false);
   const [isRerunning, setIsRerunning] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
-  const [progress, setProgress] = useState({ current: 0, total: TOTAL_MONTHS, phase: '', detail: '' });
+  const [progress, setProgress] = useState({ monthIndex: 0, detail: '' });
 
-  // Check persisted status on mount
   useEffect(() => {
     checkStatus();
   }, []);
@@ -55,9 +41,7 @@ export default function DataTab({
     try {
       const res = await base44.functions.invoke("rebuildDemandSummariesBackground", { action: "status" });
       setJobStatus(res.data);
-    } catch (e) {
-      setJobStatus(null);
-    }
+    } catch (e) {}
   };
 
   const handleReset = async () => {
@@ -67,47 +51,52 @@ export default function DataTab({
     setJobStatus(null);
     setIsRunning(false);
     setErrorMsg(null);
-    setProgress({ current: 0, total: TOTAL_MONTHS, phase: '', detail: '' });
+    setProgress({ monthIndex: 0, detail: '' });
   };
 
-  // Step-by-step rebuild driven from the frontend
   const handleStartRebuild = async () => {
     setIsRunning(true);
     setErrorMsg(null);
-    setProgress({ current: 0, total: TOTAL_MONTHS, phase: 'aggregating', detail: 'Starting...' });
+    setProgress({ monthIndex: 0, detail: 'Starting...' });
 
     const startedAt = new Date().toISOString();
     let monthIndex = 0;
-    let totalUnique = 0;
+    let pageSkip = 0;
 
     try {
-      // Phase 1: step through each month
-      while (monthIndex < TOTAL_MONTHS) {
+      // Phase 1: page through all months, one page (100 records) per API call
+      while (true) {
         const res = await base44.functions.invoke("rebuildDemandSummariesBackground", {
           action: "step",
           monthIndex,
+          pageSkip,
           startedAt,
         });
 
         if (res.data?.error) throw new Error(res.data.error);
 
-        monthIndex = res.data.monthIndex;
-        totalUnique += (res.data.recordCount || 0);
+        const data = res.data;
+        monthIndex = data.monthIndex;
+        pageSkip = data.pageSkip ?? 0;
 
         setProgress({
-          current: monthIndex,
-          total: TOTAL_MONTHS,
-          phase: 'aggregating',
-          detail: res.data.detail || `Month ${monthIndex}/${TOTAL_MONTHS}`,
+          monthIndex,
+          detail: data.detail || `Month ${monthIndex}/${data.totalMonths}`,
+          totalMonths: data.totalMonths || TOTAL_MONTHS,
+          skuCount: data.skuCount,
         });
+
+        if (data.allDone) break;
+
+        // Small pause between calls to avoid hammering the API
+        await new Promise(r => setTimeout(r, 300));
       }
 
-      // Phase 2: finalize (delete old + write new)
-      setProgress({ current: TOTAL_MONTHS, total: TOTAL_MONTHS, phase: 'finalizing', detail: 'Writing summaries...' });
+      // Phase 2: finalize
+      setProgress(prev => ({ ...prev, detail: 'Finalizing — deleting old & writing new summaries...' }));
 
       const finalRes = await base44.functions.invoke("rebuildDemandSummariesBackground", {
         action: "finalize",
-        totalUnique,
       });
 
       if (finalRes.data?.error) throw new Error(finalRes.data.error);
@@ -119,7 +108,6 @@ export default function DataTab({
         completedAt: new Date().toISOString(),
       };
       setJobStatus(doneStatus);
-
       if (onRebuildComplete) onRebuildComplete(doneStatus);
 
     } catch (e) {
@@ -137,10 +125,10 @@ export default function DataTab({
     setIsRerunning(false);
   };
 
-  const isDone = jobStatus?.state === 'done';
-  const isError = jobStatus?.state === 'error' || !!errorMsg;
+  const isDone = !isRunning && jobStatus?.state === 'done';
+  const isError = !isRunning && (jobStatus?.state === 'error' || !!errorMsg);
   const progressPct = isRunning
-    ? Math.round((progress.current / progress.total) * 100)
+    ? Math.min(99, Math.round(((progress.monthIndex || 0) / (progress.totalMonths || TOTAL_MONTHS)) * 95))
     : 0;
 
   return (
@@ -203,9 +191,12 @@ export default function DataTab({
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2 text-orange-400">
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span className="font-medium capitalize">{progress.phase}…</span>
+                  <span className="font-medium">Aggregating…</span>
                 </div>
-                <span className="text-zinc-400">{progressPct}%</span>
+                <span className="text-zinc-400">
+                  Month {progress.monthIndex}/{progress.totalMonths || TOTAL_MONTHS}
+                  {progress.skuCount ? ` · ${formatNumber(progress.skuCount)} SKUs` : ''}
+                </span>
               </div>
               <Progress value={progressPct} className="h-1.5" />
               <p className="text-[10px] text-zinc-500">{progress.detail}</p>
@@ -214,7 +205,7 @@ export default function DataTab({
           )}
 
           {/* Done */}
-          {!isRunning && isDone && (
+          {isDone && (
             <div className="mb-4 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
               <div className="flex items-center gap-2 text-green-400 text-xs font-medium">
                 <CheckCircle2 className="w-4 h-4" />
@@ -227,7 +218,7 @@ export default function DataTab({
           )}
 
           {/* Error */}
-          {!isRunning && isError && (
+          {isError && (
             <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
               <div className="flex items-center gap-2 text-red-400 text-xs font-medium">
                 <XCircle className="w-4 h-4" />
@@ -245,9 +236,11 @@ export default function DataTab({
               {isRunning
                 ? <Loader2 className="w-4 h-4 animate-spin" />
                 : <RefreshCw className="w-4 h-4" />}
-              {isRunning ? `Rebuilding… ${progress.current}/${progress.total} months` : "Rebuild from ShopifySaleRecord"}
+              {isRunning
+                ? `Processing month ${progress.monthIndex}/${progress.totalMonths || TOTAL_MONTHS}…`
+                : "Rebuild from ShopifySaleRecord"}
             </button>
-            {(isError) && (
+            {isError && (
               <button
                 onClick={handleReset}
                 className="flex items-center gap-2 px-3 py-2 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 text-sm font-medium rounded transition-colors"
@@ -257,7 +250,7 @@ export default function DataTab({
             )}
           </div>
           <p className="text-[10px] text-zinc-500 mt-2">
-            Processes one month at a time — keep this tab open. Typically takes 3–8 minutes for a full rebuild.
+            Processes 100 records at a time — keep this tab open. Typically takes 5–10 minutes.
           </p>
 
           {/* Re-run aliases */}
@@ -271,7 +264,7 @@ export default function DataTab({
               {isRerunning ? "Running..." : "Re-run SKU Alias Consolidation"}
             </button>
             <p className="text-[10px] text-zinc-500 mt-2">
-              Merges duplicate SKUs using your SKU Alias records. Run this after adding new aliases without a full rebuild.
+              Merges duplicate SKUs using your SKU Alias records.
             </p>
           </div>
         </CardContent>
@@ -302,12 +295,13 @@ export default function DataTab({
         <AlertCircle className="w-4 h-4 text-zinc-500 mt-0.5 shrink-0" />
         <div className="text-xs text-zinc-500">
           <p className="mb-1">
-            Demand summaries are built from ShopifySaleRecord data. The rebuild processes one month at a time
-            to stay within API limits, deduplicates overlapping CSV/API imports, and writes clean DemandSummary records.
+            Demand summaries are built from ShopifySaleRecord data. The rebuild fetches 100 records per
+            request to stay within timeouts, deduplicates overlapping CSV/API imports, and writes clean
+            DemandSummary records for the forecasting engine.
           </p>
           <p>
-            Inventory on-hand values are pulled from the Shopify "neob HQ" location. You can override
-            individual SKUs in the Settings or SKU Detail panel.
+            Inventory on-hand values are pulled from Shopify "neob HQ". You can override individual SKUs
+            in Settings or the SKU Detail panel.
           </p>
         </div>
       </div>
