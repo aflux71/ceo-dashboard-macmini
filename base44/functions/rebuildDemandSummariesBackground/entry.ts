@@ -44,17 +44,18 @@ function categorize(name) {
 }
 
 const STATUS_KEY = 'demand_rebuild_status';
+const MERGED_KEY = 'demand_rebuild_merged';
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-async function withRetry(fn, maxAttempts = 5) {
+async function withRetry(fn, maxAttempts = 4) {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       return await fn();
     } catch (e) {
       const is429 = e.message?.includes('Rate limit') || e.message?.includes('429');
       if (is429 && attempt < maxAttempts - 1) {
-        const delay = Math.pow(2, attempt + 1) * 1000; // 2s, 4s, 8s, 16s
-        console.log(`Rate limited, retrying in ${delay}ms (attempt ${attempt + 1})`);
+        const delay = Math.pow(2, attempt + 1) * 1500;
+        console.log(`Rate limited, retrying in ${delay}ms`);
         await sleep(delay);
       } else {
         throw e;
@@ -63,24 +64,35 @@ async function withRetry(fn, maxAttempts = 5) {
   }
 }
 
-async function readStatus(base44) {
-  const existing = await withRetry(() => base44.asServiceRole.entities.AppSettings.filter({ key: STATUS_KEY }));
-  if (existing.length === 0) return null;
-  return JSON.parse(existing[0].value || 'null');
+async function readSetting(base44, key) {
+  const rows = await withRetry(() => base44.asServiceRole.entities.AppSettings.filter({ key }));
+  if (!rows || rows.length === 0) return null;
+  try { return JSON.parse(rows[0].value); } catch { return rows[0].value; }
 }
 
-async function writeStatus(base44, status) {
-  try {
-    const existing = await withRetry(() => base44.asServiceRole.entities.AppSettings.filter({ key: STATUS_KEY }));
-    const value = JSON.stringify(status);
-    if (existing.length > 0) {
-      await withRetry(() => base44.asServiceRole.entities.AppSettings.update(existing[0].id, { value }));
-    } else {
-      await withRetry(() => base44.asServiceRole.entities.AppSettings.create({ key: STATUS_KEY, value, description: 'Background demand rebuild job status' }));
-    }
-  } catch (e) {
-    console.warn('writeStatus failed:', e.message);
+async function writeSetting(base44, key, value, description) {
+  const rows = await withRetry(() => base44.asServiceRole.entities.AppSettings.filter({ key }));
+  const strVal = JSON.stringify(value);
+  if (rows && rows.length > 0) {
+    await withRetry(() => base44.asServiceRole.entities.AppSettings.update(rows[0].id, { value: strVal }));
+  } else {
+    await withRetry(() => base44.asServiceRole.entities.AppSettings.create({ key, value: strVal, description: description || key }));
   }
+}
+
+// Build month list to process
+function buildMonthList() {
+  const now = new Date();
+  const months = [];
+  // All of 2025
+  for (let m = 1; m <= 12; m++) months.push({ year: 2025, month: m });
+  // Current year up to now
+  if (now.getFullYear() > 2025) {
+    for (let m = 1; m <= now.getMonth() + 1; m++) {
+      months.push({ year: now.getFullYear(), month: m });
+    }
+  }
+  return months;
 }
 
 Deno.serve(async (req) => {
@@ -93,137 +105,139 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
 
-    // ── status check ──────────────────────────────────────────────────────
+    // ── status ────────────────────────────────────────────────────────────
     if (body.action === 'status') {
-      const status = await readStatus(base44);
+      const status = await readSetting(base44, STATUS_KEY);
       return Response.json(status || { state: null });
     }
 
-    // ── reset stale job ───────────────────────────────────────────────────
+    // ── reset ─────────────────────────────────────────────────────────────
     if (body.action === 'reset') {
-      await writeStatus(base44, { state: null });
-      return Response.json({ success: true, message: 'Job status reset' });
+      await writeSetting(base44, STATUS_KEY, { state: null });
+      await writeSetting(base44, MERGED_KEY, {});
+      return Response.json({ success: true });
     }
 
-    // ── start / continue rebuild ──────────────────────────────────────────
-    // This runs synchronously within the request — Deno will keep it alive
-    // until the response is sent. We process ALL months in one call.
+    // ── step: process ONE month ───────────────────────────────────────────
+    // Called repeatedly by the frontend until monthIndex >= months.length
+    if (body.action === 'step') {
+      const months = buildMonthList();
+      const monthIndex = body.monthIndex ?? 0;
 
-    const now = new Date();
-    const endYear = now.getFullYear();
-    const endMonth = now.getMonth() + 1;
+      if (monthIndex >= months.length) {
+        return Response.json({ done: false, monthIndex, needsFinalize: true });
+      }
 
-    const months = [];
-    for (let m = 1; m <= 12; m++) months.push({ year: 2025, month: m });
-    if (endYear > 2025) {
-      for (let m = 1; m <= endMonth; m++) months.push({ year: endYear, month: m });
-    }
+      const { year, month } = months[monthIndex];
+      const monthStr = String(month).padStart(2, '0');
+      const startDate = `${year}-${monthStr}-01`;
+      const nextMonth = month === 12 ? 1 : month + 1;
+      const nextYear = month === 12 ? year + 1 : year;
+      const endDate = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`;
 
-    await writeStatus(base44, {
-      state: 'running', phase: 'aggregating',
-      current: 0, total: months.length,
-      detail: 'Starting...', startedAt: new Date().toISOString(), startedBy: user.email,
-    });
+      console.log(`Processing month ${year}-${monthStr}`);
 
-    try {
-      const merged = {};
-      let totalRaw = 0, totalDupes = 0, totalOverlap = 0, totalUnique = 0;
+      // Page through records for this month
+      const allRecords = [];
+      let skip = 0;
+      const pageSize = 100;
+      while (true) {
+        const batch = await withRetry(() =>
+          base44.asServiceRole.entities.ShopifySaleRecord.filter(
+            { order_date: { $gte: startDate, $lt: endDate } },
+            '-order_date', pageSize, skip
+          )
+        );
+        if (!batch || batch.length === 0) break;
+        allRecords.push(...batch);
+        if (batch.length < pageSize) break;
+        skip += pageSize;
+        await sleep(200);
+      }
 
-      // ── Phase 1: Aggregate month by month ──
-      for (let mi = 0; mi < months.length; mi++) {
-        const { year, month } = months[mi];
-        const monthStr = String(month).padStart(2, '0');
+      // Dedup exact line items
+      const seenLineItems = new Set();
+      const deduped = [];
+      for (const r of allRecords) {
+        const key = `${r.order_id || r.id}|${r.sku || ''}|${r.location_name || ''}`;
+        if (seenLineItems.has(key)) continue;
+        seenLineItems.add(key);
+        deduped.push(r);
+      }
 
-        await writeStatus(base44, {
-          state: 'running', phase: 'aggregating',
-          current: mi + 1, total: months.length,
-          detail: `Aggregating ${year}-${monthStr}`,
-          startedAt: new Date().toISOString(), startedBy: user.email,
-        });
-
-        const startDate = `${year}-${monthStr}-01`;
-        const nextMonth = month === 12 ? 1 : month + 1;
-        const nextYear = month === 12 ? year + 1 : year;
-        const endDate = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`;
-
-        // Page through records for this month
-        const allRecords = [];
-        let skip = 0;
-        const pageSize = 100;
-        while (true) {
-          const batch = await withRetry(() =>
-            base44.asServiceRole.entities.ShopifySaleRecord.filter(
-              { order_date: { $gte: startDate, $lt: endDate } },
-              '-order_date', pageSize, skip
-            )
-          );
-          if (!batch || batch.length === 0) break;
-          allRecords.push(...batch);
-          if (batch.length < pageSize) break;
-          skip += pageSize;
-          await sleep(300); // avoid rate limit between pages
-        }
-
-        // Dedup exact line items
-        const seenLineItems = new Set();
-        const deduped = [];
-        for (const r of allRecords) {
-          const key = `${r.order_id || r.id}|${r.sku || ''}|${r.location_name || ''}`;
-          if (seenLineItems.has(key)) continue;
-          seenLineItems.add(key);
-          deduped.push(r);
-        }
-        totalDupes += allRecords.length - deduped.length;
-
-        // Prefer API over CSV for same SKU+day+location
-        const apiDateKeys = new Set();
-        for (const r of deduped) {
-          if (r.order_id && !r.order_id.startsWith('CSV-')) {
-            apiDateKeys.add(`${r.sku}|${(r.order_date || '').substring(0, 10)}|${r.location_name || 'Unknown'}`);
-          }
-        }
-        const final = [];
-        let csvOverlapRemoved = 0;
-        for (const r of deduped) {
-          if (r.order_id && r.order_id.startsWith('CSV-')) {
-            const key = `${r.sku}|${(r.order_date || '').substring(0, 10)}|${r.location_name || 'Unknown'}`;
-            if (apiDateKeys.has(key)) { csvOverlapRemoved++; continue; }
-          }
-          final.push(r);
-        }
-
-        totalRaw += allRecords.length;
-        totalOverlap += csvOverlapRemoved;
-        totalUnique += final.length;
-        await sleep(500); // breathe between months
-
-        const monthIdx = month - 1;
-        for (const r of final) {
-          const sku = r.sku?.trim();
-          if (!sku || (r.quantity || 0) <= 0) continue;
-          const channel = r.channel || (r.location_id ? 'pos' : 'online');
-          const location = r.location_name || (channel === 'online' ? 'Online' : 'Unknown');
-          if (!merged[sku]) {
-            merged[sku] = {
-              sku, product: r.product_name || sku,
-              monthly: [0,0,0,0,0,0,0,0,0,0,0,0],
-              byChannel: { online: 0, pos: 0 },
-              byLocation: {}, totalQty: 0,
-              periodStart: `${year}-${monthStr}-01`,
-              periodEnd: `${year}-${monthStr}-28`,
-            };
-          }
-          const m = merged[sku];
-          m.monthly[monthIdx] += r.quantity;
-          m.totalQty += r.quantity;
-          if (channel === 'pos') m.byChannel.pos += r.quantity;
-          else m.byChannel.online += r.quantity;
-          m.byLocation[location] = (m.byLocation[location] || 0) + r.quantity;
-          const dateKey = `${year}-${monthStr}`;
-          if (dateKey < m.periodStart.substring(0, 7)) m.periodStart = `${dateKey}-01`;
-          if (dateKey > m.periodEnd.substring(0, 7)) m.periodEnd = `${dateKey}-28`;
+      // Prefer API over CSV
+      const apiDateKeys = new Set();
+      for (const r of deduped) {
+        if (r.order_id && !r.order_id.startsWith('CSV-')) {
+          apiDateKeys.add(`${r.sku}|${(r.order_date || '').substring(0, 10)}|${r.location_name || 'Unknown'}`);
         }
       }
+      const final = [];
+      for (const r of deduped) {
+        if (r.order_id && r.order_id.startsWith('CSV-')) {
+          const key = `${r.sku}|${(r.order_date || '').substring(0, 10)}|${r.location_name || 'Unknown'}`;
+          if (apiDateKeys.has(key)) continue;
+        }
+        final.push(r);
+      }
+
+      // Load existing merged data
+      const merged = (await readSetting(base44, MERGED_KEY)) || {};
+
+      const monthIdx = month - 1;
+      for (const r of final) {
+        const sku = r.sku?.trim();
+        if (!sku || (r.quantity || 0) <= 0) continue;
+        const channel = r.channel || (r.location_id ? 'pos' : 'online');
+        const location = r.location_name || (channel === 'online' ? 'Online' : 'Unknown');
+        if (!merged[sku]) {
+          merged[sku] = {
+            sku, product: r.product_name || sku,
+            monthly: [0,0,0,0,0,0,0,0,0,0,0,0],
+            byChannel: { online: 0, pos: 0 },
+            byLocation: {}, totalQty: 0,
+            periodStart: `${year}-${monthStr}-01`,
+            periodEnd: `${year}-${monthStr}-28`,
+          };
+        }
+        const m = merged[sku];
+        m.monthly[monthIdx] += r.quantity;
+        m.totalQty += r.quantity;
+        if (channel === 'pos') m.byChannel.pos += r.quantity;
+        else m.byChannel.online += r.quantity;
+        m.byLocation[location] = (m.byLocation[location] || 0) + r.quantity;
+        const dateKey = `${year}-${monthStr}`;
+        if (dateKey < m.periodStart.substring(0, 7)) m.periodStart = `${dateKey}-01`;
+        if (dateKey > m.periodEnd.substring(0, 7)) m.periodEnd = `${dateKey}-28`;
+      }
+
+      // Save merged back
+      await writeSetting(base44, MERGED_KEY, merged);
+
+      // Update status
+      await writeSetting(base44, STATUS_KEY, {
+        state: 'running', phase: 'aggregating',
+        current: monthIndex + 1, total: months.length,
+        detail: `Aggregated ${year}-${monthStr} (${final.length} records)`,
+        startedAt: body.startedAt || new Date().toISOString(),
+        startedBy: user.email,
+      });
+
+      return Response.json({
+        done: false,
+        monthIndex: monthIndex + 1,
+        total: months.length,
+        recordCount: final.length,
+        skuCount: Object.keys(merged).length,
+      });
+    }
+
+    // ── finalize: delete old + write new summaries ────────────────────────
+    if (body.action === 'finalize') {
+      const merged = (await readSetting(base44, MERGED_KEY)) || {};
+      const skuCount = Object.keys(merged).length;
+
+      console.log(`Finalizing: ${skuCount} SKUs`);
 
       // Compute dataMonths per SKU
       for (const m of Object.values(merged)) {
@@ -234,10 +248,8 @@ Deno.serve(async (req) => {
         );
       }
 
-      const skuCount = Object.keys(merged).length;
-
-      // ── Phase 2: Delete old records ──
-      await writeStatus(base44, {
+      // Delete old records — in batches of 20
+      await writeSetting(base44, STATUS_KEY, {
         state: 'running', phase: 'deleting', current: 0, total: skuCount,
         detail: 'Clearing old summaries...', startedBy: user.email,
       });
@@ -248,16 +260,15 @@ Deno.serve(async (req) => {
           base44.asServiceRole.entities.DemandSummary.list('-created_date', 20, 0)
         );
         if (!batch || batch.length === 0) break;
-        // Delete sequentially to avoid rate limits
         for (const r of batch) {
           await withRetry(() => base44.asServiceRole.entities.DemandSummary.delete(r.id));
-          await sleep(150);
+          await sleep(100);
         }
         deleted += batch.length;
-        await sleep(500);
+        await sleep(300);
       }
 
-      // ── Phase 3: Write new records ──
+      // Write new records in batches of 10
       const nowISO = new Date().toISOString();
       const records = Object.values(merged).map(s => {
         const dataMonths = Math.max(1, s.dataMonths || 1);
@@ -280,43 +291,37 @@ Deno.serve(async (req) => {
         const batch = records.slice(i, i + BATCH_SIZE);
         await withRetry(() => base44.asServiceRole.entities.DemandSummary.bulkCreate(batch));
         created += batch.length;
-        await sleep(500); // pause between write batches
-        // Update status every 30 records to avoid extra rate-limit hits
-        if (created % 30 === 0 || created === records.length) {
-          await writeStatus(base44, {
-            state: 'running', phase: 'writing', current: created, total: records.length,
-            detail: `Writing ${created}/${records.length} summaries...`, startedBy: user.email,
-          });
-        }
+        await sleep(400);
       }
 
       // SyncLog
       try {
         await base44.asServiceRole.entities.SyncLog.create({
           sync_type: 'demand_summaries', status: 'success',
-          records_processed: totalUnique, records_created: created,
+          records_processed: body.totalUnique || created,
+          records_created: created,
           triggered_by: user.email,
-          notes: `Rebuild: ${deleted} deleted, ${created} new (${totalRaw} raw, ${totalDupes} dupes, ${totalOverlap} overlaps)`,
+          notes: `Rebuild complete: ${deleted} deleted, ${created} new summaries`,
         });
-      } catch (e) {}
+      } catch (e) { console.warn('SyncLog failed:', e.message); }
 
-      await writeStatus(base44, {
+      // Clear merged data to free AppSettings space
+      await writeSetting(base44, MERGED_KEY, {});
+
+      const finalStatus = {
         state: 'done', phase: 'complete',
-        created, deleted, totalUnique,
+        created, deleted,
         completedAt: new Date().toISOString(), startedBy: user.email,
-      });
+      };
+      await writeSetting(base44, STATUS_KEY, finalStatus);
 
-      return Response.json({ success: true, created, deleted, totalUnique });
-
-    } catch (err) {
-      console.error('Rebuild failed:', err.message);
-      await writeStatus(base44, {
-        state: 'error', error: err.message, failedAt: new Date().toISOString(),
-      });
-      return Response.json({ error: err.message }, { status: 500 });
+      return Response.json({ success: true, created, deleted });
     }
 
+    return Response.json({ error: 'Unknown action' }, { status: 400 });
+
   } catch (error) {
+    console.error('Function error:', error.message);
     return Response.json({ error: error.message }, { status: 500 });
   }
 });

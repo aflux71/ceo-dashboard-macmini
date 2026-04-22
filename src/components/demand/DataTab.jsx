@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
   Database, RefreshCw, Package, ShoppingCart, GitMerge,
-  AlertCircle, Loader2, CheckCircle2, XCircle, Clock,
+  AlertCircle, Loader2, CheckCircle2, XCircle,
 } from "lucide-react";
 import { formatNumber } from "@/components/demand/demandHelpers";
 import { base44 } from "@/api/base44Client";
@@ -16,6 +16,21 @@ function formatDate(dateStr) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
+// Build month list (mirrors server)
+function buildMonthList() {
+  const now = new Date();
+  const months = [];
+  for (let m = 1; m <= 12; m++) months.push({ year: 2025, month: m });
+  if (now.getFullYear() > 2025) {
+    for (let m = 1; m <= now.getMonth() + 1; m++) {
+      months.push({ year: now.getFullYear(), month: m });
+    }
+  }
+  return months;
+}
+
+const TOTAL_MONTHS = buildMonthList().length;
+
 export default function DataTab({
   baselineInfo,
   summaryCount,
@@ -25,59 +40,95 @@ export default function DataTab({
   onRebuildComplete,
   onRerunAliases,
 }) {
-  const [jobStatus, setJobStatus] = useState(null); // null = unknown, object = status
-  const [isStarting, setIsStarting] = useState(false);
+  const [jobStatus, setJobStatus] = useState(null);
+  const [isRunning, setIsRunning] = useState(false);
   const [isRerunning, setIsRerunning] = useState(false);
-  const pollRef = useRef(null);
+  const [errorMsg, setErrorMsg] = useState(null);
+  const [progress, setProgress] = useState({ current: 0, total: TOTAL_MONTHS, phase: '', detail: '' });
 
-  // Check status on mount only (rebuild is now synchronous)
+  // Check persisted status on mount
   useEffect(() => {
     checkStatus();
-    return () => clearInterval(pollRef.current);
   }, []);
 
   const checkStatus = async () => {
     try {
       const res = await base44.functions.invoke("rebuildDemandSummariesBackground", { action: "status" });
-      const status = res.data;
-      setJobStatus(status);
-      if (status?.state === 'done' && onRebuildComplete) {
-        onRebuildComplete(status);
-      }
+      setJobStatus(res.data);
     } catch (e) {
       setJobStatus(null);
     }
-  };
-
-  const startPolling = () => {};
-  const stopPolling = () => {
-    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
-  };
-
-  const handleStartRebuild = async () => {
-    setIsStarting(true);
-    try {
-      // Run synchronously — this call will stay open until rebuild completes
-      const res = await base44.functions.invoke("rebuildDemandSummariesBackground", { action: "start" });
-      const result = res.data;
-      if (result?.state === 'error' || result?.error) {
-        setJobStatus({ state: 'error', error: result.error || 'Unknown error' });
-      } else {
-        // Fetch final status
-        await checkStatus();
-      }
-    } catch (e) {
-      setJobStatus({ state: 'error', error: e.message });
-    }
-    setIsStarting(false);
   };
 
   const handleReset = async () => {
     try {
       await base44.functions.invoke("rebuildDemandSummariesBackground", { action: "reset" });
-      setJobStatus(null);
-      stopPolling();
     } catch (e) {}
+    setJobStatus(null);
+    setIsRunning(false);
+    setErrorMsg(null);
+    setProgress({ current: 0, total: TOTAL_MONTHS, phase: '', detail: '' });
+  };
+
+  // Step-by-step rebuild driven from the frontend
+  const handleStartRebuild = async () => {
+    setIsRunning(true);
+    setErrorMsg(null);
+    setProgress({ current: 0, total: TOTAL_MONTHS, phase: 'aggregating', detail: 'Starting...' });
+
+    const startedAt = new Date().toISOString();
+    let monthIndex = 0;
+    let totalUnique = 0;
+
+    try {
+      // Phase 1: step through each month
+      while (monthIndex < TOTAL_MONTHS) {
+        const res = await base44.functions.invoke("rebuildDemandSummariesBackground", {
+          action: "step",
+          monthIndex,
+          startedAt,
+        });
+
+        if (res.data?.error) throw new Error(res.data.error);
+
+        monthIndex = res.data.monthIndex;
+        totalUnique += (res.data.recordCount || 0);
+
+        setProgress({
+          current: monthIndex,
+          total: TOTAL_MONTHS,
+          phase: 'aggregating',
+          detail: res.data.detail || `Month ${monthIndex}/${TOTAL_MONTHS}`,
+        });
+      }
+
+      // Phase 2: finalize (delete old + write new)
+      setProgress({ current: TOTAL_MONTHS, total: TOTAL_MONTHS, phase: 'finalizing', detail: 'Writing summaries...' });
+
+      const finalRes = await base44.functions.invoke("rebuildDemandSummariesBackground", {
+        action: "finalize",
+        totalUnique,
+      });
+
+      if (finalRes.data?.error) throw new Error(finalRes.data.error);
+
+      const doneStatus = {
+        state: 'done',
+        created: finalRes.data.created,
+        deleted: finalRes.data.deleted,
+        completedAt: new Date().toISOString(),
+      };
+      setJobStatus(doneStatus);
+
+      if (onRebuildComplete) onRebuildComplete(doneStatus);
+
+    } catch (e) {
+      console.error("Rebuild error:", e);
+      setErrorMsg(e.message);
+      setJobStatus({ state: 'error', error: e.message });
+    }
+
+    setIsRunning(false);
   };
 
   const handleRerun = async () => {
@@ -86,16 +137,10 @@ export default function DataTab({
     setIsRerunning(false);
   };
 
-  const isRunning = jobStatus?.state === 'running';
   const isDone = jobStatus?.state === 'done';
-  const isError = jobStatus?.state === 'error';
-
-  // Detect stale job: running but startedAt > 10 minutes ago
-  const isStale = isRunning && jobStatus?.startedAt &&
-    (Date.now() - new Date(jobStatus.startedAt).getTime()) > 10 * 60 * 1000;
-
-  const progressPct = isRunning && jobStatus.total > 0
-    ? Math.round((jobStatus.current / jobStatus.total) * 100)
+  const isError = jobStatus?.state === 'error' || !!errorMsg;
+  const progressPct = isRunning
+    ? Math.round((progress.current / progress.total) * 100)
     : 0;
 
   return (
@@ -152,32 +197,24 @@ export default function DataTab({
             </DataField>
           </div>
 
-          {/* Job status banner */}
+          {/* Running progress */}
           {isRunning && (
             <div className="mb-4 p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg space-y-2">
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2 text-orange-400">
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span className="font-medium capitalize">{jobStatus.phase}…</span>
+                  <span className="font-medium capitalize">{progress.phase}…</span>
                 </div>
                 <span className="text-zinc-400">{progressPct}%</span>
               </div>
               <Progress value={progressPct} className="h-1.5" />
-              <p className="text-[10px] text-zinc-500">{jobStatus.detail}</p>
-              {isStale ? (
-                <div className="flex items-center justify-between">
-                  <p className="text-[10px] text-amber-400">⚠ Job may be stale — it was started over 10 minutes ago.</p>
-                  <button onClick={handleReset} className="text-[10px] px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded hover:bg-amber-500/30">
-                    Reset & Retry
-                  </button>
-                </div>
-              ) : (
-                <p className="text-[10px] text-zinc-600">Keep this tab open — rebuild runs synchronously.</p>
-              )}
+              <p className="text-[10px] text-zinc-500">{progress.detail}</p>
+              <p className="text-[10px] text-zinc-600">Keep this tab open — do not navigate away.</p>
             </div>
           )}
 
-          {isDone && (
+          {/* Done */}
+          {!isRunning && isDone && (
             <div className="mb-4 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
               <div className="flex items-center gap-2 text-green-400 text-xs font-medium">
                 <CheckCircle2 className="w-4 h-4" />
@@ -189,28 +226,28 @@ export default function DataTab({
             </div>
           )}
 
-          {isError && (
+          {/* Error */}
+          {!isRunning && isError && (
             <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
               <div className="flex items-center gap-2 text-red-400 text-xs font-medium">
                 <XCircle className="w-4 h-4" />
-                Rebuild failed: {jobStatus.error}
+                Rebuild failed: {errorMsg || jobStatus?.error}
               </div>
             </div>
           )}
 
-          {/* Start button */}
           <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={handleStartRebuild}
-              disabled={isStarting || (isRunning && !isStale)}
+              disabled={isRunning}
               className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white text-sm font-medium rounded transition-colors"
             >
-              {isStarting
+              {isRunning
                 ? <Loader2 className="w-4 h-4 animate-spin" />
                 : <RefreshCw className="w-4 h-4" />}
-              {isStarting ? "Rebuilding… keep tab open" : "Rebuild from ShopifySaleRecord"}
+              {isRunning ? `Rebuilding… ${progress.current}/${progress.total} months` : "Rebuild from ShopifySaleRecord"}
             </button>
-            {(isRunning || isError || isStale) && (
+            {(isError) && (
               <button
                 onClick={handleReset}
                 className="flex items-center gap-2 px-3 py-2 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 text-sm font-medium rounded transition-colors"
@@ -220,14 +257,14 @@ export default function DataTab({
             )}
           </div>
           <p className="text-[10px] text-zinc-500 mt-2">
-            Keep this tab open while rebuilding — the process runs synchronously and may take 1–3 minutes.
+            Processes one month at a time — keep this tab open. Typically takes 3–8 minutes for a full rebuild.
           </p>
 
           {/* Re-run aliases */}
           <div className="mt-4 pt-4 border-t border-zinc-800">
             <button
               onClick={handleRerun}
-              disabled={isRerunning}
+              disabled={isRerunning || isRunning}
               className="flex items-center gap-2 px-4 py-2 bg-zinc-700 hover:bg-zinc-600 disabled:bg-zinc-800 disabled:text-zinc-500 text-zinc-200 text-sm font-medium rounded transition-colors"
             >
               {isRerunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <GitMerge className="w-4 h-4" />}
@@ -265,9 +302,8 @@ export default function DataTab({
         <AlertCircle className="w-4 h-4 text-zinc-500 mt-0.5 shrink-0" />
         <div className="text-xs text-zinc-500">
           <p className="mb-1">
-            Demand summaries are built from ShopifySaleRecord data. The rebuild process
-            deduplicates overlapping CSV and API imports, aggregates by SKU per month, and writes clean
-            DemandSummary records for the forecasting engine.
+            Demand summaries are built from ShopifySaleRecord data. The rebuild processes one month at a time
+            to stay within API limits, deduplicates overlapping CSV/API imports, and writes clean DemandSummary records.
           </p>
           <p>
             Inventory on-hand values are pulled from the Shopify "neob HQ" location. You can override
