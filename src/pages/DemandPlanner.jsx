@@ -462,8 +462,6 @@ export default function DemandPlanner() {
     }
   };
 
-
-
   // ── Loading state ─────────────────────────────────────────────────────────
   if (loading) {
     return (
