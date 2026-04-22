@@ -580,20 +580,24 @@ export default function DemandPlanner() {
         await sleep(500);
       }
 
-      toast.success(`Rebuild complete: ${created} summaries from ${totalUnique} deduplicated records`);
       const rebuildDate = new Date().toISOString();
       setLastSync(rebuildDate);
       setShopifyRecordCount(totalUnique);
+      toast.success(`Rebuild complete: ${created} summaries from ${totalUnique} deduplicated records`);
 
       try {
+        const me = await base44.auth.me();
         await base44.entities.SyncLog.create({
           sync_type: "demand_summaries",
           status: "success",
           records_processed: totalUnique,
           records_created: created,
+          triggered_by: me?.email || "demand_planner",
           notes: `Rebuilt ${created} summaries from ${totalRaw} raw records (${totalDupes} dupes, ${totalOverlap} overlaps removed)`,
         });
-      } catch (e) {}
+      } catch (e) {
+        console.warn("SyncLog write failed:", e);
+      }
 
       const updated = await fetchAll(base44.entities.DemandSummary);
       if (updated?.length > 0) {
@@ -611,14 +615,7 @@ export default function DemandPlanner() {
         // Update summary count display
         setShopifyRecordCount(totalUnique || updated.length);
       }
-      // Always refresh SyncLog stats after rebuild
-      try {
-        const freshLogs = await base44.entities.SyncLog.filter({ sync_type: "demand_summaries" }, "-created_date", 1);
-        if (freshLogs.length > 0) {
-          setLastSync(freshLogs[0].created_date);
-          setShopifyRecordCount(freshLogs[0].records_processed || totalUnique || 0);
-        }
-      } catch (e) {}
+      // lastSync already set above — no need to re-read
     } catch (err) {
       toast.error("Rebuild failed: " + err.message);
       console.error("Rebuild error:", err);
