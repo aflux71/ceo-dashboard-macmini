@@ -46,20 +46,37 @@ function categorize(name) {
 const STATUS_KEY = 'demand_rebuild_status';
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+async function withRetry(fn, maxAttempts = 5) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      const is429 = e.message?.includes('Rate limit') || e.message?.includes('429');
+      if (is429 && attempt < maxAttempts - 1) {
+        const delay = Math.pow(2, attempt + 1) * 1000; // 2s, 4s, 8s, 16s
+        console.log(`Rate limited, retrying in ${delay}ms (attempt ${attempt + 1})`);
+        await sleep(delay);
+      } else {
+        throw e;
+      }
+    }
+  }
+}
+
 async function readStatus(base44) {
-  const existing = await base44.asServiceRole.entities.AppSettings.filter({ key: STATUS_KEY });
+  const existing = await withRetry(() => base44.asServiceRole.entities.AppSettings.filter({ key: STATUS_KEY }));
   if (existing.length === 0) return null;
   return JSON.parse(existing[0].value || 'null');
 }
 
 async function writeStatus(base44, status) {
   try {
-    const existing = await base44.asServiceRole.entities.AppSettings.filter({ key: STATUS_KEY });
+    const existing = await withRetry(() => base44.asServiceRole.entities.AppSettings.filter({ key: STATUS_KEY }));
     const value = JSON.stringify(status);
     if (existing.length > 0) {
-      await base44.asServiceRole.entities.AppSettings.update(existing[0].id, { value });
+      await withRetry(() => base44.asServiceRole.entities.AppSettings.update(existing[0].id, { value }));
     } else {
-      await base44.asServiceRole.entities.AppSettings.create({ key: STATUS_KEY, value, description: 'Background demand rebuild job status' });
+      await withRetry(() => base44.asServiceRole.entities.AppSettings.create({ key: STATUS_KEY, value, description: 'Background demand rebuild job status' }));
     }
   } catch (e) {
     console.warn('writeStatus failed:', e.message);
@@ -132,25 +149,19 @@ Deno.serve(async (req) => {
         // Page through records for this month
         const allRecords = [];
         let skip = 0;
-        const pageSize = 200;
+        const pageSize = 100;
         while (true) {
-          let batch;
-          for (let attempt = 0; attempt < 3; attempt++) {
-            try {
-              batch = await base44.asServiceRole.entities.ShopifySaleRecord.filter(
-                { order_date: { $gte: startDate, $lt: endDate } },
-                '-order_date', pageSize, skip
-              );
-              break;
-            } catch (e) {
-              if (attempt < 2) await sleep(2000);
-              else throw e;
-            }
-          }
+          const batch = await withRetry(() =>
+            base44.asServiceRole.entities.ShopifySaleRecord.filter(
+              { order_date: { $gte: startDate, $lt: endDate } },
+              '-order_date', pageSize, skip
+            )
+          );
           if (!batch || batch.length === 0) break;
           allRecords.push(...batch);
           if (batch.length < pageSize) break;
           skip += pageSize;
+          await sleep(300); // avoid rate limit between pages
         }
 
         // Dedup exact line items
@@ -184,6 +195,7 @@ Deno.serve(async (req) => {
         totalRaw += allRecords.length;
         totalOverlap += csvOverlapRemoved;
         totalUnique += final.length;
+        await sleep(500); // breathe between months
 
         const monthIdx = month - 1;
         for (const r of final) {
@@ -232,16 +244,17 @@ Deno.serve(async (req) => {
 
       let deleted = 0;
       while (true) {
-        let batch;
-        try {
-          batch = await base44.asServiceRole.entities.DemandSummary.list('-created_date', 50, 0);
-        } catch (e) { await sleep(2000); continue; }
+        const batch = await withRetry(() =>
+          base44.asServiceRole.entities.DemandSummary.list('-created_date', 20, 0)
+        );
         if (!batch || batch.length === 0) break;
-        await Promise.all(batch.map(r =>
-          base44.asServiceRole.entities.DemandSummary.delete(r.id).catch(() => {})
-        ));
+        // Delete sequentially to avoid rate limits
+        for (const r of batch) {
+          await withRetry(() => base44.asServiceRole.entities.DemandSummary.delete(r.id));
+          await sleep(150);
+        }
         deleted += batch.length;
-        await sleep(300);
+        await sleep(500);
       }
 
       // ── Phase 3: Write new records ──
@@ -262,20 +275,19 @@ Deno.serve(async (req) => {
       });
 
       let created = 0;
-      const BATCH_SIZE = 20;
+      const BATCH_SIZE = 10;
       for (let i = 0; i < records.length; i += BATCH_SIZE) {
         const batch = records.slice(i, i + BATCH_SIZE);
-        try {
-          await base44.asServiceRole.entities.DemandSummary.bulkCreate(batch);
-        } catch (e) {
-          await sleep(2000);
-          await base44.asServiceRole.entities.DemandSummary.bulkCreate(batch);
-        }
+        await withRetry(() => base44.asServiceRole.entities.DemandSummary.bulkCreate(batch));
         created += batch.length;
-        await writeStatus(base44, {
-          state: 'running', phase: 'writing', current: created, total: records.length,
-          detail: `Writing ${created}/${records.length} summaries...`, startedBy: user.email,
-        });
+        await sleep(500); // pause between write batches
+        // Update status every 30 records to avoid extra rate-limit hits
+        if (created % 30 === 0 || created === records.length) {
+          await writeStatus(base44, {
+            state: 'running', phase: 'writing', current: created, total: records.length,
+            detail: `Writing ${created}/${records.length} summaries...`, startedBy: user.email,
+          });
+        }
       }
 
       // SyncLog
