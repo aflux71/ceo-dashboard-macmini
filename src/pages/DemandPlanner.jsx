@@ -66,8 +66,6 @@ export default function DemandPlanner() {
   const initialTab = urlParams.get("tab") || "dashboard";
   const [activeTab, setActiveTab] = useState(initialTab);
   const [detailItem, setDetailItem] = useState(null);
-  const [isRebuilding, setIsRebuilding] = useState(false);
-  const [rebuildProgress, setRebuildProgress] = useState(null);
   const [initialUrgencyFilter, setInitialUrgencyFilter] = useState(null);
   const [pushConfirmItems, setPushConfirmItems] = useState(null);
   const [isPushing, setIsPushing] = useState(false);
@@ -448,7 +446,7 @@ export default function DemandPlanner() {
     toast.success(`On-hand override set for SKU ${sku}: ${qty}`);
   };
 
-  // ── Rebuild summaries ────────────────────────────────────────────────────
+  // ── SKU alias re-run ─────────────────────────────────────────────────────
   const handleRerunAliases = async () => {
     try {
       const aliases = await fetchAll(base44.entities.SKUAlias);
@@ -464,165 +462,7 @@ export default function DemandPlanner() {
     }
   };
 
-  const handleRebuild = async () => {
-    setIsRebuilding(true);
-    try {
-      const now = new Date();
-      const endYear = now.getFullYear() > 2025 ? now.getFullYear() : 2025;
-      const endMonth = now.getFullYear() > 2025 ? now.getMonth() + 1 : 12;
-      const months = [];
-      for (let m = 1; m <= 12; m++) months.push({ year: 2025, month: m });
-      if (endYear > 2025) {
-        for (let m = 1; m <= endMonth; m++) months.push({ year: 2026, month: m });
-      }
 
-      const merged = {};
-      let totalRaw = 0;
-      let totalDupes = 0;
-      let totalOverlap = 0;
-      let totalUnique = 0;
-
-      const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-      for (let mi = 0; mi < months.length; mi++) {
-        const { year, month } = months[mi];
-        setRebuildProgress({ current: mi + 1, total: months.length, phase: "aggregating", detail: `${year}-${String(month).padStart(2, '0')}` });
-        if (mi > 0) await sleep(2000);
-        const res = await base44.functions.invoke("rebuildDemandSummaries", {
-          phase: "aggregate", year, month,
-        });
-        const d = res.data;
-        if (!d?.success) continue;
-
-        totalRaw += d.raw_records || 0;
-        totalDupes += d.dupes_removed || 0;
-        totalOverlap += d.csv_overlap_removed || 0;
-        totalUnique += d.unique_records || 0;
-
-        const monthIdx = month - 1;
-        for (const [sku, skuAgg] of Object.entries(d.aggregation || {})) {
-          if (!merged[sku]) {
-            merged[sku] = {
-              sku,
-              product: skuAgg.product,
-              monthly: [0,0,0,0,0,0,0,0,0,0,0,0],
-              byChannel: { online: 0, pos: 0 },
-              byLocation: {},
-              totalQty: 0,
-              periodStart: `${year}-${String(month).padStart(2, '0')}-01`,
-              periodEnd: `${year}-${String(month).padStart(2, '0')}-28`,
-            };
-          }
-          const m = merged[sku];
-          m.monthly[monthIdx] += skuAgg.qty || 0;
-          m.totalQty += skuAgg.qty || 0;
-          m.byChannel.online += skuAgg.online || 0;
-          m.byChannel.pos += skuAgg.pos || 0;
-          for (const [loc, qty] of Object.entries(skuAgg.locations || {})) {
-            m.byLocation[loc] = (m.byLocation[loc] || 0) + qty;
-          }
-          const dateKey = `${year}-${String(month).padStart(2, '0')}`;
-          if (dateKey < m.periodStart.substring(0, 7)) m.periodStart = `${dateKey}-01`;
-          if (dateKey > m.periodEnd.substring(0, 7)) m.periodEnd = `${dateKey}-28`;
-        }
-      }
-
-      for (const m of Object.values(merged)) {
-        const start = new Date(m.periodStart);
-        const end = new Date(m.periodEnd);
-        m.dataMonths = Math.max(1,
-          (end.getFullYear() - start.getFullYear()) * 12 +
-          (end.getMonth() - start.getMonth()) + 1
-        );
-      }
-
-      const skuCount = Object.keys(merged).length;
-      setRebuildProgress({ current: 0, total: skuCount, phase: "deleting", detail: "Clearing old records..." });
-
-      let delCount = 0;
-      while (true) {
-        const batch = await base44.entities.DemandSummary.list('-created_date', 50);
-        if (!batch || batch.length === 0) break;
-        for (const r of batch) {
-          await base44.entities.DemandSummary.delete(r.id);
-        }
-        delCount += batch.length;
-        setRebuildProgress({ current: delCount, total: delCount, phase: "deleting", detail: `Deleted ${delCount} old records...` });
-        await sleep(1000);
-      }
-
-      const nowISO = new Date().toISOString();
-      const records = Object.values(merged).map(s => {
-        const dataMonths = Math.max(1, s.dataMonths || 1);
-        return {
-          sku: s.sku,
-          product: s.product,
-          category: categorize(s.product),
-          monthly: JSON.stringify(s.monthly),
-          byChannel: JSON.stringify(s.byChannel),
-          byLocation: JSON.stringify(s.byLocation),
-          totalQty: s.totalQty,
-          avgMonthly: Math.round((s.totalQty / dataMonths) * 10) / 10,
-          totalRevenue: 0,
-          dataMonths,
-          periodStart: s.periodStart || '',
-          periodEnd: s.periodEnd || '',
-          updatedAt: nowISO,
-        };
-      });
-
-      setRebuildProgress({ current: 0, total: records.length, phase: "writing", detail: `Writing 0/${records.length} summaries...` });
-      let created = 0;
-      for (let i = 0; i < records.length; i += 10) {
-        const batch = records.slice(i, i + 10);
-        await base44.entities.DemandSummary.bulkCreate(batch);
-        created += batch.length;
-        setRebuildProgress({ current: created, total: records.length, phase: "writing", detail: `Writing ${created}/${records.length} summaries...` });
-        await sleep(500);
-      }
-
-      const rebuildDate = new Date().toISOString();
-      setLastSync(rebuildDate);
-      setShopifyRecordCount(totalUnique);
-      toast.success(`Rebuild complete: ${created} summaries from ${totalUnique} deduplicated records`);
-
-      try {
-        const me = await base44.auth.me();
-        await base44.entities.SyncLog.create({
-          sync_type: "demand_summaries",
-          status: "success",
-          records_processed: totalUnique,
-          records_created: created,
-          triggered_by: me?.email || "demand_planner",
-          notes: `Rebuilt ${created} summaries from ${totalRaw} raw records (${totalDupes} dupes, ${totalOverlap} overlaps removed)`,
-        });
-      } catch (e) {
-        console.warn("SyncLog write failed:", e);
-      }
-
-      const updated = await fetchAll(base44.entities.DemandSummary);
-      if (updated?.length > 0) {
-        const parsed = updated.map((s) => ({
-          ...s,
-          monthly: typeof s.monthly === "string" ? JSON.parse(s.monthly) : s.monthly,
-          byChannel: typeof s.byChannel === "string" ? JSON.parse(s.byChannel) : s.byChannel,
-          byLocation: typeof s.byLocation === "string" ? JSON.parse(s.byLocation) : s.byLocation,
-          category: s.category || categorize(s.product),
-        }));
-        // Also re-run alias consolidation after rebuild
-        const aliases = await fetchAll(base44.entities.SKUAlias).catch(() => []);
-        const aliasMap = buildAliasMap(aliases);
-        setSummaries(aliasMap.size > 0 ? consolidateDemandBySKU(parsed, aliasMap) : parsed);
-        // Update summary count display
-        setShopifyRecordCount(totalUnique || updated.length);
-      }
-      // lastSync already set above — no need to re-read
-    } catch (err) {
-      toast.error("Rebuild failed: " + err.message);
-      console.error("Rebuild error:", err);
-    }
-    setIsRebuilding(false);
-    setRebuildProgress(null);
-  };
 
   // ── Loading state ─────────────────────────────────────────────────────────
   if (loading) {
@@ -737,9 +577,24 @@ export default function DemandPlanner() {
             inventoryCount={Object.keys(inventory).length}
             shopifyRecordCount={shopifyRecordCount}
             lastSync={lastSync}
-            isRebuilding={isRebuilding}
-            rebuildProgress={rebuildProgress}
-            onRebuild={handleRebuild}
+            onRebuildComplete={async (status) => {
+              // Reload summaries and update last sync when background job finishes
+              const updated = await fetchAll(base44.entities.DemandSummary).catch(() => []);
+              if (updated?.length > 0) {
+                const parsed = updated.map((s) => ({
+                  ...s,
+                  monthly: typeof s.monthly === "string" ? JSON.parse(s.monthly) : s.monthly,
+                  byChannel: typeof s.byChannel === "string" ? JSON.parse(s.byChannel) : s.byChannel,
+                  byLocation: typeof s.byLocation === "string" ? JSON.parse(s.byLocation) : s.byLocation,
+                  category: s.category || categorize(s.product),
+                }));
+                const aliases = await fetchAll(base44.entities.SKUAlias).catch(() => []);
+                const aliasMap = buildAliasMap(aliases);
+                setSummaries(aliasMap.size > 0 ? consolidateDemandBySKU(parsed, aliasMap) : parsed);
+                setShopifyRecordCount(status?.totalUnique || updated.length);
+              }
+              setLastSync(status?.completedAt || new Date().toISOString());
+            }}
             onRerunAliases={handleRerunAliases}
           />
         </TabsContent>

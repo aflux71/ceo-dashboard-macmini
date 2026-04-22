@@ -1,11 +1,13 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
-  Database, RefreshCw, Package, ShoppingCart, Check, Clock, AlertCircle, Loader2, GitMerge,
+  Database, RefreshCw, Package, ShoppingCart, GitMerge,
+  AlertCircle, Loader2, CheckCircle2, XCircle, Clock,
 } from "lucide-react";
 import { formatNumber } from "@/components/demand/demandHelpers";
+import { base44 } from "@/api/base44Client";
 
 function formatDate(dateStr) {
   if (!dateStr) return "—";
@@ -20,12 +22,74 @@ export default function DataTab({
   inventoryCount,
   shopifyRecordCount,
   lastSync,
-  isRebuilding,
-  rebuildProgress,
-  onRebuild,
+  onRebuildComplete,
   onRerunAliases,
 }) {
+  const [jobStatus, setJobStatus] = useState(null); // null = unknown, object = status
+  const [isStarting, setIsStarting] = useState(false);
   const [isRerunning, setIsRerunning] = useState(false);
+  const pollRef = useRef(null);
+
+  // Poll job status on mount and keep polling while running
+  useEffect(() => {
+    checkStatus();
+    return () => clearInterval(pollRef.current);
+  }, []);
+
+  const checkStatus = async () => {
+    try {
+      const res = await base44.functions.invoke("rebuildDemandSummariesBackground", { action: "status" });
+      const status = res.data;
+      setJobStatus(status);
+      if (status?.state === 'running') {
+        startPolling();
+      } else if (status?.state === 'done') {
+        stopPolling();
+        // Notify parent to refresh summaries
+        if (onRebuildComplete) onRebuildComplete(status);
+      }
+    } catch (e) {
+      // Function may not exist yet or network error
+      setJobStatus(null);
+    }
+  };
+
+  const startPolling = () => {
+    if (pollRef.current) return;
+    pollRef.current = setInterval(async () => {
+      try {
+        const res = await base44.functions.invoke("rebuildDemandSummariesBackground", { action: "status" });
+        const status = res.data;
+        setJobStatus(status);
+        if (status?.state !== 'running') {
+          stopPolling();
+          if (status?.state === 'done' && onRebuildComplete) {
+            onRebuildComplete(status);
+          }
+        }
+      } catch (e) {}
+    }, 4000);
+  };
+
+  const stopPolling = () => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  };
+
+  const handleStartRebuild = async () => {
+    setIsStarting(true);
+    try {
+      await base44.functions.invoke("rebuildDemandSummariesBackground", { action: "start" });
+      // Immediately check status and start polling
+      await checkStatus();
+      startPolling();
+    } catch (e) {
+      alert("Failed to start rebuild: " + e.message);
+    }
+    setIsStarting(false);
+  };
 
   const handleRerun = async () => {
     setIsRerunning(true);
@@ -33,8 +97,12 @@ export default function DataTab({
     setIsRerunning(false);
   };
 
-  const progressPct = rebuildProgress && rebuildProgress.total > 0
-    ? Math.round((rebuildProgress.current / rebuildProgress.total) * 100)
+  const isRunning = jobStatus?.state === 'running';
+  const isDone = jobStatus?.state === 'done';
+  const isError = jobStatus?.state === 'error';
+
+  const progressPct = isRunning && jobStatus.total > 0
+    ? Math.round((jobStatus.current / jobStatus.total) * 100)
     : 0;
 
   return (
@@ -91,33 +159,59 @@ export default function DataTab({
             </DataField>
           </div>
 
-          {/* Progress indicator */}
-          {isRebuilding && rebuildProgress && (
-            <div className="mb-4 p-3 bg-zinc-800/50 border border-zinc-700 rounded-lg space-y-2">
+          {/* Job status banner */}
+          {isRunning && (
+            <div className="mb-4 p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg space-y-2">
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2 text-orange-400">
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span className="font-medium capitalize">{rebuildProgress.phase}</span>
+                  <span className="font-medium capitalize">{jobStatus.phase}…</span>
                 </div>
                 <span className="text-zinc-400">{progressPct}%</span>
               </div>
               <Progress value={progressPct} className="h-1.5" />
-              <p className="text-[10px] text-zinc-500">{rebuildProgress.detail}</p>
+              <p className="text-[10px] text-zinc-500">{jobStatus.detail}</p>
+              <p className="text-[10px] text-zinc-600">Running server-side — safe to close this tab</p>
             </div>
           )}
 
+          {isDone && (
+            <div className="mb-4 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+              <div className="flex items-center gap-2 text-green-400 text-xs font-medium">
+                <CheckCircle2 className="w-4 h-4" />
+                Rebuild complete — {formatNumber(jobStatus.created)} summaries written
+              </div>
+              {jobStatus.completedAt && (
+                <p className="text-[10px] text-zinc-500 mt-1">Finished {formatDate(jobStatus.completedAt)}</p>
+              )}
+            </div>
+          )}
+
+          {isError && (
+            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+              <div className="flex items-center gap-2 text-red-400 text-xs font-medium">
+                <XCircle className="w-4 h-4" />
+                Rebuild failed: {jobStatus.error}
+              </div>
+            </div>
+          )}
+
+          {/* Start button */}
           <button
-            onClick={onRebuild}
-            disabled={isRebuilding}
+            onClick={handleStartRebuild}
+            disabled={isRunning || isStarting}
             className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white text-sm font-medium rounded transition-colors"
           >
-            <RefreshCw className={`w-4 h-4 ${isRebuilding ? "animate-spin" : ""}`} />
-            {isRebuilding ? "Rebuilding..." : "Rebuild from ShopifySaleRecord"}
+            {isRunning || isStarting
+              ? <Loader2 className="w-4 h-4 animate-spin" />
+              : <RefreshCw className="w-4 h-4" />}
+            {isRunning ? "Rebuilding in background…" : isStarting ? "Starting…" : "Rebuild from ShopifySaleRecord"}
           </button>
           <p className="text-[10px] text-zinc-500 mt-2">
-            Aggregates all ShopifySaleRecord data month-by-month with deduplication, then writes fresh DemandSummary records.
+            Runs entirely server-side — you can close this tab and come back. Progress updates every 4 seconds.
           </p>
 
+          {/* Re-run aliases */}
           <div className="mt-4 pt-4 border-t border-zinc-800">
             <button
               onClick={handleRerun}
@@ -128,7 +222,7 @@ export default function DataTab({
               {isRerunning ? "Running..." : "Re-run SKU Alias Consolidation"}
             </button>
             <p className="text-[10px] text-zinc-500 mt-2">
-              Merges duplicate SKUs using your SKU Alias records (e.g. 990315100079 → 10007). Run this after adding new aliases without a full rebuild.
+              Merges duplicate SKUs using your SKU Alias records. Run this after adding new aliases without a full rebuild.
             </p>
           </div>
         </CardContent>
@@ -154,12 +248,12 @@ export default function DataTab({
         </CardContent>
       </Card>
 
-      {/* Info box */}
+      {/* Info */}
       <div className="flex items-start gap-3 p-4 bg-zinc-900/50 border border-zinc-800 rounded-lg">
         <AlertCircle className="w-4 h-4 text-zinc-500 mt-0.5 shrink-0" />
         <div className="text-xs text-zinc-500">
           <p className="mb-1">
-            Demand summaries are built from ShopifySaleRecord data (~98K records). The rebuild process
+            Demand summaries are built from ShopifySaleRecord data. The rebuild process
             deduplicates overlapping CSV and API imports, aggregates by SKU per month, and writes clean
             DemandSummary records for the forecasting engine.
           </p>
