@@ -29,6 +29,7 @@ import EventsTab from "@/components/demand/EventsTab";
 import DataTab from "@/components/demand/DataTab";
 import SKUMappingSettings from "@/components/demand/SKUMappingSettings";
 import PlanningAssistant from "@/components/ai/PlanningAssistant";
+import SeasonalMultipliersPanel from "@/components/demand/SeasonalMultipliersPanel";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const baselineToSummaries = (data) =>
@@ -242,6 +243,7 @@ export default function DemandPlanner() {
       targetLevels: typeof ws.targetLevels === "string" ? JSON.parse(ws.targetLevels || "{}") : ws.targetLevels || {},
       inventoryOverrides: typeof ws.inventoryOverrides === "string" ? JSON.parse(ws.inventoryOverrides || "{}") : ws.inventoryOverrides || {},
       exclusionList: typeof ws.exclusionList === "string" ? JSON.parse(ws.exclusionList || "[]") : ws.exclusionList || [],
+      categorySeasonalMultipliers: typeof ws.categorySeasonalMultipliers === "string" ? JSON.parse(ws.categorySeasonalMultipliers || "{}") : ws.categorySeasonalMultipliers || {},
       isDefault: ws.isDefault || false,
     });
   };
@@ -255,6 +257,7 @@ export default function DemandPlanner() {
     targetLevels: JSON.stringify(ws.targetLevels),
     inventoryOverrides: JSON.stringify(ws.inventoryOverrides),
     exclusionList: JSON.stringify(ws.exclusionList),
+    categorySeasonalMultipliers: JSON.stringify(ws.categorySeasonalMultipliers || {}),
   });
 
   const saveWorkspace = async (wsOverride) => {
@@ -302,6 +305,7 @@ export default function DemandPlanner() {
       targetLevels: JSON.stringify(workspace.targetLevels),
       inventoryOverrides: JSON.stringify(workspace.inventoryOverrides),
       exclusionList: JSON.stringify(workspace.exclusionList),
+      categorySeasonalMultipliers: JSON.stringify(workspace.categorySeasonalMultipliers || {}),
     };
     try {
       const created = await base44.entities.DemandConfig.create(payload);
@@ -600,6 +604,11 @@ export default function DemandPlanner() {
         <TabsContent value="settings" className="mt-4">
           <div className="space-y-6">
             <SKUMappingSettings />
+            <SeasonalMultipliersPanel
+              workspace={workspace}
+              onWorkspaceChange={handleWorkspaceChange}
+              summaries={summaries}
+            />
             <SettingsPanel
               workspace={workspace}
               workspaces={workspaces}

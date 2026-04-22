@@ -77,6 +77,7 @@ export function generatePlan(summaries, inventoryMap, workspace, events = []) {
     inventoryOverrides = {},
     useSeasonality = true,
     useWeightedVelocity = true,
+    categorySeasonalMultipliers = {},
   } = workspace;
 
   const now = new Date();
@@ -120,17 +121,25 @@ export function generatePlan(summaries, inventoryMap, workspace, events = []) {
     let forecastTotal = 0;
     const forecastByMonth = [];
 
+    const category = s.category || categorize(s.product);
+    const catMultipliers = categorySeasonalMultipliers[category] || {};
+
     if (mode === "forecast") {
       for (let i = 0; i < forecastMonths; i++) {
         const monthIdx = (now.getMonth() + i) % 12;
         let demand = Math.round(avgMonthly * growth);
         
-        // Apply seasonal multiplier if enabled and enough data
+        // Apply historical seasonal multiplier if enabled and enough data
         if (useSeasonality && monthly.length === 12) {
           const seasonal = getSeasonalMultiplier(monthly, monthIdx);
           if (seasonal > 0) {
             demand = Math.round(avgMonthly * growth * seasonal);
           }
+        }
+
+        // Apply user-defined category seasonal multiplier (overrides historical)
+        if (catMultipliers[monthIdx] != null) {
+          demand = Math.round(avgMonthly * growth * catMultipliers[monthIdx]);
         }
         
         forecastByMonth.push({ month: monthIdx, demand });
