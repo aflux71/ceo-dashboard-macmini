@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
@@ -389,6 +389,69 @@ export default function Labels() {
   );
 }
 
+function ProductCombobox({ recipes, value, onChange }) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const ref = React.useRef(null);
+
+  const selected = recipes.find((r) => r.sku === value);
+  const filtered = recipes.filter((r) =>
+    !query || r.name?.toLowerCase().includes(query.toLowerCase()) || r.sku?.toLowerCase().includes(query.toLowerCase())
+  );
+
+  // Close on outside click
+  React.useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div className="relative" ref={ref}>
+      <div
+        className="flex items-center bg-zinc-800 border border-zinc-700 rounded-md px-3 h-9 cursor-text gap-2"
+        onClick={() => { setOpen(true); setQuery(""); }}
+      >
+        {open ? (
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="flex-1 bg-transparent text-sm text-zinc-100 outline-none placeholder:text-zinc-500"
+            placeholder="Search product..."
+          />
+        ) : (
+          <span className="flex-1 text-sm truncate" style={{ color: selected ? "#f4f4f5" : "#71717a" }}>
+            {selected ? `${selected.name} (${selected.sku})` : "Select product..."}
+          </span>
+        )}
+      </div>
+      {open && (
+        <div className="absolute z-50 mt-1 w-full bg-zinc-800 border border-zinc-700 rounded-md shadow-lg max-h-60 overflow-y-auto">
+          <div
+            className="px-3 py-2 text-sm text-zinc-500 cursor-pointer hover:bg-zinc-700"
+            onMouseDown={() => { onChange(""); setOpen(false); }}
+          >
+            — None —
+          </div>
+          {filtered.length === 0 && (
+            <div className="px-3 py-2 text-sm text-zinc-500">No products found</div>
+          )}
+          {filtered.map((r) => (
+            <div
+              key={r.sku}
+              className={`px-3 py-2 text-sm cursor-pointer hover:bg-zinc-700 ${value === r.sku ? "bg-orange-500/20 text-orange-400" : "text-zinc-200"}`}
+              onMouseDown={() => { onChange(r.sku); setOpen(false); setQuery(""); }}
+            >
+              {r.name} <span className="text-zinc-500 text-xs">({r.sku})</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LabelDialog({ open, onClose, onSave, label, suppliers, recipes, isLoading }) {
   const [formData, setFormData] = useState({
     name: "",
@@ -481,18 +544,11 @@ function LabelDialog({ open, onClose, onSave, label, suppliers, recipes, isLoadi
 
           <div>
             <label className="text-sm text-zinc-400 mb-1 block">Product</label>
-            <Select value={formData.product_sku} onValueChange={handleProductChange}>
-              <SelectTrigger className="bg-zinc-800 border-zinc-700">
-                <SelectValue placeholder="Select product..." />
-              </SelectTrigger>
-              <SelectContent>
-                {recipes.map((recipe) => (
-                  <SelectItem key={recipe.sku} value={recipe.sku}>
-                    {recipe.name} ({recipe.sku})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <ProductCombobox
+              recipes={recipes}
+              value={formData.product_sku}
+              onChange={handleProductChange}
+            />
           </div>
 
           <div className="grid grid-cols-3 gap-4">
