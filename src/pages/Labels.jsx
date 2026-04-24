@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
@@ -394,8 +394,17 @@ function ProductCombobox({ recipes, value, onChange }) {
   const [open, setOpen] = useState(false);
   const ref = React.useRef(null);
 
-  const selected = recipes.find((r) => r.sku === value);
-  const filtered = recipes.filter((r) =>
+  // Deduplicate by SKU (keep first occurrence), then sort alphabetically
+  const uniqueRecipes = React.useMemo(() => {
+    const seen = new Set();
+    return recipes
+      .filter((r) => r.sku && r.name)
+      .filter((r) => { if (seen.has(r.sku)) return false; seen.add(r.sku); return true; })
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [recipes]);
+
+  const selected = uniqueRecipes.find((r) => r.sku === value);
+  const filtered = uniqueRecipes.filter((r) =>
     !query || r.name?.toLowerCase().includes(query.toLowerCase()) || r.sku?.toLowerCase().includes(query.toLowerCase())
   );
 
@@ -439,7 +448,7 @@ function ProductCombobox({ recipes, value, onChange }) {
           )}
           {filtered.map((r) => (
             <div
-              key={r.sku}
+              key={r.id}
               className={`px-3 py-2 text-sm cursor-pointer hover:bg-zinc-700 ${value === r.sku ? "bg-orange-500/20 text-orange-400" : "text-zinc-200"}`}
               onMouseDown={() => { onChange(r.sku); setOpen(false); setQuery(""); }}
             >
