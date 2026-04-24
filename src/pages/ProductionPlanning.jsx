@@ -1336,6 +1336,7 @@ function MaterialCheckTab() {
 }
 
 import BatchQueueTab from "@/components/planning/BatchQueueTab";
+import BatchPlannerTab from "@/components/planning/BatchPlannerTab";
 import RecipeSheetsTab from "@/components/planning/RecipeSheetsTab";
 import WipCopackTab from "@/components/planning/WipCopackTab";
 import WipInHouseTab from "@/components/planning/WipInHouseTab";
@@ -1514,6 +1515,15 @@ export default function ProductionPlanning() {
             <span className="hidden sm:inline">WIP Co-pack</span>
           </TabsTrigger>
 
+          {/* Batch Planner tab */}
+          <TabsTrigger
+            value="batch-planner"
+            className="flex items-center gap-2 data-[state=active]:bg-zinc-700"
+          >
+            <Calculator className="w-4 h-4" />
+            <span className="hidden sm:inline">Batch Planner</span>
+          </TabsTrigger>
+
           {/* Recipe Sheets tab */}
           <TabsTrigger
             value="recipe-sheets"
@@ -1576,6 +1586,11 @@ export default function ProductionPlanning() {
         {/* WIP Co-pack tab */}
         <TabsContent value="wip-copack" className="space-y-4">
           <WipCopackTab />
+        </TabsContent>
+
+        {/* Batch Planner tab */}
+        <TabsContent value="batch-planner" className="space-y-4">
+          <BatchPlannerTab />
         </TabsContent>
 
         {/* Recipe Sheets tab */}
