@@ -69,6 +69,34 @@ export default function Labels() {
     queryFn: () => base44.entities.Recipe.list(),
   });
 
+  const { data: demandSummaries = [] } = useQuery({
+    queryKey: ["demand_summaries_labels"],
+    queryFn: () => base44.entities.DemandSummary.list(),
+  });
+
+  // Merge recipes + demand summaries into a unified product list (deduplicated by SKU)
+  const allProducts = useMemo(() => {
+    const seen = new Set();
+    const items = [];
+    // Recipes first (preferred source)
+    for (const r of recipes) {
+      if (!r.sku || !r.name) continue;
+      const key = r.sku.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      items.push({ id: r.id, sku: r.sku, name: r.name });
+    }
+    // Then demand summaries for any SKUs not in recipes
+    for (const d of demandSummaries) {
+      if (!d.sku || !d.product) continue;
+      const key = d.sku.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      items.push({ id: `ds-${d.id}`, sku: d.sku, name: d.product });
+    }
+    return items.sort((a, b) => a.name.localeCompare(b.name));
+  }, [recipes, demandSummaries]);
+
   const createMutation = useMutation({
     mutationFn: (data) => base44.entities.Label.create(data),
     onSuccess: () => {
@@ -382,7 +410,7 @@ export default function Labels() {
         onSave={handleSave}
         label={editingLabel}
         suppliers={suppliers}
-        recipes={recipes}
+        recipes={allProducts}
         isLoading={createMutation.isPending || updateMutation.isPending}
       />
     </div>
@@ -394,17 +422,8 @@ function ProductCombobox({ recipes, value, onChange }) {
   const [open, setOpen] = useState(false);
   const ref = React.useRef(null);
 
-  // Deduplicate by SKU (keep first occurrence), then sort alphabetically
-  const uniqueRecipes = React.useMemo(() => {
-    const seen = new Set();
-    return recipes
-      .filter((r) => r.sku && r.name)
-      .filter((r) => { if (seen.has(r.sku)) return false; seen.add(r.sku); return true; })
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [recipes]);
-
-  const selected = uniqueRecipes.find((r) => r.sku === value);
-  const filtered = uniqueRecipes.filter((r) =>
+  const selected = recipes.find((r) => r.sku === value);
+  const filtered = recipes.filter((r) =>
     !query || r.name?.toLowerCase().includes(query.toLowerCase()) || r.sku?.toLowerCase().includes(query.toLowerCase())
   );
 
