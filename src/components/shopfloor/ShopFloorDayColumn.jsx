@@ -493,41 +493,38 @@ function BatchCard({ batch, inventory, labels }) {
           </div>
         )}
 
-        {/* Action buttons row */}
+        {/* Action buttons */}
         <div className="space-y-1.5 pt-1">
-          {/* Forward + Back navigation */}
-          <div className="flex gap-1.5">
+          {next && stage !== "review_queue" && (
+            <Button size="sm" variant="outline"
+              onClick={() => advanceMutation.mutate({ id: batch.id, newStatus: next.status })}
+              disabled={advanceMutation.isPending}
+              className="w-full text-xs h-7 border-zinc-700 hover:border-orange-500/40 hover:text-orange-400 hover:bg-orange-500/5">
+              {advanceMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <ArrowRight className="w-3 h-3" />}
+              {next.label}
+            </Button>
+          )}
+          <div className="grid grid-cols-3 gap-1">
             {prev && (
               <Button size="sm" variant="outline"
                 onClick={() => advanceMutation.mutate({ id: batch.id, newStatus: prev.status })}
                 disabled={advanceMutation.isPending}
-                className="flex-1 text-xs h-7 border-zinc-700 hover:border-zinc-500 hover:text-zinc-300 text-zinc-500"
-                title="Move back">
-                <ArrowLeft className="w-3 h-3 mr-1" />{prev.label}
+                className="text-xs h-7 border-zinc-700 hover:border-zinc-500 hover:text-zinc-300 text-zinc-500 px-1"
+                title={prev.label}>
+                <ArrowLeft className="w-3 h-3" />
+                <span className="hidden">Back</span>
               </Button>
             )}
-            {next && stage !== "review_queue" && (
-              <Button size="sm" variant="outline"
-                onClick={() => advanceMutation.mutate({ id: batch.id, newStatus: next.status })}
-                disabled={advanceMutation.isPending}
-                className="flex-1 text-xs h-7 border-zinc-700 hover:border-orange-500/40 hover:text-orange-400 hover:bg-orange-500/5">
-                {advanceMutation.isPending ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <ArrowRight className="w-3 h-3 mr-1" />}
-                {next.label}
-              </Button>
-            )}
-          </div>
-
-          {/* Log QTY + View Traveller */}
-          <div className="flex gap-1.5">
             <Button size="sm" variant="ghost"
               onClick={() => setQtyDialog(true)}
-              className="flex-1 text-xs h-7 text-zinc-400 hover:text-green-400 hover:bg-green-500/10 border border-zinc-800">
-              <Plus className="w-3 h-3 mr-1" /> Log QTY
+              className={`text-xs h-7 text-zinc-400 hover:text-green-400 hover:bg-green-500/10 border border-zinc-800 px-1 ${prev ? "" : "col-span-1"}`}>
+              <Plus className="w-3 h-3 mr-1" /> QTY
             </Button>
             <Button size="sm" variant="ghost"
               onClick={handleOpenTraveller}
-              className="flex-1 text-xs h-7 text-zinc-400 hover:text-blue-400 hover:bg-blue-500/10 border border-zinc-800">
-              <FileText className="w-3 h-3 mr-1" /> Traveller
+              className="text-xs h-7 text-zinc-400 hover:text-blue-400 hover:bg-blue-500/10 border border-zinc-800 px-1">
+              <FileText className="w-3 h-3 mr-1" />
+              <span className="truncate">Log</span>
             </Button>
           </div>
         </div>
