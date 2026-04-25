@@ -495,36 +495,38 @@ function BatchCard({ batch, inventory, labels }) {
 
         {/* Action buttons */}
         <div className="space-y-1.5 pt-1">
-          {next && stage !== "review_queue" && (
-            <Button size="sm" variant="outline"
-              onClick={() => advanceMutation.mutate({ id: batch.id, newStatus: next.status })}
-              disabled={advanceMutation.isPending}
-              className="w-full text-xs h-7 border-zinc-700 hover:border-orange-500/40 hover:text-orange-400 hover:bg-orange-500/5">
-              {advanceMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <ArrowRight className="w-3 h-3" />}
-              {next.label}
-            </Button>
-          )}
-          <div className="grid grid-cols-3 gap-1">
+          {/* Forward + optional back */}
+          <div className="flex gap-1">
             {prev && (
               <Button size="sm" variant="outline"
                 onClick={() => advanceMutation.mutate({ id: batch.id, newStatus: prev.status })}
                 disabled={advanceMutation.isPending}
-                className="text-xs h-7 border-zinc-700 hover:border-zinc-500 hover:text-zinc-300 text-zinc-500 px-1"
+                className="shrink-0 text-xs h-7 w-8 border-zinc-700 hover:border-zinc-500 hover:text-zinc-300 text-zinc-500 px-0"
                 title={prev.label}>
                 <ArrowLeft className="w-3 h-3" />
-                <span className="hidden">Back</span>
               </Button>
             )}
+            {next && stage !== "review_queue" && (
+              <Button size="sm" variant="outline"
+                onClick={() => advanceMutation.mutate({ id: batch.id, newStatus: next.status })}
+                disabled={advanceMutation.isPending}
+                className="flex-1 text-xs h-7 border-zinc-700 hover:border-orange-500/40 hover:text-orange-400 hover:bg-orange-500/5">
+                {advanceMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <ArrowRight className="w-3 h-3" />}
+                {next.label}
+              </Button>
+            )}
+          </div>
+          {/* QTY + Traveller */}
+          <div className="flex gap-1">
             <Button size="sm" variant="ghost"
               onClick={() => setQtyDialog(true)}
-              className={`text-xs h-7 text-zinc-400 hover:text-green-400 hover:bg-green-500/10 border border-zinc-800 px-1 ${prev ? "" : "col-span-1"}`}>
-              <Plus className="w-3 h-3 mr-1" /> QTY
+              className="flex-1 text-xs h-7 text-zinc-400 hover:text-green-400 hover:bg-green-500/10 border border-zinc-800">
+              <Plus className="w-3 h-3 mr-1" /> Log QTY
             </Button>
             <Button size="sm" variant="ghost"
               onClick={handleOpenTraveller}
-              className="text-xs h-7 text-zinc-400 hover:text-blue-400 hover:bg-blue-500/10 border border-zinc-800 px-1">
-              <FileText className="w-3 h-3 mr-1" />
-              <span className="truncate">Log</span>
+              className="flex-1 text-xs h-7 text-zinc-400 hover:text-blue-400 hover:bg-blue-500/10 border border-zinc-800">
+              <FileText className="w-3 h-3 mr-1" /> Traveller
             </Button>
           </div>
         </div>
