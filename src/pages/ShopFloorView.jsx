@@ -60,8 +60,16 @@ export default function ShopFloorView() {
   const [numDays, setNumDays] = useState(5);
   const [addTaskDialog, setAddTaskDialog] = useState(null); // date string or null
   const [lineFilter, setLineFilter] = useState("all");
+  const [hideWeekends, setHideWeekends] = useState(false);
 
-  const days = useMemo(() => generateDays(weekStart, numDays), [weekStart, numDays]);
+  const days = useMemo(() => {
+    const all = generateDays(weekStart, numDays);
+    if (!hideWeekends) return all;
+    return all.filter((d) => {
+      const day = new Date(d + "T12:00:00").getDay();
+      return day !== 0 && day !== 6;
+    });
+  }, [weekStart, numDays, hideWeekends]);
 
   // ── Data fetching ────────────────────────────────────────────────────────
   const { data: batches = [], isLoading: loadingBatches, refetch: refetchBatches } = useQuery({
@@ -266,6 +274,18 @@ export default function ShopFloorView() {
               <SelectItem value="4">Melter 2</SelectItem>
             </SelectContent>
           </Select>
+
+          {/* Hide weekends toggle */}
+          <button
+            onClick={() => setHideWeekends((h) => !h)}
+            className={`px-3 py-1 rounded-md text-xs font-medium border transition-colors ${
+              hideWeekends
+                ? "bg-orange-500/20 border-orange-500/40 text-orange-400"
+                : "bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200"
+            }`}
+          >
+            {hideWeekends ? "Weekdays Only" : "Hide Weekends"}
+          </button>
         </div>
       </div>
 
@@ -277,7 +297,7 @@ export default function ShopFloorView() {
       ) : (
         <div className="flex gap-3 overflow-x-auto pb-4">
           {days.map((date) => (
-            <div key={date} className="flex-shrink-0 w-[220px]">
+            <div key={date} className="flex-shrink-0 w-[260px]">
               <ShopFloorDayColumn
                 date={date}
                 dayLabel={formatDayLabel(date)}
