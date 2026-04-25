@@ -29,7 +29,7 @@
         "EO",
         "OTHER"
       ],
-      "description": "Product type code: LS=Liquid Soap, FS=Face Serum, RO=Roll-on, BB=Bath Bomb, SB=Shampoo Bar, EO=Essential Oil"
+      "description": "Product type code"
     },
     "batch_prepped_by": {
       "type": "string",
@@ -45,7 +45,15 @@
     },
     "actual_yield_units": {
       "type": "number",
-      "description": "Actual yield units after QC override \u2014 records production loss or failure"
+      "description": "Actual yield units after QC override"
+    },
+    "unlabeled_qty": {
+      "type": "number",
+      "description": "Number of units that are unlabeled"
+    },
+    "labeled_qty": {
+      "type": "number",
+      "description": "Number of units that have been labeled"
     },
     "deviation_notes": {
       "type": "string",
@@ -211,56 +219,44 @@
     },
     "sanitization_vessel_cleaned": {
       "type": "boolean",
-      "default": false,
-      "description": "Filling vessel cleaned & sanitized"
+      "default": false
     },
     "sanitization_equipment_flushed": {
       "type": "boolean",
-      "default": false,
-      "description": "Filling equipment/pumps flushed"
+      "default": false
     },
     "sanitization_utensils_wiped": {
       "type": "boolean",
-      "default": false,
-      "description": "Utensils/Scales wiped (70% IPA)"
+      "default": false
     },
     "sanitization_work_surface": {
       "type": "boolean",
-      "default": false,
-      "description": "Work surface cleared & sanitized"
+      "default": false
     },
     "sanitization_hands_gloves": {
       "type": "boolean",
-      "default": false,
-      "description": "Operator hands/gloves sanitized"
+      "default": false
     },
     "sanitization_verified_by": {
-      "type": "string",
-      "description": "Name of person who verified sanitization"
+      "type": "string"
     },
     "sanitization_time": {
-      "type": "string",
-      "description": "Time sanitization was verified"
+      "type": "string"
     },
     "sanitizer_used": {
-      "type": "string",
-      "description": "Type of sanitizer used"
+      "type": "string"
     },
     "qc_final_ph": {
-      "type": "string",
-      "description": "Measured final pH value"
+      "type": "string"
     },
     "qc_final_ph_target": {
-      "type": "string",
-      "description": "Target pH value"
+      "type": "string"
     },
     "qc_color_scent_pass": {
-      "type": "boolean",
-      "description": "Color/Scent check passed"
+      "type": "boolean"
     },
     "qc_viscosity_texture_pass": {
-      "type": "boolean",
-      "description": "Viscosity/Texture check passed"
+      "type": "boolean"
     },
     "filling_yield_data": {
       "type": "array",
@@ -291,45 +287,36 @@
     },
     "label_batch_match": {
       "type": "boolean",
-      "default": false,
-      "description": "Batch number on label matches this Traveller"
+      "default": false
     },
     "label_expiry_correct": {
       "type": "boolean",
-      "default": false,
-      "description": "Expiry Date / PAO is correct"
+      "default": false
     },
     "label_straight_clean": {
       "type": "boolean",
-      "default": false,
-      "description": "Label is straight and free of air bubbles"
+      "default": false
     },
     "sample_label_url": {
-      "type": "string",
-      "description": "URL to uploaded sample label image"
+      "type": "string"
     },
     "production_manager": {
-      "type": "string",
-      "description": "Production manager who authorized"
+      "type": "string"
     },
     "authorization_date": {
       "type": "string",
-      "format": "date",
-      "description": "Final authorization date"
+      "format": "date"
     },
     "inventory_added_checkbox": {
       "type": "boolean",
-      "default": false,
-      "description": "Added to inventory checkbox"
+      "default": false
     },
     "inventory_added_by": {
-      "type": "string",
-      "description": "Name of person who added to inventory"
+      "type": "string"
     },
     "inventory_added_date": {
       "type": "string",
-      "format": "date",
-      "description": "Date added to inventory"
+      "format": "date"
     },
     "traveler_notes": {
       "type": "string",
@@ -341,16 +328,13 @@
     },
     "expiry_date": {
       "type": "string",
-      "format": "date",
-      "description": "Product expiry date"
+      "format": "date"
     },
     "finished_product_lot_number": {
-      "type": "string",
-      "description": "Lot number assigned to the finished product batch"
+      "type": "string"
     },
     "schedule_id": {
-      "type": "string",
-      "description": "Reference to ForecastSuggestion if from schedule"
+      "type": "string"
     },
     "stage": {
       "type": "string",
@@ -362,35 +346,28 @@
         "qc_hold",
         "filling",
         "complete"
-      ],
-      "description": "Current production stage"
+      ]
     },
     "batch_date": {
       "type": "string",
-      "format": "date",
-      "description": "Date the batch was made"
+      "format": "date"
     },
     "qc_date": {
       "type": "string",
-      "format": "date",
-      "description": "Date QC was performed"
+      "format": "date"
     },
     "fill_date": {
       "type": "string",
-      "format": "date",
-      "description": "Date filling was completed"
+      "format": "date"
     },
     "fill_operator": {
-      "type": "string",
-      "description": "Operator who performed the fill"
+      "type": "string"
     },
     "batch_size_units": {
-      "type": "number",
-      "description": "Planned batch size in units"
+      "type": "number"
     },
     "copacker_group": {
-      "type": "string",
-      "description": "Copacker group or name"
+      "type": "string"
     },
     "production_type": {
       "type": "string",
@@ -398,8 +375,7 @@
         "make",
         "buy",
         "copacked"
-      ],
-      "description": "How the product is produced"
+      ]
     }
   },
   "required": [

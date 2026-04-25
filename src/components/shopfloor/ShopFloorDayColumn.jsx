@@ -191,6 +191,8 @@ function TravellerDialog({ open, batch, recipe, onClose, onSave }) {
         traveler_notes: batch.traveler_notes || "",
         actual_yield_units: batch.actual_yield_units ?? "",
         deviation_notes: batch.deviation_notes || "",
+        unlabeled_qty: batch.unlabeled_qty ?? "",
+        labeled_qty: batch.labeled_qty ?? "",
       });
       setEditMode(false);
     }
@@ -329,6 +331,34 @@ function TravellerDialog({ open, batch, recipe, onClose, onSave }) {
                   className="bg-zinc-800 border-zinc-700 text-zinc-100 h-8 text-sm" />
               ) : (
                 <div className="text-zinc-300 text-sm">{batch?.deviation_notes || "—"}</div>
+              )}
+            </div>
+          </div>
+
+          {/* Labeled / Unlabeled */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <div className="text-xs text-zinc-500">Unlabeled Units</div>
+              {editMode ? (
+                <Input type="number" value={form.unlabeled_qty}
+                  onChange={(e) => setForm({ ...form, unlabeled_qty: e.target.value })}
+                  className="bg-zinc-800 border-zinc-700 text-zinc-100 h-8 text-sm" />
+              ) : (
+                <div className={`font-medium ${batch?.unlabeled_qty > 0 ? "text-amber-400" : "text-zinc-600"}`}>
+                  {batch?.unlabeled_qty != null ? `${batch.unlabeled_qty?.toLocaleString()} units` : "—"}
+                </div>
+              )}
+            </div>
+            <div className="space-y-1">
+              <div className="text-xs text-zinc-500">Labeled Units</div>
+              {editMode ? (
+                <Input type="number" value={form.labeled_qty}
+                  onChange={(e) => setForm({ ...form, labeled_qty: e.target.value })}
+                  className="bg-zinc-800 border-zinc-700 text-zinc-100 h-8 text-sm" />
+              ) : (
+                <div className={`font-medium ${batch?.labeled_qty > 0 ? "text-green-400" : "text-zinc-600"}`}>
+                  {batch?.labeled_qty != null ? `${batch.labeled_qty?.toLocaleString()} units` : "—"}
+                </div>
               )}
             </div>
           </div>
@@ -574,6 +604,12 @@ function BatchCard({ batch, inventory, labels, dragHandleProps, draggableProps, 
           };
           if (formData.actual_yield_units !== "") {
             data.actual_yield_units = Number(formData.actual_yield_units) || 0;
+          }
+          if (formData.unlabeled_qty !== "") {
+            data.unlabeled_qty = Number(formData.unlabeled_qty) || 0;
+          }
+          if (formData.labeled_qty !== "") {
+            data.labeled_qty = Number(formData.labeled_qty) || 0;
           }
           updateMutation.mutate({ id: batch.id, data }, { onSuccess: () => setTravellerDialog(false) });
         }}
