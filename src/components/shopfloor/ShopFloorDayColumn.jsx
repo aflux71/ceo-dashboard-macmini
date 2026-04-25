@@ -521,7 +521,7 @@ function BatchCard({ batch, inventory, labels }) {
             <Button size="sm" variant="ghost"
               onClick={() => setQtyDialog(true)}
               className="flex-1 text-xs h-7 text-zinc-400 hover:text-green-400 hover:bg-green-500/10 border border-zinc-800">
-              <Plus className="w-3 h-3 mr-1" /> Log QTY
+              <Plus className="w-3 h-3 mr-1" />Log QTY
             </Button>
             <Button size="sm" variant="ghost"
               onClick={handleOpenTraveller}
