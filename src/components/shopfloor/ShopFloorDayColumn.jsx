@@ -449,11 +449,27 @@ function BatchCard({ batch, inventory, labels, dragHandleProps, draggableProps, 
         <p className="text-sm font-medium text-zinc-100 leading-tight">{batch.product_name}</p>
 
         <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-          <div className="flex items-center gap-1 text-zinc-500">
-            <Package className="w-3 h-3" />
-            <span className="text-zinc-300">{batch.quantity?.toLocaleString()} units</span>
-          </div>
-          <div className="text-zinc-500">{lineLabel}</div>
+        <div className="flex items-center gap-1 text-zinc-500">
+          <Package className="w-3 h-3" />
+          <span className="text-zinc-300">{batch.quantity?.toLocaleString()} units</span>
+        </div>
+        <div>
+          <select
+            value={batch.production_line ?? ""}
+            onChange={(e) => {
+              const val = e.target.value ? Number(e.target.value) : null;
+              updateMutation.mutate({ id: batch.id, data: { production_line: val } });
+            }}
+            className="bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-1 py-0.5 text-xs w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <option value="">No Line</option>
+            <option value="1">Line 1</option>
+            <option value="2">Line 2</option>
+            <option value="3">Melter 1</option>
+            <option value="4">Melter 2</option>
+          </select>
+        </div>
           <div className="flex items-center gap-1 text-zinc-500 col-span-2">
             <User className="w-3 h-3" />
             <span className="text-zinc-300">{batch.operator || "Unassigned"}</span>

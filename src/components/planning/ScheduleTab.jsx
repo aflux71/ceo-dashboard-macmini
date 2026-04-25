@@ -38,7 +38,7 @@ export default function ScheduleTab() {
 
   const invalidateAll = () => { ["planning_schedule_batches","planning_batches","planning_batch_queue_manual","planning_batch_queue_forecasts","planning_wip_inhouse_batches"].forEach(k => queryClient.invalidateQueries({ queryKey: [k] })); };
 
-  const advanceStageMutation = useMutation({ mutationFn: ({ id, newStatus }) => base44.entities.Batch.update(id, { status: newStatus }), onSuccess: () => { invalidateAll(); toast.success("Stage updated"); setSelectedBatch(null); }, onError: (err) => toast.error(`Failed: ${err?.message}`) });
+  const advanceStageMutation = useMutation({ mutationFn: ({ id, newStatus, ...extra }) => base44.entities.Batch.update(id, { status: newStatus, ...extra }), onSuccess: () => { invalidateAll(); toast.success("Stage updated"); setSelectedBatch(null); }, onError: (err) => toast.error(`Failed: ${err?.message}`) });
   const returnToQueueMutation = useMutation({ mutationFn: async (batch) => { await base44.entities.Batch.delete(batch.id); try { const prs = await base44.entities.ProductionRequest.filter({ sku: batch.sku, status: "in_production" }); if (prs.length > 0) await base44.entities.ProductionRequest.update(prs[0].id, { status: "approved" }); } catch {} }, onSuccess: () => { invalidateAll(); toast.success("Returned to Batch Queue"); setSelectedBatch(null); }, onError: (err) => toast.error(`Failed: ${err?.message}`) });
   const deleteScheduledMutation = useMutation({ mutationFn: async (batch) => { await base44.entities.Batch.delete(batch.id); try { const prs = await base44.entities.ProductionRequest.filter({ sku: batch.sku, status: "in_production" }); if (prs.length > 0) await base44.entities.ProductionRequest.update(prs[0].id, { status: "approved" }); } catch {} }, onSuccess: () => { invalidateAll(); toast.success("Batch deleted"); setSchedDeleteConfirm(null); setSelectedBatch(null); }, onError: (err) => toast.error(`Failed: ${err?.message}`) });
 
@@ -101,7 +101,22 @@ export default function ScheduleTab() {
                 <div><span className="text-zinc-500 text-xs">Product</span><p className="text-zinc-200">{b.product_name}</p></div>
                 <div><span className="text-zinc-500 text-xs">SKU</span><p className="text-zinc-200 font-mono">{b.sku}</p></div>
                 <div><span className="text-zinc-500 text-xs">Quantity</span><p className="text-zinc-200">{b.quantity?.toLocaleString()}</p></div>
-                <div><span className="text-zinc-500 text-xs">Line</span><p className="text-zinc-200">{parseBatchLine(b)}</p></div>
+                <div><span className="text-zinc-500 text-xs">Line</span>
+                  <select
+                    value={b.production_line ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value ? Number(e.target.value) : null;
+                      advanceStageMutation.mutate({ id: b.id, newStatus: b.status, production_line: val });
+                    }}
+                    className="mt-0.5 block w-full bg-zinc-800 border border-zinc-700 text-zinc-100 rounded px-2 py-1 text-sm"
+                  >
+                    <option value="">No Line</option>
+                    <option value="1">Line 1</option>
+                    <option value="2">Line 2</option>
+                    <option value="3">Melter 1</option>
+                    <option value="4">Melter 2</option>
+                  </select>
+                </div>
                 <div><span className="text-zinc-500 text-xs">Operator</span><p className="text-zinc-200">{b.operator || "—"}</p></div>
                 <div><span className="text-zinc-500 text-xs">Status</span><Select value={b.status} onValueChange={(val) => { if (['approved', 'added_to_inventory', 'rejected'].includes(val)) { setOverrideConfirm({ id: b.id, newStatus: val }); } else { advanceStageMutation.mutate({ id: b.id, newStatus: val }); } }}><SelectTrigger className="bg-zinc-800 border-zinc-700 text-zinc-100 h-8 text-sm mt-0.5"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="draft">Draft</SelectItem><SelectItem value="started">Started</SelectItem><SelectItem value="on_hold">On Hold</SelectItem><SelectItem value="pending_qc">Pending QC</SelectItem><SelectItem value="approved">Approved</SelectItem><SelectItem value="added_to_inventory">Added to Inventory</SelectItem><SelectItem value="rejected">Rejected</SelectItem></SelectContent></Select></div>
               </div>
