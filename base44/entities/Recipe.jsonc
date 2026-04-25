@@ -1,0 +1,252 @@
+{
+  "name": "Recipe",
+  "type": "object",
+  "properties": {
+    "sku": {
+      "type": "string",
+      "description": "Product SKU code"
+    },
+    "name": {
+      "type": "string",
+      "description": "Product name"
+    },
+    "category": {
+      "type": "string",
+      "description": "Product category"
+    },
+    "batch_size": {
+      "type": "number",
+      "description": "Units per batch"
+    },
+    "production_line": {
+      "type": "number",
+      "description": "Production line (1 or 2)"
+    },
+    "version": {
+      "type": "number",
+      "default": 1,
+      "description": "Recipe version number"
+    },
+    "version_notes": {
+      "type": "string",
+      "description": "Notes about changes in this version"
+    },
+    "previous_version_id": {
+      "type": "string",
+      "description": "ID of the previous version of this recipe"
+    },
+    "is_seasonal": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this is a seasonal product"
+    },
+    "season": {
+      "type": "string",
+      "enum": [
+        "Spring",
+        "Summer",
+        "Fall",
+        "Winter"
+      ],
+      "description": "Season if seasonal product"
+    },
+    "holiday": {
+      "type": "string",
+      "enum": [
+        "Christmas",
+        "Valentine's Day",
+        "Easter",
+        "Mother's Day",
+        "Halloween",
+        "Thanksgiving",
+        "New Year",
+        "Other"
+      ],
+      "description": "Holiday association if applicable"
+    },
+    "degassing_time_days": {
+      "type": "number",
+      "default": 0,
+      "description": "Days required for degassing"
+    },
+    "qc_hold_time_days": {
+      "type": "number",
+      "default": 0,
+      "description": "Days required for QC hold before filling"
+    },
+    "production_stages": {
+      "type": "array",
+      "description": "Production timeline stages",
+      "items": {
+        "type": "object",
+        "properties": {
+          "stage_name": {
+            "type": "string"
+          },
+          "duration_days": {
+            "type": "number"
+          },
+          "order": {
+            "type": "number"
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "ingredients": {
+      "type": "array",
+      "description": "Array of ingredients with material, qty, and unit",
+      "items": {
+        "type": "object",
+        "properties": {
+          "material": {
+            "type": "string"
+          },
+          "sku": {
+            "type": "string"
+          },
+          "qty": {
+            "type": "number"
+          },
+          "unit": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "packaging": {
+      "type": "array",
+      "description": "Array of packaging items needed per batch",
+      "items": {
+        "type": "object",
+        "properties": {
+          "sku": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "qty_per_unit": {
+            "type": "number"
+          },
+          "qty_per_batch": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "procedures": {
+      "type": "array",
+      "description": "Manufacturing procedures/steps",
+      "items": {
+        "type": "object",
+        "properties": {
+          "step": {
+            "type": "number"
+          },
+          "description": {
+            "type": "string"
+          },
+          "duration_minutes": {
+            "type": "number"
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "qc_checks": {
+      "type": "array",
+      "description": "QC checkpoints",
+      "items": {
+        "type": "object",
+        "properties": {
+          "checkpoint": {
+            "type": "string"
+          },
+          "criteria": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether recipe is active"
+    },
+    "flagged": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether recipe is flagged for attention"
+    },
+    "flag_note": {
+      "type": "string",
+      "description": "Optional note explaining why the recipe is flagged"
+    },
+    "production_type": {
+      "type": "string",
+      "enum": [
+        "make",
+        "buy",
+        "copacked"
+      ],
+      "description": "How the product is produced"
+    },
+    "copacker_id": {
+      "type": "string",
+      "description": "Copacker identifier or name"
+    },
+    "copacker_lead_time_days": {
+      "type": "number",
+      "description": "Lead time in days from copacker"
+    },
+    "suggested_batch_qty": {
+      "type": "number",
+      "description": "Suggested quantity per batch"
+    },
+    "batch_unit": {
+      "type": "string",
+      "enum": [
+        "units",
+        "litres",
+        "kg"
+      ],
+      "description": "Unit of measure for batches"
+    },
+    "batch_tolerance_pct": {
+      "type": "number",
+      "description": "Acceptable batch yield tolerance percentage"
+    },
+    "qc_wait_days": {
+      "type": "number",
+      "description": "Days to wait before QC can be performed"
+    },
+    "batch_required": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether a batch record is required for production"
+    },
+    "batch_and_run": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether batch and run are performed together"
+    },
+    "yield_expected_pct": {
+      "type": "number",
+      "description": "Expected yield percentage from raw to finished"
+    }
+  },
+  "required": [
+    "sku",
+    "name",
+    "category",
+    "batch_size"
+  ]
+}

@@ -24,7 +24,8 @@ import {
   Save,
   ChevronRight,
   Zap,
-  Boxes
+  Boxes,
+  Flag
 } from "lucide-react";
 import AssemblyGuides from "./AssemblyGuides";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -61,14 +62,14 @@ const SEASONS = ["Spring", "Summer", "Fall", "Winter"];
 const HOLIDAYS = ["Christmas", "Valentine's Day", "Easter", "Mother's Day", "Halloween", "Thanksgiving", "New Year", "Other"];
 
 // Expandable Recipe Row Component
-function RecipeRow({ recipe, inventory, getCategoryColor, onView, onEdit, onDuplicate, onSaveTemplate, onDelete, canDelete }) {
+function RecipeRow({ recipe, inventory, getCategoryColor, onView, onEdit, onDuplicate, onSaveTemplate, onDelete, onToggleFlag, canDelete }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
     <>
       <div
+        className={`flex items-center gap-4 p-4 hover:bg-zinc-800/50 transition-colors cursor-pointer ${recipe.flagged ? 'border-l-2 border-red-500' : ''}`}
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-4 p-4 hover:bg-zinc-800/50 transition-colors cursor-pointer"
       >
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 mb-1">
@@ -79,12 +80,25 @@ function RecipeRow({ recipe, inventory, getCategoryColor, onView, onEdit, onDupl
               <GitBranch className="w-3 h-3" />
               v{recipe.version || 1}
             </div>
+            {recipe.flagged && (
+              <div className="flex items-center gap-1 text-xs text-red-400">
+                <Flag className="w-3 h-3 fill-red-400" />
+                {recipe.flag_note && <span>{recipe.flag_note}</span>}
+              </div>
+            )}
           </div>
           <p className="text-sm text-zinc-400">
             {recipe.batch_size} units • Line {recipe.production_line || 1} • {recipe.ingredients?.length || 0} ingredients
           </p>
         </div>
         <BatchCostBadge recipe={recipe} inventory={inventory} />
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleFlag(); }}
+          className={`p-1.5 rounded-md transition-colors ${recipe.flagged ? 'text-red-400 hover:text-red-300 hover:bg-red-500/10' : 'text-zinc-600 hover:text-red-400 hover:bg-red-500/10'}`}
+          title={recipe.flagged ? "Remove flag" : "Flag this recipe"}
+        >
+          <Flag className={`w-4 h-4 ${recipe.flagged ? 'fill-red-400' : ''}`} />
+        </button>
         <ChevronRight className={`w-5 h-5 text-zinc-600 transition-transform ${expanded ? 'rotate-90' : ''}`} />
       </div>
 
@@ -294,6 +308,11 @@ export default function Recipes() {
       queryClient.invalidateQueries({ queryKey: ['recipes'] });
       toast.success("Recipe deleted successfully");
     }
+  });
+
+  const flagMutation = useMutation({
+    mutationFn: ({ id, flagged, flag_note }) => base44.entities.Recipe.update(id, { flagged, flag_note }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['recipes'] })
   });
 
   const saveAsTemplateMutation = useMutation({
@@ -689,6 +708,15 @@ export default function Recipes() {
                   onDuplicate={() => duplicateRecipe(recipe)}
                   onSaveTemplate={() => { setSaveAsTemplateRecipe(recipe); setTemplateName(recipe.name + " Template"); }}
                   onDelete={() => setDeleteConfirmRecipe(recipe)}
+                  onToggleFlag={() => {
+                    if (recipe.flagged) {
+                      flagMutation.mutate({ id: recipe.id, flagged: false, flag_note: "" });
+                    } else {
+                      const note = window.prompt("Add a flag note (optional):", "");
+                      if (note === null) return; // cancelled
+                      flagMutation.mutate({ id: recipe.id, flagged: true, flag_note: note || "" });
+                    }
+                  }}
                   canDelete={canDeleteRecipe}
                 />
               ))}
