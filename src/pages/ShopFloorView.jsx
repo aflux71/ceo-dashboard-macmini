@@ -61,7 +61,7 @@ export default function ShopFloorView() {
   const [numDays, setNumDays] = useState(5);
   const [addTaskDialog, setAddTaskDialog] = useState(null); // date string or null
   const [lineFilter, setLineFilter] = useState("all");
-  const [hideWeekends, setHideWeekends] = useState(false);
+  const [hideWeekends, setHideWeekends] = useState(true);
 
   const days = useMemo(() => {
     if (!hideWeekends) return generateDays(weekStart, numDays);
