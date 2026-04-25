@@ -225,12 +225,21 @@ export default function ShopFloorView() {
   const stats = useMemo(() => {
     const active = enrichedBatches.filter((b) => b.stage !== "complete");
     const todayBatches = batchesByDay[today] || [];
-    const overdue = active.filter((b) => {
+    const overdueBatches = active.filter((b) => {
       const { batchDate } = b.dates;
       return b.stage === "batching" && batchDate && batchDate < today;
     });
-    return { total: active.length, todayCount: todayBatches.length, overdue: overdue.length };
+    // Earliest overdue date for navigation
+    const earliestOverdueDate = overdueBatches.length > 0
+      ? overdueBatches.map(b => b.dates.batchDate).sort()[0]
+      : null;
+    return { total: active.length, todayCount: todayBatches.length, overdue: overdueBatches.length, earliestOverdueDate };
   }, [enrichedBatches, batchesByDay, today]);
+
+  const handleOverdueClick = () => {
+    if (!stats.earliestOverdueDate) return;
+    setWeekStart(getMonday(stats.earliestOverdueDate));
+  };
 
   return (
     <div className="space-y-5">
@@ -266,10 +275,15 @@ export default function ShopFloorView() {
           <p className="text-xs font-medium text-zinc-500 uppercase tracking-wide">Due Today</p>
           <p className="text-2xl font-bold text-blue-400 mt-1">{stats.todayCount}</p>
         </div>
-        <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-3 hover:border-red-500/20 transition-colors">
+        <button
+          onClick={handleOverdueClick}
+          disabled={stats.overdue === 0}
+          className={`bg-zinc-900/50 border rounded-xl p-3 text-left w-full transition-colors ${stats.overdue > 0 ? "border-red-500/30 hover:border-red-500/60 hover:bg-red-500/5 cursor-pointer" : "border-zinc-800 cursor-default"}`}
+        >
           <p className="text-xs font-medium text-zinc-500 uppercase tracking-wide">Overdue</p>
           <p className={`text-2xl font-bold mt-1 ${stats.overdue > 0 ? "text-red-400" : "text-zinc-600"}`}>{stats.overdue}</p>
-        </div>
+          {stats.overdue > 0 && <p className="text-xs text-red-400/60 mt-0.5">Click to view</p>}
+        </button>
       </div>
 
       {/* Controls */}
