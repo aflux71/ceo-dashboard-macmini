@@ -50,7 +50,6 @@ const navItems = [
         { name: "Add to Inventory", icon: ShoppingCart, page: "AddToInventory", badge: true, isAddToInventoryLink: true },
         { name: "Unlabeled Products", icon: Tag, page: "UnlabeledProducts", isUnlabeledLink: true },
         { name: "Batch Travellers", icon: FileText, page: "BatchTraveler" },
-        { name: "QC Trends", icon: Activity, page: "QCTrends" },
         { name: "Batch History", icon: History, page: "BatchHistory" },
         { name: "Inventory", icon: Package, page: "Inventory" },
         { name: "Recipes", icon: Beaker, page: "Recipes" },

@@ -1335,6 +1335,7 @@ function MaterialCheckTab() {
   );
 }
 
+import QCTrends from "./QCTrends";
 import BatchQueueTab from "@/components/planning/BatchQueueTab";
 import BatchPlannerTab from "@/components/planning/BatchPlannerTab";
 import RecipeSheetsTab from "@/components/planning/RecipeSheetsTab";
@@ -1542,6 +1543,15 @@ export default function ProductionPlanning() {
             <span className="hidden sm:inline">Demand Planner</span>
           </TabsTrigger>
 
+          {/* QC Trends tab */}
+          <TabsTrigger
+            value="qc-trends"
+            className="flex items-center gap-2 data-[state=active]:bg-zinc-700"
+          >
+            <Timer className="w-4 h-4" />
+            <span className="hidden sm:inline">QC Trends</span>
+          </TabsTrigger>
+
           {/* Remaining placeholder tabs */}
           {placeholderTabs.map((tab) => {
             const Icon = tab.icon;
@@ -1601,6 +1611,11 @@ export default function ProductionPlanning() {
         {/* Demand Planner tab */}
         <TabsContent value="demand-planner" className="space-y-4">
           <DemandPlanner />
+        </TabsContent>
+
+        {/* QC Trends tab */}
+        <TabsContent value="qc-trends" className="space-y-4">
+          <QCTrends />
         </TabsContent>
 
         {/* Placeholder tabs */}
