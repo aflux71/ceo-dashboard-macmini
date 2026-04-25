@@ -37,6 +37,12 @@ const DEFAULT_INVENTORY_TYPES = [
 export default function Inventory() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all"); // all | low_stock | in_stock
+  const [supplierFilter, setSupplierFilter] = useState("all");
+  const [materialTypeFilter, setMaterialTypeFilter] = useState("all");
+  const [locationFilter, setLocationFilter] = useState("all");
+  const [pageSize, setPageSize] = useState(50);
+  const [currentPage, setCurrentPage] = useState(1);
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [formData, setFormData] = useState({
@@ -306,13 +312,32 @@ export default function Inventory() {
     }
   };
 
-  const filtered = inventory.filter(item => {
-    const matchesSearch = !search || 
-      item.name?.toLowerCase().includes(search.toLowerCase()) ||
-      item.sku?.toLowerCase().includes(search.toLowerCase());
+  // Reset page on filter change
+  React.useEffect(() => { setCurrentPage(1); }, [search, typeFilter, statusFilter, supplierFilter, materialTypeFilter, locationFilter, pageSize]);
+
+  const filtered = React.useMemo(() => inventory.filter(item => {
+    const q = search.toLowerCase();
+    const matchesSearch = !search ||
+      item.name?.toLowerCase().includes(q) ||
+      item.sku?.toLowerCase().includes(q) ||
+      item.supplier?.toLowerCase().includes(q) ||
+      item.location?.toLowerCase().includes(q);
     const matchesType = typeFilter === "all" || item.type === typeFilter;
-    return matchesSearch && matchesType;
-  });
+    const isLow = item.reorder_point && item.quantity <= item.reorder_point;
+    const matchesStatus = statusFilter === "all" || (statusFilter === "low_stock" ? isLow : !isLow);
+    const matchesSupplier = supplierFilter === "all" || item.supplier === supplierFilter;
+    const matchesMaterialType = materialTypeFilter === "all" || item.material_type === materialTypeFilter;
+    const matchesLocation = locationFilter === "all" || item.location === locationFilter;
+    return matchesSearch && matchesType && matchesStatus && matchesSupplier && matchesMaterialType && matchesLocation;
+  }), [inventory, search, typeFilter, statusFilter, supplierFilter, materialTypeFilter, locationFilter]);
+
+  const totalPages = pageSize === -1 ? 1 : Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paginated = pageSize === -1 ? filtered : filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  // Unique values for filter dropdowns
+  const uniqueSuppliers = React.useMemo(() => [...new Set(inventory.map(i => i.supplier).filter(Boolean))].sort(), [inventory]);
+  const uniqueMaterialTypes = React.useMemo(() => [...new Set(inventory.map(i => i.material_type).filter(Boolean))].sort(), [inventory]);
+  const uniqueLocations = React.useMemo(() => [...new Set(inventory.map(i => i.location).filter(Boolean))].sort(), [inventory]);
 
   const lowStock = filtered.filter(i => i.reorder_point && i.quantity <= i.reorder_point);
 
@@ -569,28 +594,107 @@ export default function Inventory() {
 
       {/* Filters */}
       <Card className="bg-zinc-900 border-zinc-800">
-        <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-              <Input
-                placeholder="Search by name or SKU..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 bg-zinc-800 border-zinc-700 text-zinc-100"
-              />
+        <CardContent className="pt-4 pb-4">
+          <div className="flex flex-col gap-3">
+            {/* Row 1: Search + Type + Status */}
+            <div className="flex flex-col md:flex-row gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                <Input
+                  placeholder="Search name, SKU, supplier, location..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9 bg-zinc-800 border-zinc-700 text-zinc-100"
+                />
+              </div>
+              <Select value={typeFilter} onValueChange={setTypeFilter}>
+                <SelectTrigger className="w-full md:w-44 bg-zinc-800 border-zinc-700 text-zinc-100">
+                  <SelectValue placeholder="All Types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  {INVENTORY_TYPES.map(type => (
+                    <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full md:w-40 bg-zinc-800 border-zinc-700 text-zinc-100">
+                  <SelectValue placeholder="All Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="in_stock">In Stock</SelectItem>
+                  <SelectItem value="low_stock">Low Stock</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-full md:w-48 bg-zinc-800 border-zinc-700 text-zinc-100">
-                <SelectValue placeholder="Filter by type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                {INVENTORY_TYPES.map(type => (
-                  <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Row 2: Supplier + Material Type + Location + Page size */}
+            <div className="flex flex-col md:flex-row gap-3 items-center">
+              <Select value={supplierFilter} onValueChange={setSupplierFilter}>
+                <SelectTrigger className="w-full md:w-44 bg-zinc-800 border-zinc-700 text-zinc-100">
+                  <SelectValue placeholder="All Suppliers" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Suppliers</SelectItem>
+                  {uniqueSuppliers.map(s => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {(typeFilter === "all" || typeFilter === "raw_material") && (
+                <Select value={materialTypeFilter} onValueChange={setMaterialTypeFilter}>
+                  <SelectTrigger className="w-full md:w-44 bg-zinc-800 border-zinc-700 text-zinc-100">
+                    <SelectValue placeholder="All Material Types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Material Types</SelectItem>
+                    {uniqueMaterialTypes.map(mt => (
+                      <SelectItem key={mt} value={mt}>{mt}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <Select value={locationFilter} onValueChange={setLocationFilter}>
+                <SelectTrigger className="w-full md:w-40 bg-zinc-800 border-zinc-700 text-zinc-100">
+                  <SelectValue placeholder="All Locations" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Locations</SelectItem>
+                  {uniqueLocations.map(loc => (
+                    <SelectItem key={loc} value={loc}>{loc}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="flex items-center gap-2 ml-auto shrink-0">
+                <span className="text-xs text-zinc-500 whitespace-nowrap">Per page:</span>
+                <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+                  <SelectTrigger className="w-24 bg-zinc-800 border-zinc-700 text-zinc-100">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="25">25</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                    <SelectItem value="250">250</SelectItem>
+                    <SelectItem value="-1">All</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {(search || typeFilter !== "all" || statusFilter !== "all" || supplierFilter !== "all" || materialTypeFilter !== "all" || locationFilter !== "all") && (
+                <button
+                  onClick={() => { setSearch(""); setTypeFilter("all"); setStatusFilter("all"); setSupplierFilter("all"); setMaterialTypeFilter("all"); setLocationFilter("all"); }}
+                  className="text-xs text-zinc-500 hover:text-orange-400 whitespace-nowrap transition-colors"
+                >
+                  Clear all
+                </button>
+              )}
+            </div>
+            {/* Results count */}
+            <div className="text-xs text-zinc-500">
+              Showing {filtered.length} of {inventory.length} items
+              {pageSize !== -1 && filtered.length > pageSize && ` · Page ${currentPage} of ${totalPages}`}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -617,12 +721,12 @@ export default function Inventory() {
                   <tr>
                     <td colSpan={8} className="p-8 text-center text-zinc-500">Loading...</td>
                   </tr>
-                ) : filtered.length === 0 ? (
+                ) : paginated.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="p-8 text-center text-zinc-500">No inventory items found</td>
                   </tr>
                 ) : (
-                  filtered.map((item) => {
+                  paginated.map((item) => {
                     const isLow = item.reorder_point && item.quantity <= item.reorder_point;
                     return (
                       <tr key={item.id} className="border-b border-zinc-800 hover:bg-zinc-800/30">
@@ -708,6 +812,57 @@ export default function Inventory() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Pagination */}
+      {pageSize !== -1 && totalPages > 1 && (
+        <div className="flex items-center justify-between text-sm text-zinc-400">
+          <span>{filtered.length} items · Page {currentPage} of {totalPages}</span>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              className="border-zinc-700 h-8 px-2 text-xs"
+            >«</Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="border-zinc-700 h-8 px-3 text-xs"
+            >Prev</Button>
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              const start = Math.max(1, Math.min(currentPage - 2, totalPages - 4));
+              const page = start + i;
+              if (page > totalPages) return null;
+              return (
+                <Button
+                  key={page}
+                  variant={page === currentPage ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setCurrentPage(page)}
+                  className={`border-zinc-700 h-8 px-3 text-xs ${page === currentPage ? "bg-orange-500 hover:bg-orange-600 text-white border-transparent" : ""}`}
+                >{page}</Button>
+              );
+            })}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="border-zinc-700 h-8 px-3 text-xs"
+            >Next</Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              className="border-zinc-700 h-8 px-2 text-xs"
+            >»</Button>
+          </div>
+        </div>
+      )}
 
       {/* Add/Edit Modal */}
       <Dialog open={showModal} onOpenChange={setShowModal}>
