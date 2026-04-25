@@ -42,19 +42,23 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 // Default role permissions
 const DEFAULT_ROLE_PERMISSIONS = {
-  owner: ["production", "inventory", "requisitions", "recipes", "recipe_templates", "forecasting", "user_management", "settings", "reports", "batch_history", "review_queue", "purchase_orders", "view_costs", "ai_assistant"],
-  admin: ["production", "inventory", "requisitions", "recipes", "recipe_templates", "forecasting", "user_management", "reports", "batch_history", "review_queue", "purchase_orders", "view_costs"],
-  production_lead: ["production", "inventory", "requisitions", "recipes", "reports", "batch_history", "review_queue"],
-  production_labor: ["production", "batch_history"],
-  qc: ["review_queue", "batch_history", "inventory", "requisitions"],
-  operator: ["production", "batch_history"],
-  inventory: ["inventory", "requisitions", "batch_history"]
+  owner: ["production", "planning", "shop_floor", "inventory", "add_to_inventory", "requisitions", "recipes", "recipe_templates", "forecasting", "batch_history", "batch_travellers", "review_queue", "labels", "label_usage", "unlabeled_products", "purchase_orders", "analytics", "equipment_repairs", "low_consumables", "reports", "view_costs", "ai_assistant", "bug_reports", "user_management", "settings"],
+  admin: ["production", "planning", "shop_floor", "inventory", "add_to_inventory", "requisitions", "recipes", "recipe_templates", "forecasting", "batch_history", "batch_travellers", "review_queue", "labels", "label_usage", "unlabeled_products", "purchase_orders", "analytics", "equipment_repairs", "low_consumables", "reports", "view_costs", "user_management", "settings"],
+  production_lead: ["production", "planning", "shop_floor", "inventory", "requisitions", "recipes", "batch_history", "batch_travellers", "review_queue", "labels", "label_usage", "reports"],
+  production_labor: ["production", "batch_history", "shop_floor"],
+  qc: ["review_queue", "batch_history", "inventory", "requisitions", "labels"],
+  operator: ["production", "batch_history", "shop_floor"],
+  inventory: ["inventory", "add_to_inventory", "requisitions", "batch_history", "labels", "label_usage", "unlabeled_products"]
 };
 
 const ALL_PERMISSIONS = [
-  "production", "inventory", "requisitions", "recipes", "recipe_templates", "forecasting", 
-  "user_management", "settings", "reports", "batch_history", "review_queue", 
-  "purchase_orders", "view_costs", "ai_assistant"
+  "production", "planning", "shop_floor", "inventory", "add_to_inventory",
+  "requisitions", "recipes", "recipe_templates", "forecasting",
+  "batch_history", "batch_travellers", "review_queue",
+  "labels", "label_usage", "unlabeled_products",
+  "purchase_orders", "analytics", "equipment_repairs", "low_consumables",
+  "reports", "view_costs", "ai_assistant", "bug_reports",
+  "user_management", "settings"
 ];
 
 export default function UserManagement() {
