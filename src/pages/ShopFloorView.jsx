@@ -63,12 +63,17 @@ export default function ShopFloorView() {
   const [hideWeekends, setHideWeekends] = useState(false);
 
   const days = useMemo(() => {
-    const all = generateDays(weekStart, numDays);
-    if (!hideWeekends) return all;
-    return all.filter((d) => {
-      const day = new Date(d + "T12:00:00").getDay();
-      return day !== 0 && day !== 6;
-    });
+    if (!hideWeekends) return generateDays(weekStart, numDays);
+    // Generate enough days to collect numDays weekdays
+    const result = [];
+    let i = 0;
+    while (result.length < numDays) {
+      const d = addDays(weekStart, i++);
+      const dow = new Date(d + "T12:00:00").getDay();
+      if (dow !== 0 && dow !== 6) result.push(d);
+      if (i > 30) break; // safety
+    }
+    return result;
   }, [weekStart, numDays, hideWeekends]);
 
   // ── Data fetching ────────────────────────────────────────────────────────
@@ -261,6 +266,17 @@ export default function ShopFloorView() {
             ))}
           </div>
 
+          {/* Hide weekends toggle */}
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <span className="text-xs text-zinc-400">Hide Weekends</span>
+            <div
+              onClick={() => setHideWeekends((h) => !h)}
+              className={`relative w-8 h-4 rounded-full transition-colors duration-200 ${hideWeekends ? "bg-orange-500" : "bg-zinc-700"}`}
+            >
+              <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform duration-200 ${hideWeekends ? "translate-x-4" : "translate-x-0.5"}`} />
+            </div>
+          </label>
+
           {/* Line filter */}
           <Select value={lineFilter} onValueChange={setLineFilter}>
             <SelectTrigger className="bg-zinc-800 border-zinc-700 text-zinc-100 h-8 text-xs w-32">
@@ -274,17 +290,6 @@ export default function ShopFloorView() {
               <SelectItem value="4">Melter 2</SelectItem>
             </SelectContent>
           </Select>
-
-          {/* Hide weekends toggle */}
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <span className="text-xs text-zinc-400">Hide Weekends</span>
-            <div
-              onClick={() => setHideWeekends((h) => !h)}
-              className={`relative w-8 h-4 rounded-full transition-colors duration-200 ${hideWeekends ? "bg-orange-500" : "bg-zinc-700"}`}
-            >
-              <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform duration-200 ${hideWeekends ? "translate-x-4" : "translate-x-0.5"}`} />
-            </div>
-          </label>
         </div>
       </div>
 
