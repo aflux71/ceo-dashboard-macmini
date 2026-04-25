@@ -276,16 +276,15 @@ export default function ShopFloorView() {
           </Select>
 
           {/* Hide weekends toggle */}
-          <button
-            onClick={() => setHideWeekends((h) => !h)}
-            className={`px-3 py-1 rounded-md text-xs font-medium border transition-colors ${
-              hideWeekends
-                ? "bg-orange-500/20 border-orange-500/40 text-orange-400"
-                : "bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200"
-            }`}
-          >
-            {hideWeekends ? "Weekdays Only" : "Hide Weekends"}
-          </button>
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <span className="text-xs text-zinc-400">Hide Weekends</span>
+            <div
+              onClick={() => setHideWeekends((h) => !h)}
+              className={`relative w-8 h-4 rounded-full transition-colors duration-200 ${hideWeekends ? "bg-orange-500" : "bg-zinc-700"}`}
+            >
+              <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform duration-200 ${hideWeekends ? "translate-x-4" : "translate-x-0.5"}`} />
+            </div>
+          </label>
         </div>
       </div>
 
