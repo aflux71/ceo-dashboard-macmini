@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ShopFloorDayColumn from "@/components/shopfloor/ShopFloorDayColumn";
 import AddTaskDialog from "@/components/shopfloor/AddTaskDialog";
+import { DragDropContext } from "@hello-pangea/dnd";
 
 // ── Date helpers ────────────────────────────────────────────────────────────
 function addDays(dateStr, days) {
@@ -161,6 +162,43 @@ export default function ShopFloorView() {
     return map;
   }, [tasks, days, lineFilter]);
 
+  // ── Drag and drop ────────────────────────────────────────────────────────
+  const moveBatchMutation = useMutation({
+    mutationFn: ({ id, newDate, stage }) => {
+      // Update the date field matching the batch's current stage
+      const update = {};
+      if (stage === "batching") update.production_date = newDate + "T12:00:00.000Z";
+      else if (stage === "qc_hold") update.notes = undefined; // handled below via notes patch
+      // Always update production_date as the primary anchor
+      update.production_date = newDate + "T12:00:00.000Z";
+      return base44.entities.Batch.update(id, update);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["shopfloor_batches"] });
+      toast.success("Batch rescheduled");
+    },
+    onError: (err) => toast.error(`Failed to move batch: ${err?.message}`),
+  });
+
+  const handleDragEnd = (result) => {
+    const { draggableId, destination } = result;
+    if (!destination) return;
+    const newDate = destination.droppableId;
+    // Find the batch being moved
+    const batch = enrichedBatches.find((b) => b.id === draggableId);
+    if (!batch) return;
+    // Check it's actually changing date
+    const currentDate = (() => {
+      const { batchDate, qcDate, fillDate } = batch.dates;
+      if (batch.stage === "batching") return batchDate;
+      if (batch.stage === "qc_hold") return qcDate;
+      if (batch.stage === "filling") return fillDate;
+      return batchDate;
+    })();
+    if (newDate === currentDate) return;
+    moveBatchMutation.mutate({ id: batch.id, newDate, stage: batch.stage });
+  };
+
   // ── Mutations ────────────────────────────────────────────────────────────
   const createTaskMutation = useMutation({
     mutationFn: (data) => base44.entities.ShopFloorTask.create(data),
@@ -299,23 +337,25 @@ export default function ShopFloorView() {
           <Loader2 className="w-6 h-6 text-zinc-500 animate-spin" />
         </div>
       ) : (
-        <div className="flex gap-3 overflow-x-auto pb-4">
-          {days.map((date) => (
-            <div key={date} className="flex-shrink-0 w-[260px]">
-              <ShopFloorDayColumn
-                date={date}
-                dayLabel={formatDayLabel(date)}
-                isToday={date === today}
-                batches={batchesByDay[date] || []}
-                tasks={tasksByDay[date] || []}
-                inventory={inventory}
-                labels={labels}
-                onAddTask={(d) => setAddTaskDialog(d)}
-                onCompleteTask={(task) => completeTaskMutation.mutate(task)}
-              />
-            </div>
-          ))}
-        </div>
+        <DragDropContext onDragEnd={handleDragEnd}>
+          <div className="flex gap-3 overflow-x-auto pb-4">
+            {days.map((date) => (
+              <div key={date} className="flex-shrink-0 w-[260px]">
+                <ShopFloorDayColumn
+                  date={date}
+                  dayLabel={formatDayLabel(date)}
+                  isToday={date === today}
+                  batches={batchesByDay[date] || []}
+                  tasks={tasksByDay[date] || []}
+                  inventory={inventory}
+                  labels={labels}
+                  onAddTask={(d) => setAddTaskDialog(d)}
+                  onCompleteTask={(task) => completeTaskMutation.mutate(task)}
+                />
+              </div>
+            ))}
+          </div>
+        </DragDropContext>
       )}
 
       {/* Add Task Dialog */}

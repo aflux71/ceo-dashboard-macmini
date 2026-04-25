@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { Droppable, Draggable } from "@hello-pangea/dnd";
 import {
   ArrowRight, ArrowLeft, MapPin, Package, User, Wrench, Clock,
   CheckCircle2, Loader2, ChevronDown, ChevronUp, Plus, Printer,
@@ -360,7 +361,7 @@ function TravellerDialog({ open, batch, recipe, onClose, onSave }) {
 }
 
 // ── Batch Card ───────────────────────────────────────────────────────────────
-function BatchCard({ batch, inventory, labels }) {
+function BatchCard({ batch, inventory, labels, dragHandleProps, draggableProps, innerRef }) {
   const [expanded, setExpanded] = useState(false);
   const [qtyDialog, setQtyDialog] = useState(false);
   const [travellerDialog, setTravellerDialog] = useState(false);
@@ -433,9 +434,9 @@ function BatchCard({ batch, inventory, labels }) {
   };
 
   return (
-    <div className={`rounded-lg border ${cfg.border} ${isOverdue ? "border-red-500/40" : ""} bg-zinc-900 overflow-hidden`}>
-      {/* Header */}
-      <div className={`px-3 py-2 ${cfg.bg} flex items-center justify-between gap-2`}>
+    <div ref={innerRef} {...draggableProps} className={`rounded-lg border ${cfg.border} ${isOverdue ? "border-red-500/40" : ""} bg-zinc-900 overflow-hidden`}>
+      {/* Header — drag handle */}
+      <div {...dragHandleProps} className={`px-3 py-2 ${cfg.bg} flex items-center justify-between gap-2 cursor-grab active:cursor-grabbing`}>
         <span className={`text-xs font-mono truncate ${cfg.text}`}>{batch.batch_id}</span>
         <div className="flex items-center gap-1 shrink-0">
           {isOverdue && <Badge variant="red">Overdue</Badge>}
@@ -610,21 +611,41 @@ export default function ShopFloorDayColumn({ date, dayLabel, isToday, batches, t
         {isToday && <div className="text-xs text-orange-400/70 mt-0.5 font-medium">TODAY</div>}
       </div>
 
-      <div className="flex-1 p-2 space-y-2 overflow-y-auto max-h-[calc(100vh-280px)]">
-        {batches.map((batch) => (
-          <BatchCard key={batch.id} batch={batch} inventory={inventory} labels={labels} />
-        ))}
-        {tasks.map((task) => (
-          <TaskCard key={task.id} task={task} onComplete={onCompleteTask} />
-        ))}
-        {batches.length === 0 && tasks.length === 0 && (
-          <div className="text-center py-6 text-zinc-600 text-xs">No items</div>
+      <Droppable droppableId={date}>
+        {(provided, snapshot) => (
+          <div
+            ref={provided.innerRef}
+            {...provided.droppableProps}
+            className={`flex-1 p-2 space-y-2 overflow-y-auto max-h-[calc(100vh-280px)] transition-colors rounded-b-xl ${snapshot.isDraggingOver ? "bg-orange-500/5 border-orange-500/20" : ""}`}
+          >
+            {batches.map((batch, index) => (
+              <Draggable key={batch.id} draggableId={batch.id} index={index}>
+                {(dragProvided) => (
+                  <BatchCard
+                    batch={batch}
+                    inventory={inventory}
+                    labels={labels}
+                    innerRef={dragProvided.innerRef}
+                    draggableProps={dragProvided.draggableProps}
+                    dragHandleProps={dragProvided.dragHandleProps}
+                  />
+                )}
+              </Draggable>
+            ))}
+            {provided.placeholder}
+            {tasks.map((task) => (
+              <TaskCard key={task.id} task={task} onComplete={onCompleteTask} />
+            ))}
+            {batches.length === 0 && tasks.length === 0 && (
+              <div className="text-center py-6 text-zinc-600 text-xs">No items</div>
+            )}
+            <button onClick={() => onAddTask(date)}
+              className="w-full text-xs text-zinc-600 hover:text-zinc-400 border border-dashed border-zinc-800 hover:border-zinc-600 rounded-lg py-2 transition-colors">
+              + Add Task
+            </button>
+          </div>
         )}
-        <button onClick={() => onAddTask(date)}
-          className="w-full text-xs text-zinc-600 hover:text-zinc-400 border border-dashed border-zinc-800 hover:border-zinc-600 rounded-lg py-2 transition-colors">
-          + Add Task
-        </button>
-      </div>
+      </Droppable>
     </div>
   );
 }
