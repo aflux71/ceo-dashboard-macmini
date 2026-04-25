@@ -1,0 +1,64 @@
+{
+  "name": "ShopFloorTask",
+  "type": "object",
+  "properties": {
+    "task_name": {
+      "type": "string",
+      "description": "Name of the task (e.g., Clean Line 1, Setup for Bath Bombs)"
+    },
+    "task_type": {
+      "type": "string",
+      "enum": [
+        "cleaning",
+        "setup",
+        "maintenance",
+        "break",
+        "training",
+        "administrative",
+        "other"
+      ],
+      "description": "Type of non-production task"
+    },
+    "task_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date the task is scheduled for"
+    },
+    "start_time": {
+      "type": "string",
+      "description": "Start time (HH:MM)"
+    },
+    "end_time": {
+      "type": "string",
+      "description": "End time (HH:MM)"
+    },
+    "operator": {
+      "type": "string",
+      "description": "Operator or team assigned"
+    },
+    "production_line": {
+      "type": "number",
+      "description": "Production line affected (1, 2, etc.)"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Additional notes"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "planned",
+        "in_progress",
+        "completed",
+        "cancelled"
+      ],
+      "default": "planned",
+      "description": "Task status"
+    }
+  },
+  "required": [
+    "task_name",
+    "task_type",
+    "task_date"
+  ]
+}

@@ -13,6 +13,7 @@ import BatchTraveler from './pages/BatchTraveler';
 import QCTrends from './pages/QCTrends';
 import AIAssistant from './pages/AIAssistant';
 import AssemblyGuides from './pages/AssemblyGuides';
+import ShopFloorView from './pages/ShopFloorView';
 import ErrorBoundary from './components/ErrorBoundary';
 
 const { Pages, Layout, mainPage } = pagesConfig;
@@ -71,6 +72,7 @@ const AuthenticatedApp = () => {
       <Route path="/UnlabeledProducts" element={<LayoutWrapper currentPageName="UnlabeledProducts"><UnlabeledProducts /></LayoutWrapper>} />
       <Route path="/BatchTraveler" element={<LayoutWrapper currentPageName="BatchTraveler"><BatchTraveler /></LayoutWrapper>} />
       <Route path="/QCTrends" element={<LayoutWrapper currentPageName="QCTrends"><QCTrends /></LayoutWrapper>} />
+      <Route path="/ShopFloorView" element={<LayoutWrapper currentPageName="ShopFloorView"><ShopFloorView /></LayoutWrapper>} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
