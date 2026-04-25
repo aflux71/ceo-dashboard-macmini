@@ -12,7 +12,8 @@ import {
   Trash2,
   Copy,
   Link2,
-  Layers
+  Layers,
+  Factory
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -72,6 +73,10 @@ export default function Inventory() {
   const [isMerging, setIsMerging] = useState(false);
   const [mergeResult, setMergeResult] = useState(null);
   const [showPhotoCaptureMode, setShowPhotoCaptureMode] = useState(false);
+  const [pushToProdItem, setPushToProdItem] = useState(null);
+  const [pushQty, setPushQty] = useState(0);
+  const [pushNotes, setPushNotes] = useState("");
+  const [isPushing, setIsPushing] = useState(false);
 
   const CURRENCIES = ["CAD", "USD", "EUR", "GBP"];
 
@@ -391,6 +396,28 @@ export default function Inventory() {
     setShowLotDialog(true);
   };
 
+  const handlePushToProd = async () => {
+    if (!pushToProdItem || !pushQty) return;
+    setIsPushing(true);
+    try {
+      await base44.entities.ProductionRequest.create({
+        sku: pushToProdItem.sku,
+        product_name: pushToProdItem.name,
+        quantity_needed: Number(pushQty),
+        status: "pending",
+        notes: pushNotes || undefined,
+        requested_by: "Inventory",
+        source: "manual"
+      });
+      setPushToProdItem(null);
+      setPushQty(0);
+      setPushNotes("");
+      alert(`✓ "${pushToProdItem.name}" pushed to Production Planning`);
+    } finally {
+      setIsPushing(false);
+    }
+  };
+
   const handleSaveLots = (lots, totalQty) => {
     if (!selectedItemForLots) return;
     updateMutation.mutate({
@@ -638,28 +665,39 @@ export default function Inventory() {
                           )}
                         </td>
                         <td className="p-4">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => openModal(item)}
-                              className="text-zinc-400 hover:text-zinc-100"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => {
-                                if (confirm('Delete this item?')) {
-                                  deleteMutation.mutate(item.id);
-                                }
-                              }}
-                              className="text-zinc-400 hover:text-red-400"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
+                         <div className="flex justify-end gap-2">
+                           {item.type === "finished_product" && (
+                             <Button
+                               size="sm"
+                               variant="ghost"
+                               onClick={() => { setPushToProdItem(item); setPushQty(0); setPushNotes(""); }}
+                               className="text-zinc-400 hover:text-orange-400"
+                               title="Push to Production Planning"
+                             >
+                               <Factory className="w-4 h-4" />
+                             </Button>
+                           )}
+                           <Button
+                             size="sm"
+                             variant="ghost"
+                             onClick={() => openModal(item)}
+                             className="text-zinc-400 hover:text-zinc-100"
+                           >
+                             <Edit className="w-4 h-4" />
+                           </Button>
+                           <Button
+                             size="sm"
+                             variant="ghost"
+                             onClick={() => {
+                               if (confirm('Delete this item?')) {
+                                 deleteMutation.mutate(item.id);
+                               }
+                             }}
+                             className="text-zinc-400 hover:text-red-400"
+                           >
+                             <Trash2 className="w-4 h-4" />
+                           </Button>
+                         </div>
                         </td>
                       </tr>
                     );
@@ -917,6 +955,58 @@ export default function Inventory() {
         item={selectedItemForLots}
         onSave={handleSaveLots}
       />
+
+      {/* Push to Production Dialog */}
+      <Dialog open={!!pushToProdItem} onOpenChange={(o) => { if (!o) setPushToProdItem(null); }}>
+        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Factory className="w-5 h-5 text-orange-400" />
+              Push to Production
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="text-sm text-zinc-400">
+              <span className="text-zinc-200 font-medium">{pushToProdItem?.name}</span>
+              <span className="text-zinc-600 mx-2">·</span>
+              <span className="font-mono text-zinc-500">{pushToProdItem?.sku}</span>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-zinc-400 text-xs">Units to Produce</Label>
+              <Input
+                type="number"
+                min="1"
+                value={pushQty || ""}
+                onChange={(e) => setPushQty(e.target.value)}
+                placeholder="e.g. 200"
+                className="bg-zinc-800 border-zinc-700 text-zinc-100 h-9"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-zinc-400 text-xs">Notes (optional)</Label>
+              <Textarea
+                value={pushNotes}
+                onChange={(e) => setPushNotes(e.target.value)}
+                placeholder="Reason or context..."
+                className="bg-zinc-800 border-zinc-700 text-zinc-100 resize-none text-sm"
+                rows={2}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPushToProdItem(null)} className="border-zinc-700">Cancel</Button>
+            <Button
+              onClick={handlePushToProd}
+              disabled={!pushQty || isPushing}
+              className="bg-orange-500 hover:bg-orange-600 text-white"
+            >
+              <Factory className="w-4 h-4 mr-1" />
+              {isPushing ? "Pushing..." : "Push to Planning"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Photo Capture Mode */}
       <PhotoCaptureMode
