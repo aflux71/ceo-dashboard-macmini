@@ -602,7 +602,7 @@ function TaskCard({ task, onComplete }) {
 // ── Day Column ───────────────────────────────────────────────────────────────
 export default function ShopFloorDayColumn({ date, dayLabel, isToday, batches, tasks, inventory, labels, onAddTask, onCompleteTask }) {
   return (
-    <div className={`min-w-[260px] flex flex-col rounded-xl border ${isToday ? "border-orange-500/30 bg-orange-500/5" : "border-zinc-800 bg-zinc-900/30"}`}>
+    <div className={`min-w-[260px] flex flex-col rounded-xl border overflow-y-auto max-h-[calc(100vh-280px)] ${isToday ? "border-orange-500/30 bg-orange-500/5" : "border-zinc-800 bg-zinc-900/30"}`}>
       <div className={`px-3 py-3 border-b ${isToday ? "border-orange-500/20" : "border-zinc-800"}`}>
         <div className={`text-sm font-bold ${isToday ? "text-orange-400" : "text-zinc-200"}`}>{dayLabel}</div>
         <div className="text-xs text-zinc-500 mt-0.5">
@@ -616,10 +616,10 @@ export default function ShopFloorDayColumn({ date, dayLabel, isToday, batches, t
           <div
             ref={provided.innerRef}
             {...provided.droppableProps}
-            className={`flex-1 p-2 space-y-2 overflow-y-auto max-h-[calc(100vh-280px)] transition-colors rounded-b-xl ${snapshot.isDraggingOver ? "bg-orange-500/5 border-orange-500/20" : ""}`}
+            className={`flex-1 p-2 space-y-2 transition-colors rounded-b-xl ${snapshot.isDraggingOver ? "bg-orange-500/5" : ""}`}
           >
             {batches.map((batch, index) => (
-              <Draggable key={batch.id} draggableId={batch.id} index={index}>
+              <Draggable key={String(batch.id)} draggableId={String(batch.id)} index={index}>
                 {(dragProvided) => (
                   <BatchCard
                     batch={batch}

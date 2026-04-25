@@ -185,7 +185,7 @@ export default function ShopFloorView() {
     if (!destination) return;
     const newDate = destination.droppableId;
     // Find the batch being moved
-    const batch = enrichedBatches.find((b) => b.id === draggableId);
+    const batch = enrichedBatches.find((b) => String(b.id) === String(draggableId));
     if (!batch) return;
     // Check it's actually changing date
     const currentDate = (() => {
