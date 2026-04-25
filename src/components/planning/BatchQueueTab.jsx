@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useCallback } from "react";
+import RecipeCalculatorPanel from "@/components/planning/RecipeCalculatorPanel";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import {
-  Factory, FlaskConical, Layers, CalendarDays, Package, Loader2,
-  Check, X, AlertTriangle, ChevronDown, Calculator, Clock,
-  FileText, Plus, Minus, ArrowLeft, Pencil, Trash2
+  Factory, Layers, CalendarDays, Package, Loader2,
+  Check, AlertTriangle, ChevronDown, Calculator, Clock,
+  FileText, Plus, Minus, Pencil, Trash2
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,9 +19,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
+
 import Badge from "@/components/ui/Badge";
 
 function addDays(dateStr, days) { if (!dateStr) return ""; const d = new Date(dateStr); d.setDate(d.getDate() + days); return d.toISOString().split("T")[0]; }
@@ -33,7 +32,7 @@ export default function BatchQueueTab() {
   const queryClient = useQueryClient();
   const [expandedId, setExpandedId] = useState(null);
   const [schedules, setSchedules] = useState({});
-  const [calcTarget, setCalcTarget] = useState({});
+  const [showCalculator, setShowCalculator] = useState({});
   const [bqEditDialogOpen, setBqEditDialogOpen] = useState(false);
   const [bqEditingId, setBqEditingId] = useState(null);
   const [bqEditForm, setBqEditForm] = useState(emptyForm);
@@ -98,6 +97,8 @@ export default function BatchQueueTab() {
     const key = `${item.type}-${item.id}`;
     if (expandedId === key) { setExpandedId(null); return; }
     setExpandedId(key);
+    // Auto-show the calculator when expanding
+    setShowCalculator((prev) => ({ ...prev, [key]: true }));
     if (!schedules[key]) {
       const recipe = findRecipe(item.sku);
       const batchSize = recipe?.batch_size || item.quantity;
@@ -137,13 +138,6 @@ export default function BatchQueueTab() {
     else scheduleManualMutation.mutate({ item: item._raw, batchData });
   };
 
-  const getScaledIngredients = (item, targetUnits) => {
-    const recipe = findRecipe(item.sku);
-    if (!recipe || !targetUnits) return null;
-    const multiplier = targetUnits / (recipe.batch_size || 1);
-    return (recipe.ingredients || []).map((ing) => ({ name: ing.material || ing.sku, unit: ing.unit || "", qty: Math.round((ing.qty || 0) * multiplier * 100) / 100 }));
-  };
-
   const isScheduling = scheduleForecastMutation.isPending || scheduleManualMutation.isPending;
 
   return (
@@ -160,10 +154,6 @@ export default function BatchQueueTab() {
           const sched = schedules[key] || defaultSchedule;
           const recipe = findRecipe(item.sku);
           const qcDate = getQcDate(key);
-          const calcKey = key;
-          const calcUnits = calcTarget[calcKey] || "";
-          const scaledIngredients = getScaledIngredients(item, Number(calcUnits));
-
           return (
             <Card key={key} className="bg-zinc-900 border-zinc-800">
               <CardContent className="p-0">
@@ -261,22 +251,23 @@ export default function BatchQueueTab() {
 
                     {recipe && (
                       <div>
-                        <h4 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3 flex items-center gap-1.5"><Calculator className="w-3.5 h-3.5" />Batch Size Calculator</h4>
-                        <div className="rounded-lg border border-zinc-800 p-3 space-y-3">
-                          <div className="flex items-center gap-2">
-                            <Label className="text-zinc-400 text-xs shrink-0">Target units:</Label>
-                            <Input type="number" placeholder={String(item.quantity)} value={calcUnits} onChange={(e) => setCalcTarget((prev) => ({ ...prev, [calcKey]: e.target.value }))} className="bg-zinc-800 border-zinc-700 text-zinc-100 h-8 text-sm w-32" />
-                            {calcUnits && recipe.batch_size && <span className="text-xs text-zinc-500">= {(Number(calcUnits) / recipe.batch_size).toFixed(1)} batches</span>}
-                          </div>
-                          {scaledIngredients && scaledIngredients.length > 0 && (
-                            <div className="rounded-lg border border-zinc-800 overflow-hidden">
-                              <Table>
-                                <TableHeader><TableRow className="border-zinc-800 hover:bg-transparent"><TableHead className="text-zinc-500 text-xs">Ingredient</TableHead><TableHead className="text-zinc-500 text-xs text-right">Scaled Qty</TableHead></TableRow></TableHeader>
-                                <TableBody>{scaledIngredients.map((ing, i) => (<TableRow key={i} className="border-zinc-800"><TableCell className="text-sm text-zinc-200 py-1.5">{ing.name}</TableCell><TableCell className="text-sm text-zinc-300 text-right font-mono py-1.5">{ing.qty.toLocaleString()} {ing.unit}</TableCell></TableRow>))}</TableBody>
-                              </Table>
-                            </div>
-                          )}
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowCalculator((prev) => ({ ...prev, [key]: !prev[key] }))}
+                          className="flex items-center gap-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3 hover:text-orange-400 transition-colors"
+                        >
+                          <Calculator className="w-3.5 h-3.5" />
+                          Recipe Material Calculator
+                          <span className={`ml-1 text-xs normal-case font-normal transition-colors ${showCalculator[key] ? "text-orange-400" : "text-zinc-600"}`}>
+                            {showCalculator[key] ? "▲ hide" : "▼ show"}
+                          </span>
+                        </button>
+                        {showCalculator[key] && (
+                          <RecipeCalculatorPanel
+                            recipe={recipe}
+                            targetUnits={Number(sched.batch_size) || item.quantity}
+                          />
+                        )}
                       </div>
                     )}
 
