@@ -4,7 +4,8 @@ import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import {
   Search, ArrowUpDown, ArrowUp, ArrowDown,
-  CheckCircle2, XCircle, Package, ChevronDown
+  CheckCircle2, XCircle, Package, ChevronDown,
+  LayoutGrid, List
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
@@ -24,6 +25,7 @@ export default function InventoryActNot() {
   const [sortKey, setSortKey] = useState("name_asc");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showSortMenu, setShowSortMenu] = useState(false);
+  const [viewMode, setViewMode] = useState("cards");
 
   const { data: inventoryItems = [] } = useQuery({
     queryKey: ["inv_act_inventory"],
@@ -174,6 +176,24 @@ export default function InventoryActNot() {
             />
           </div>
 
+          {/* View Toggle */}
+          <div className="flex items-center gap-0.5 bg-zinc-800 border border-zinc-700 rounded-lg p-0.5">
+            <button
+              onClick={() => setViewMode("cards")}
+              className={`p-1.5 rounded-md transition-colors ${viewMode === "cards" ? "bg-orange-500/20 text-orange-400" : "text-zinc-500 hover:text-zinc-300"}`}
+              title="Card view"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode("list")}
+              className={`p-1.5 rounded-md transition-colors ${viewMode === "list" ? "bg-orange-500/20 text-orange-400" : "text-zinc-500 hover:text-zinc-300"}`}
+              title="List view"
+            >
+              <List className="w-4 h-4" />
+            </button>
+          </div>
+
           {/* Sort */}
           <div className="relative" onClick={(e) => e.stopPropagation()}>
             <button
@@ -204,13 +224,13 @@ export default function InventoryActNot() {
         </div>
       </div>
 
-      {/* Product Grid */}
+      {/* Products */}
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-zinc-600">
           <Package className="w-12 h-12 mb-3" />
           <p className="text-sm">No products found</p>
         </div>
-      ) : (
+      ) : viewMode === "cards" ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {filtered.map((product) => (
             <div
@@ -252,6 +272,57 @@ export default function InventoryActNot() {
                   <><XCircle className="w-3.5 h-3.5" /> Inactive</>
                 )}
               </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+          <div className="grid grid-cols-[1fr_auto_auto_auto] gap-0 text-xs font-medium text-zinc-500 uppercase tracking-wider px-4 py-2.5 border-b border-zinc-800 bg-zinc-800/50">
+            <span>Product</span>
+            <span className="px-3">SKU</span>
+            <span className="px-3">Sources</span>
+            <span className="px-3 text-right">Status</span>
+          </div>
+          {filtered.map((product, i) => (
+            <div
+              key={product.sku}
+              className={`grid grid-cols-[1fr_auto_auto_auto] items-center gap-0 px-4 py-3 transition-colors ${
+                i < filtered.length - 1 ? "border-b border-zinc-800/50" : ""
+              } ${product.active ? "hover:bg-zinc-800/30" : "opacity-50 hover:bg-zinc-800/20"}`}
+            >
+              <span className={`text-sm font-medium truncate ${product.active ? "text-zinc-100" : "text-zinc-400 line-through"}`}>
+                {product.name || product.sku}
+              </span>
+              <span className="px-3 text-xs text-zinc-500 font-mono whitespace-nowrap">{product.sku}</span>
+              <div className="px-3 flex gap-1">
+                {product.sources.map((src) => (
+                  <span key={src} className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-500 border border-zinc-700 whitespace-nowrap">
+                    {src}
+                  </span>
+                ))}
+                {product.qty != null && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-500 border border-zinc-700 whitespace-nowrap">
+                    {product.qty} on hand
+                  </span>
+                )}
+              </div>
+              <div className="px-3 flex justify-end">
+                <button
+                  onClick={() => handleToggle(product)}
+                  title={product.active ? "Click to mark Inactive" : "Click to mark Active"}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors whitespace-nowrap ${
+                    product.active
+                      ? "bg-green-500/10 border-green-500/20 text-green-400 hover:bg-red-500/10 hover:border-red-500/20 hover:text-red-400"
+                      : "bg-zinc-800 border-zinc-700 text-zinc-500 hover:bg-green-500/10 hover:border-green-500/20 hover:text-green-400"
+                  }`}
+                >
+                  {product.active ? (
+                    <><CheckCircle2 className="w-3.5 h-3.5" /> Active</>
+                  ) : (
+                    <><XCircle className="w-3.5 h-3.5" /> Inactive</>
+                  )}
+                </button>
+              </div>
             </div>
           ))}
         </div>
