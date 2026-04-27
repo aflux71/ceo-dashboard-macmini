@@ -15,6 +15,7 @@ import AIAssistant from './pages/AIAssistant';
 import AssemblyGuides from './pages/AssemblyGuides';
 import ShopFloorView from './pages/ShopFloorView';
 import InventoryActNot from './pages/InventoryActNot';
+import ProductionRequest from './pages/ProductionRequest';
 import ErrorBoundary from './components/ErrorBoundary';
 
 const { Pages, Layout, mainPage } = pagesConfig;
@@ -75,6 +76,7 @@ const AuthenticatedApp = () => {
       <Route path="/QCTrends" element={<LayoutWrapper currentPageName="QCTrends"><QCTrends /></LayoutWrapper>} />
       <Route path="/ShopFloorView" element={<LayoutWrapper currentPageName="ShopFloorView"><ShopFloorView /></LayoutWrapper>} />
       <Route path="/InventoryActNot" element={<LayoutWrapper currentPageName="InventoryActNot"><InventoryActNot /></LayoutWrapper>} />
+      <Route path="/ProductionRequest" element={<LayoutWrapper currentPageName="ProductionRequest"><ProductionRequest /></LayoutWrapper>} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

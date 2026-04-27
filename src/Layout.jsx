@@ -57,6 +57,7 @@ const navItems = [
 
         { name: "Purchase Orders", icon: ShoppingCart, page: "PurchaseOrders" },
         { name: "Requisitions", icon: FileText, page: "PurchaseRequisitions", badge: true },
+        { name: "Production Request", icon: ClipboardList, page: "ProductionRequest" },
         { name: "Planning", icon: Factory, page: "ProductionPlanning" },
 
         { name: "Shop Floor", icon: Factory, page: "ShopFloorView" },
