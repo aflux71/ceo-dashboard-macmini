@@ -52,12 +52,12 @@ const navItems = [
         { name: "Batch Travellers", icon: FileText, page: "BatchTraveler" },
         { name: "Batch History", icon: History, page: "BatchHistory" },
         { name: "Inventory", icon: Package, page: "Inventory" },
+        { name: "Inventory Act/Not", icon: Boxes, page: "InventoryActNot" },
         { name: "Recipes", icon: Beaker, page: "Recipes" },
 
         { name: "Purchase Orders", icon: ShoppingCart, page: "PurchaseOrders" },
         { name: "Requisitions", icon: FileText, page: "PurchaseRequisitions", badge: true },
         { name: "Planning", icon: Factory, page: "ProductionPlanning" },
-        { name: "Inventory Act/Not", icon: Boxes, page: "InventoryActNot" },
 
         { name: "Shop Floor", icon: Factory, page: "ShopFloorView" },
         { name: "AI Assistant", icon: BrainCircuit, page: "AIAssistant" },
