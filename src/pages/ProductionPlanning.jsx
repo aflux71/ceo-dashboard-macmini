@@ -1344,12 +1344,9 @@ import WipInHouseTab from "@/components/planning/WipInHouseTab";
 import ScheduleTab from "@/components/planning/ScheduleTab";
 import PlanningAssistant from "@/components/ai/PlanningAssistant";
 import DemandPlanner from "./DemandPlanner";
-import InventoryActSidebar from "@/components/planning/InventoryActSidebar";
-
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function ProductionPlanning() {
-  const [showInventoryActSidebar, setShowInventoryActSidebar] = useState(false);
   // Counts for tab badges
   const { data: suggestedItems = [] } = useQuery({
     queryKey: ["planning_forecast_suggestions"],
@@ -1425,9 +1422,7 @@ export default function ProductionPlanning() {
   const batchQueueCount = bqForecasts.length + bqManual.length;
 
   return (
-    <div className="flex gap-0 min-h-0 relative">
-    {/* Main content */}
-    <div className={`flex-1 min-w-0 space-y-6 transition-all duration-300 ${showInventoryActSidebar ? "mr-0" : ""}`}>
+    <div className="space-y-6">
       {/* AI Planning Assistant */}
       <PlanningAssistant
         forecastSuggestions={[...suggestedItems, ...mcForecasts]}
@@ -1435,27 +1430,16 @@ export default function ProductionPlanning() {
 
       {/* Header */}
       <div>
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-lg bg-orange-500/10 border border-orange-500/20">
-              <Factory className="w-6 h-6 text-orange-500" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-zinc-100">Production Planning</h1>
-              <p className="text-zinc-500 text-sm mt-0.5">
-                End-to-end production workflow — from request to finished goods
-              </p>
-            </div>
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-lg bg-orange-500/10 border border-orange-500/20">
+            <Factory className="w-6 h-6 text-orange-500" />
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowInventoryActSidebar((v) => !v)}
-            className={`border-zinc-700 text-zinc-400 hover:text-zinc-100 shrink-0 ${showInventoryActSidebar ? "bg-orange-500/10 border-orange-500/30 text-orange-400" : ""}`}
-          >
-            <Package className="w-4 h-4 mr-2" />
-            Inventory Act/Not
-          </Button>
+          <div>
+            <h1 className="text-2xl font-bold text-zinc-100">Production Planning</h1>
+            <p className="text-zinc-500 text-sm mt-0.5">
+              End-to-end production workflow — from request to finished goods
+            </p>
+          </div>
         </div>
       </div>
 
@@ -1662,14 +1646,6 @@ export default function ProductionPlanning() {
           );
         })}
       </Tabs>
-    </div>{/* end main content */}
-
-    {/* Inventory Act/Not Sidebar */}
-    {showInventoryActSidebar && (
-      <div className="sticky top-0 h-screen overflow-hidden shrink-0" style={{ height: "calc(100vh - 2rem)" }}>
-        <InventoryActSidebar onClose={() => setShowInventoryActSidebar(false)} />
-      </div>
-    )}
     </div>
   );
 }
