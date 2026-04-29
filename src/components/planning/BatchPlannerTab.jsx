@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Search, Plus, Trash2, Printer, Package, FlaskConical,
-  CheckCircle2, AlertTriangle, X, ChevronDown, ChevronUp, Layers
+  CheckCircle2, AlertTriangle, X, ChevronDown, ChevronUp, Layers, MapPin
 } from "lucide-react";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -15,9 +15,16 @@ function roundQ(n) {
   return Math.round((n || 0) * 1000) / 1000;
 }
 
-function computeAggregateMaterials(selectedItems, recipes, inventory) {
+function computeAggregateMaterials(selectedItems, recipes, inventory, labels) {
   const invMap = {};
-  inventory.forEach((i) => { if (i.sku) invMap[i.sku.toLowerCase()] = i.quantity || 0; });
+  inventory.forEach((i) => {
+    if (i.sku) invMap[i.sku.toLowerCase()] = { qty: i.quantity || 0, location: i.location || "" };
+  });
+  (labels || []).forEach((l) => {
+    if (l.sku && !invMap[l.sku.toLowerCase()]) {
+      invMap[l.sku.toLowerCase()] = { qty: l.current_quantity || 0, location: l.bin_location || "" };
+    }
+  });
 
   const ingredientMap = {};
   const packagingMap = {};
@@ -37,12 +44,14 @@ function computeAggregateMaterials(selectedItems, recipes, inventory) {
       if (!key) return;
       const required = roundQ((ing.qty || 0) * batches);
       if (!ingredientMap[key]) {
+        const inv = invMap[key];
         ingredientMap[key] = {
           name: ing.material || ing.sku,
           sku: ing.sku,
           unit: ing.unit || "",
+          location: inv?.location || "",
           required: 0,
-          onHand: roundQ(invMap[key] || 0),
+          onHand: roundQ(inv?.qty || 0),
         };
       }
       ingredientMap[key].required = roundQ(ingredientMap[key].required + required);
@@ -53,12 +62,14 @@ function computeAggregateMaterials(selectedItems, recipes, inventory) {
       if (!key) return;
       const required = roundQ((pkg.qty_per_unit || 0) * qty);
       if (!packagingMap[key]) {
+        const inv = invMap[key];
         packagingMap[key] = {
           name: pkg.name || pkg.sku,
           sku: pkg.sku,
           unit: "pcs",
+          location: inv?.location || "",
           required: 0,
-          onHand: roundQ(invMap[key] || 0),
+          onHand: roundQ(inv?.qty || 0),
         };
       }
       packagingMap[key].required = roundQ(packagingMap[key].required + required);
@@ -271,6 +282,7 @@ function MaterialsTable({ rows, title, icon: Icon, color }) {
             <thead>
               <tr className="border-b border-zinc-800 bg-zinc-900/80">
                 <th className="text-left px-4 py-2.5 text-xs text-zinc-500 font-medium">Item</th>
+                <th className="text-left px-4 py-2.5 text-xs text-zinc-500 font-medium">Bin</th>
                 <th className="text-right px-4 py-2.5 text-xs text-zinc-500 font-medium">Required</th>
                 <th className="text-right px-4 py-2.5 text-xs text-zinc-500 font-medium">On Hand</th>
                 <th className="text-center px-4 py-2.5 text-xs text-zinc-500 font-medium w-24">Status</th>
@@ -282,6 +294,16 @@ function MaterialsTable({ rows, title, icon: Icon, color }) {
                   <td className="px-4 py-2.5 text-zinc-200">
                     {m.name}
                     {m.sku && <span className="text-xs text-zinc-600 ml-2 font-mono">{m.sku}</span>}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    {m.location ? (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 text-xs font-mono">
+                        <MapPin className="w-3 h-3 text-zinc-500" />
+                        {m.location}
+                      </span>
+                    ) : (
+                      <span className="text-zinc-600 text-xs">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-2.5 text-right font-mono text-zinc-300">
                     {m.required.toLocaleString()} <span className="text-zinc-500 text-xs">{m.unit}</span>
@@ -320,6 +342,11 @@ export default function BatchPlannerTab() {
     queryFn: () => base44.entities.Inventory.list(),
   });
 
+  const { data: labels = [] } = useQuery({
+    queryKey: ["planner_labels"],
+    queryFn: () => base44.entities.Label.list(),
+  });
+
   const activeRecipes = useMemo(() =>
     recipes.filter((r) => r.sku && r.name && r.active !== false)
       .sort((a, b) => a.name.localeCompare(b.name)),
@@ -345,8 +372,8 @@ export default function BatchPlannerTab() {
   };
 
   const materials = useMemo(() =>
-    selectedItems.length > 0 ? computeAggregateMaterials(selectedItems, recipes, inventory) : null,
-    [selectedItems, recipes, inventory]
+    selectedItems.length > 0 ? computeAggregateMaterials(selectedItems, recipes, inventory, labels) : null,
+    [selectedItems, recipes, inventory, labels]
   );
 
   const totalShort = materials

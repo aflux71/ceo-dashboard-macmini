@@ -654,6 +654,11 @@ function MaterialCheckTab() {
     queryFn: () => base44.entities.Inventory.list(),
   });
 
+  const { data: labels = [] } = useQuery({
+    queryKey: ["planning_labels"],
+    queryFn: () => base44.entities.Label.list(),
+  });
+
   const createCopackOrder = async (item) => {
     await base44.entities.CopackOrder.create({
       product_name: item.product_name,
@@ -739,14 +744,23 @@ function MaterialCheckTab() {
 
   const isLoading = loadingMcF || loadingMcM;
 
-  // Build inventory lookup map
+  // Build inventory lookup map (keyed by SKU). Includes Labels so packaging/labels resolve too.
   const inventoryMap = useMemo(() => {
     const map = {};
     inventory.forEach((item) => {
       if (item.sku) map[item.sku.toLowerCase()] = item;
     });
+    labels.forEach((lbl) => {
+      if (lbl.sku && !map[lbl.sku.toLowerCase()]) {
+        map[lbl.sku.toLowerCase()] = {
+          quantity: lbl.current_quantity,
+          location: lbl.bin_location,
+          name: lbl.name,
+        };
+      }
+    });
     return map;
-  }, [inventory]);
+  }, [inventory, labels]);
 
   // Find recipe by product SKU
   const findRecipe = (sku) => {
@@ -776,6 +790,7 @@ function MaterialCheckTab() {
         name: ing.material || ing.sku,
         sku: ing.sku,
         unit: ing.unit || "",
+        location: invItem?.location || invItem?.bin_location || "",
         required: Math.round(required * 100) / 100,
         onHand: Math.round(onHand * 100) / 100,
         sufficient,
@@ -794,6 +809,7 @@ function MaterialCheckTab() {
         name: pkg.name || pkg.sku,
         sku: pkg.sku,
         unit: "pcs",
+        location: invItem?.location || invItem?.bin_location || "",
         required: Math.round(required * 100) / 100,
         onHand: Math.round(onHand * 100) / 100,
         sufficient,
@@ -1075,6 +1091,7 @@ function MaterialCheckTab() {
                           <TableHeader>
                             <TableRow className="border-zinc-800 hover:bg-transparent">
                               <TableHead className="text-zinc-500 text-xs font-medium">Ingredient</TableHead>
+                              <TableHead className="text-zinc-500 text-xs font-medium">Bin</TableHead>
                               <TableHead className="text-zinc-500 text-xs font-medium text-right">Required</TableHead>
                               <TableHead className="text-zinc-500 text-xs font-medium text-right">On Hand</TableHead>
                               <TableHead className="text-zinc-500 text-xs font-medium text-center w-24">Status</TableHead>
@@ -1090,6 +1107,16 @@ function MaterialCheckTab() {
                                       <span className="text-xs text-zinc-600 ml-2 font-mono">{mat.sku}</span>
                                     )}
                                   </div>
+                                </TableCell>
+                                <TableCell className="text-xs">
+                                  {mat.location ? (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 font-mono">
+                                      <MapPin className="w-3 h-3 text-zinc-500" />
+                                      {mat.location}
+                                    </span>
+                                  ) : (
+                                    <span className="text-zinc-600">—</span>
+                                  )}
                                 </TableCell>
                                 <TableCell className="text-sm text-zinc-300 text-right font-mono">
                                   {mat.required.toLocaleString()} {mat.unit}
