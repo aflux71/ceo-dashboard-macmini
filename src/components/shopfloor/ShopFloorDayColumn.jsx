@@ -619,13 +619,13 @@ function BatchCard({ batch, inventory, labels, dragHandleProps, draggableProps, 
 }
 
 // ── Task Card ────────────────────────────────────────────────────────────────
-function TaskCard({ task, onComplete }) {
+function TaskCard({ task, onComplete, dragHandleProps, draggableProps, innerRef }) {
   const tcfg = TASK_TYPE_CONFIG[task.task_type] || TASK_TYPE_CONFIG.other;
   const statusVariant = task.status === "completed" ? "green" : task.status === "in_progress" ? "blue" : "default";
 
   return (
-    <div className="rounded-lg border border-dashed border-zinc-700 bg-zinc-900/50 px-3 py-2 space-y-1.5">
-      <div className="flex items-center justify-between gap-2">
+    <div ref={innerRef} {...draggableProps} className="rounded-lg border border-dashed border-zinc-700 bg-zinc-900/50 px-3 py-2 space-y-1.5">
+      <div {...dragHandleProps} className="flex items-center justify-between gap-2 cursor-grab active:cursor-grabbing">
         <div className="flex items-center gap-1.5">
           <Wrench className="w-3 h-3 text-zinc-500" />
           <span className="text-xs font-medium text-zinc-300">{task.task_name}</span>
@@ -684,10 +684,20 @@ export default function ShopFloorDayColumn({ date, dayLabel, isToday, batches, t
                 )}
               </Draggable>
             ))}
-            {provided.placeholder}
-            {tasks.map((task) => (
-              <TaskCard key={task.id} task={task} onComplete={onCompleteTask} />
+            {tasks.map((task, index) => (
+              <Draggable key={`task-${task.id}`} draggableId={`task-${task.id}`} index={batches.length + index}>
+                {(dragProvided) => (
+                  <TaskCard
+                    task={task}
+                    onComplete={onCompleteTask}
+                    innerRef={dragProvided.innerRef}
+                    draggableProps={dragProvided.draggableProps}
+                    dragHandleProps={dragProvided.dragHandleProps}
+                  />
+                )}
+              </Draggable>
             ))}
+            {provided.placeholder}
             {batches.length === 0 && tasks.length === 0 && (
               <div className="text-center py-6 text-zinc-600 text-xs">No items</div>
             )}

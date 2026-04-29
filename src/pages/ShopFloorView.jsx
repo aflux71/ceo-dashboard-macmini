@@ -180,14 +180,32 @@ export default function ShopFloorView() {
     onError: (err) => toast.error(`Failed to move batch: ${err?.message}`),
   });
 
+  const moveTaskMutation = useMutation({
+    mutationFn: ({ id, newDate }) => base44.entities.ShopFloorTask.update(id, { task_date: newDate }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["shopfloor_tasks"] });
+      toast.success("Task rescheduled");
+    },
+    onError: (err) => toast.error(`Failed to move task: ${err?.message}`),
+  });
+
   const handleDragEnd = (result) => {
     const { draggableId, destination } = result;
     if (!destination) return;
     const newDate = destination.droppableId;
-    // Find the batch being moved
+
+    // Task drag (prefixed with "task-")
+    if (draggableId.startsWith("task-")) {
+      const taskId = draggableId.slice(5);
+      const task = tasks.find((t) => String(t.id) === taskId);
+      if (!task || task.task_date === newDate) return;
+      moveTaskMutation.mutate({ id: task.id, newDate });
+      return;
+    }
+
+    // Batch drag
     const batch = enrichedBatches.find((b) => String(b.id) === String(draggableId));
     if (!batch) return;
-    // Check it's actually changing date
     const currentDate = (() => {
       const { batchDate, qcDate, fillDate } = batch.dates;
       if (batch.stage === "batching") return batchDate;
