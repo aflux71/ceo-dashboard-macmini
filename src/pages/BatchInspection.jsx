@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-  Phone, ClipboardCheck, CheckCircle2, XCircle, Loader2, ArrowLeft, User
+  Phone, ClipboardCheck, CheckCircle2, XCircle, Loader2, ArrowLeft, User, ScanLine
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,8 @@ import { Textarea } from "@/components/ui/textarea";
 import Badge from "@/components/ui/Badge";
 import BatchSelector from "@/components/inspection/BatchSelector";
 import PhotoUploader from "@/components/inspection/PhotoUploader";
+import BarcodeScanner from "@/components/scanner/BarcodeScanner";
+import { parseScannedCode } from "@/components/scanner/qrCodeUtils";
 
 export default function BatchInspection() {
   const queryClient = useQueryClient();
@@ -20,6 +22,8 @@ export default function BatchInspection() {
   const [inspector, setInspector] = useState("");
   const [notes, setNotes] = useState("");
   const [photos, setPhotos] = useState([]);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [lookingUp, setLookingUp] = useState(false);
 
   const { data: batches = [], isLoading } = useQuery({
     queryKey: ["inspection_batches"],
@@ -73,6 +77,34 @@ export default function BatchInspection() {
 
   const canSubmit = selected && result && inspector.trim().length > 0;
 
+  const handleScan = async (raw) => {
+    setScannerOpen(false);
+    const code = parseScannedCode(raw);
+    if (!code) return;
+
+    // Try the in-memory list first for instant match
+    const local = batches.find(
+      (b) => b.batch_id?.toLowerCase() === code.toLowerCase() || b.id === code
+    );
+    if (local) { setSelected(local); toast.success(`Loaded ${local.batch_id}`); return; }
+
+    // Fall back to API lookup
+    setLookingUp(true);
+    try {
+      const matches = await base44.entities.Batch.filter({ batch_id: code });
+      if (matches.length > 0) {
+        setSelected(matches[0]);
+        toast.success(`Loaded ${matches[0].batch_id}`);
+      } else {
+        toast.error(`No batch found for "${code}"`);
+      }
+    } catch (err) {
+      toast.error(`Lookup failed: ${err?.message || "unknown"}`);
+    } finally {
+      setLookingUp(false);
+    }
+  };
+
   const handleSubmit = () => {
     if (!canSubmit) return;
     if (result === "fail" && photos.length === 0) {
@@ -97,6 +129,15 @@ export default function BatchInspection() {
       {!selected ? (
         // ── Step 1: Pick a batch ───────────────────────────────────────────
         <div className="space-y-4">
+          <Button
+            onClick={() => setScannerOpen(true)}
+            disabled={lookingUp}
+            className="w-full h-12 bg-orange-500 hover:bg-orange-600 text-white font-semibold"
+          >
+            {lookingUp ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <ScanLine className="w-5 h-5 mr-2" />}
+            Scan Batch QR / Barcode
+          </Button>
+
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wide">
               Awaiting QC ({batches.length})
@@ -241,6 +282,13 @@ export default function BatchInspection() {
           </div>
         </div>
       )}
+
+      <BarcodeScanner
+        open={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onScan={handleScan}
+        title="Scan Batch Code"
+      />
     </div>
   );
 }

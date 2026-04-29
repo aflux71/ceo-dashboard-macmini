@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { generateQRDataURL } from "@/components/scanner/qrCodeUtils";
 
 const STAGE_CONFIG = {
   batching:     { label: "Batching",     variant: "blue",   bg: "bg-blue-500/10",   border: "border-blue-500/20",   text: "text-blue-400" },
@@ -50,10 +51,12 @@ function parseBatchLine(b) {
 }
 
 // ── Traveller Print Helper ───────────────────────────────────────────────────
-function printTraveller(batch, recipe) {
+async function printTraveller(batch, recipe) {
   const ingredients = recipe?.ingredients || [];
   const packaging = recipe?.packaging || [];
   const procedures = recipe?.procedures || [];
+
+  const qrData = await generateQRDataURL(batch.batch_id);
 
   const html = `<!DOCTYPE html><html><head><title>Batch Traveller — ${batch.batch_id}</title>
   <style>
@@ -69,9 +72,18 @@ function printTraveller(batch, recipe) {
     .label { font-weight: bold; font-size: 10px; color: #555; }
     .value { font-size: 12px; }
     .sign { border-top: 1px solid #999; width: 180px; margin-top: 30px; font-size: 10px; color: #666; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+    .qr-box { text-align: center; }
+    .qr-box img { width: 90px; height: 90px; display: block; }
+    .qr-box .qr-label { font-size: 9px; color: #666; margin-top: 2px; font-family: monospace; }
   </style></head><body>
-  <h1>Manufacturing Traveller</h1>
-  <p style="color:#666;font-size:10px;margin:0 0 10px;">Batch ID: ${batch.batch_id} &nbsp;|&nbsp; Printed: ${new Date().toLocaleString()}</p>
+  <div class="header">
+    <div>
+      <h1>Manufacturing Traveller</h1>
+      <p style="color:#666;font-size:10px;margin:0;">Batch ID: ${batch.batch_id} &nbsp;|&nbsp; Printed: ${new Date().toLocaleString()}</p>
+    </div>
+    ${qrData ? `<div class="qr-box"><img src="${qrData}" alt="QR" /><div class="qr-label">${batch.batch_id}</div></div>` : ""}
+  </div>
   <div class="grid2">
     <div>
       <div class="field"><div class="label">Product</div><div class="value">${batch.product_name}</div></div>
@@ -182,6 +194,7 @@ function QtyDialog({ open, batch, onClose, onSave }) {
 function TravellerDialog({ open, batch, recipe, onClose, onSave }) {
   const [editMode, setEditMode] = useState(false);
   const [form, setForm] = useState({});
+  const [qrUrl, setQrUrl] = useState("");
 
   useEffect(() => {
     if (open && batch) {
@@ -195,6 +208,7 @@ function TravellerDialog({ open, batch, recipe, onClose, onSave }) {
         labeled_qty: batch.labeled_qty ?? "",
       });
       setEditMode(false);
+      generateQRDataURL(batch.batch_id).then(setQrUrl);
     }
   }, [open, batch]);
 
@@ -209,7 +223,7 @@ function TravellerDialog({ open, batch, recipe, onClose, onSave }) {
             <span>Batch Traveller — {batch?.batch_id}</span>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => recipe !== undefined && printTraveller(batch, recipe)}
+                onClick={() => { if (recipe !== undefined) { printTraveller(batch, recipe); } }}
                 className="flex items-center gap-1.5 px-3 py-1 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-md transition-colors"
               >
                 <Printer className="w-3.5 h-3.5" /> Print
@@ -225,21 +239,29 @@ function TravellerDialog({ open, batch, recipe, onClose, onSave }) {
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          {/* Summary */}
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            {[
-              ["Product", batch?.product_name],
-              ["SKU", batch?.sku],
-              ["Planned Qty", `${batch?.quantity?.toLocaleString()} units`],
-              ["Line", parseBatchLine(batch || {})],
-              ["Status", batch?.status],
-              ["Batch Date", batch?.production_date ? new Date(batch.production_date).toLocaleDateString() : "—"],
-            ].map(([label, value]) => (
-              <div key={label}>
-                <div className="text-xs text-zinc-500">{label}</div>
-                <div className="text-zinc-200 font-medium">{value || "—"}</div>
+          {/* Summary + QR */}
+          <div className="flex gap-4 items-start">
+            <div className="grid grid-cols-2 gap-3 text-sm flex-1">
+              {[
+                ["Product", batch?.product_name],
+                ["SKU", batch?.sku],
+                ["Planned Qty", `${batch?.quantity?.toLocaleString()} units`],
+                ["Line", parseBatchLine(batch || {})],
+                ["Status", batch?.status],
+                ["Batch Date", batch?.production_date ? new Date(batch.production_date).toLocaleDateString() : "—"],
+              ].map(([label, value]) => (
+                <div key={label}>
+                  <div className="text-xs text-zinc-500">{label}</div>
+                  <div className="text-zinc-200 font-medium">{value || "—"}</div>
+                </div>
+              ))}
+            </div>
+            {qrUrl && (
+              <div className="text-center shrink-0">
+                <img src={qrUrl} alt="QR" className="w-24 h-24 bg-white p-1 rounded" />
+                <div className="text-[10px] font-mono text-zinc-500 mt-1">{batch?.batch_id}</div>
               </div>
-            ))}
+            )}
           </div>
 
           {/* Operator (editable) */}
