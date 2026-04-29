@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { generateQRDataURL } from "@/components/scanner/qrCodeUtils";
+import LotConsumptionDialog from "@/components/production/LotConsumptionDialog";
 
 const STAGE_CONFIG = {
   batching:     { label: "Batching",     variant: "blue",   bg: "bg-blue-500/10",   border: "border-blue-500/20",   text: "text-blue-400" },
@@ -417,6 +418,7 @@ function BatchCard({ batch, inventory, labels, dragHandleProps, draggableProps, 
   const [expanded, setExpanded] = useState(false);
   const [qtyDialog, setQtyDialog] = useState(false);
   const [travellerDialog, setTravellerDialog] = useState(false);
+  const [lotDialog, setLotDialog] = useState(false);
   const [recipe, setRecipe] = useState(undefined); // undefined = not loaded yet
   const queryClient = useQueryClient();
 
@@ -483,6 +485,11 @@ function BatchCard({ batch, inventory, labels, dragHandleProps, draggableProps, 
   const handleOpenTraveller = async () => {
     await loadRecipe();
     setTravellerDialog(true);
+  };
+
+  const handleOpenLotCapture = async () => {
+    await loadRecipe();
+    setLotDialog(true);
   };
 
   return (
@@ -598,6 +605,14 @@ function BatchCard({ batch, inventory, labels, dragHandleProps, draggableProps, 
               <FileText className="w-3 h-3 mr-1" /> Traveller
             </Button>
           </div>
+          {/* Lot Capture — only during batching */}
+          {stage === "batching" && (
+            <Button size="sm" variant="ghost"
+              onClick={handleOpenLotCapture}
+              className="w-full text-xs h-7 text-zinc-400 hover:text-orange-400 hover:bg-orange-500/10 border border-zinc-800">
+              <MapPin className="w-3 h-3 mr-1" /> Capture Lots
+            </Button>
+          )}
         </div>
       </div>
 
@@ -609,6 +624,15 @@ function BatchCard({ batch, inventory, labels, dragHandleProps, draggableProps, 
         onSave={(data) => {
           updateMutation.mutate({ id: batch.id, data }, { onSuccess: () => setQtyDialog(false) });
         }}
+      />
+
+      {/* Lot Capture Dialog */}
+      <LotConsumptionDialog
+        open={lotDialog}
+        batch={batch}
+        recipe={recipe}
+        inventory={inventory}
+        onClose={() => setLotDialog(false)}
       />
 
       {/* Traveller Dialog */}

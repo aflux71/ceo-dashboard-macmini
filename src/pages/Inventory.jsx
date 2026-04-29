@@ -13,7 +13,8 @@ import {
   Copy,
   Link2,
   Layers,
-  Factory
+  Factory,
+  Barcode as BarcodeIcon
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import Badge from "@/components/ui/Badge";
 import LotNumbersDialog from "@/components/inventory/LotNumbersDialog";
+import BarcodePrintDialog from "@/components/inventory/BarcodePrintDialog";
 import PhotoCaptureMode from "@/components/inventory/PhotoCaptureMode";
 import { Camera } from "lucide-react";
 
@@ -79,6 +81,7 @@ export default function Inventory() {
   const [isMerging, setIsMerging] = useState(false);
   const [mergeResult, setMergeResult] = useState(null);
   const [showPhotoCaptureMode, setShowPhotoCaptureMode] = useState(false);
+  const [barcodeItem, setBarcodeItem] = useState(null);
   const [pushToProdItem, setPushToProdItem] = useState(null);
   const [pushQty, setPushQty] = useState(0);
   const [pushNotes, setPushNotes] = useState("");
@@ -784,6 +787,15 @@ export default function Inventory() {
                            <Button
                              size="sm"
                              variant="ghost"
+                             onClick={() => setBarcodeItem(item)}
+                             className="text-zinc-400 hover:text-orange-400"
+                             title="Print barcode label"
+                           >
+                             <BarcodeIcon className="w-4 h-4" />
+                           </Button>
+                           <Button
+                             size="sm"
+                             variant="ghost"
                              onClick={() => openModal(item)}
                              className="text-zinc-400 hover:text-zinc-100"
                            >
@@ -1168,6 +1180,13 @@ export default function Inventory() {
         open={showPhotoCaptureMode}
         onClose={() => setShowPhotoCaptureMode(false)}
         inventory={inventory}
+      />
+
+      {/* Barcode Print Dialog */}
+      <BarcodePrintDialog
+        open={!!barcodeItem}
+        item={barcodeItem}
+        onClose={() => setBarcodeItem(null)}
       />
     </div>
   );
