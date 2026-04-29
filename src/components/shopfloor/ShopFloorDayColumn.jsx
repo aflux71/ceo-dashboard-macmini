@@ -619,9 +619,15 @@ function BatchCard({ batch, inventory, labels, dragHandleProps, draggableProps, 
 }
 
 // ── Task Card ────────────────────────────────────────────────────────────────
-function TaskCard({ task, onComplete, dragHandleProps, draggableProps, innerRef }) {
+const TASK_STATUS_OPTIONS = [
+  { value: "pending",     label: "Pending",     variant: "default" },
+  { value: "in_progress", label: "In Progress", variant: "blue" },
+  { value: "completed",   label: "Completed",   variant: "green" },
+];
+
+function TaskCard({ task, onStatusChange, dragHandleProps, draggableProps, innerRef }) {
   const tcfg = TASK_TYPE_CONFIG[task.task_type] || TASK_TYPE_CONFIG.other;
-  const statusVariant = task.status === "completed" ? "green" : task.status === "in_progress" ? "blue" : "default";
+  const currentStatus = TASK_STATUS_OPTIONS.find((s) => s.value === task.status) || TASK_STATUS_OPTIONS[0];
 
   return (
     <div ref={innerRef} {...draggableProps} className="rounded-lg border border-dashed border-zinc-700 bg-zinc-900/50 px-3 py-2 space-y-1.5">
@@ -640,19 +646,25 @@ function TaskCard({ task, onComplete, dragHandleProps, draggableProps, innerRef 
           <span className="flex items-center gap-1"><User className="w-3 h-3" />{task.operator}</span>
         )}
       </div>
-      <Badge variant={statusVariant}>{task.status}</Badge>
-      {task.status !== "completed" && (
-        <button onClick={() => onComplete(task)}
-          className="flex items-center gap-1 text-xs text-green-400 hover:text-green-300 transition-colors mt-1">
-          <CheckCircle2 className="w-3 h-3" /> Mark Complete
-        </button>
-      )}
+      <div className="flex items-center gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
+        <Badge variant={currentStatus.variant}>{currentStatus.label}</Badge>
+        <select
+          value={task.status || "pending"}
+          onChange={(e) => onStatusChange(task, e.target.value)}
+          onMouseDown={(e) => e.stopPropagation()}
+          className="bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-1.5 py-0.5 text-xs focus:outline-none focus:border-zinc-500"
+        >
+          {TASK_STATUS_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
     </div>
   );
 }
 
 // ── Day Column ───────────────────────────────────────────────────────────────
-export default function ShopFloorDayColumn({ date, dayLabel, isToday, batches, tasks, inventory, labels, onAddTask, onCompleteTask }) {
+export default function ShopFloorDayColumn({ date, dayLabel, isToday, batches, tasks, inventory, labels, onAddTask, onTaskStatusChange }) {
   return (
     <div className={`min-w-[260px] flex flex-col rounded-xl border overflow-y-auto max-h-[calc(100vh-280px)] ${isToday ? "border-orange-500/30 bg-orange-500/5" : "border-zinc-800 bg-zinc-900/30"}`}>
       <div className={`px-3 py-3 border-b ${isToday ? "border-orange-500/20" : "border-zinc-800"}`}>
@@ -689,7 +701,7 @@ export default function ShopFloorDayColumn({ date, dayLabel, isToday, batches, t
                 {(dragProvided) => (
                   <TaskCard
                     task={task}
-                    onComplete={onCompleteTask}
+                    onStatusChange={onTaskStatusChange}
                     innerRef={dragProvided.innerRef}
                     draggableProps={dragProvided.draggableProps}
                     dragHandleProps={dragProvided.dragHandleProps}

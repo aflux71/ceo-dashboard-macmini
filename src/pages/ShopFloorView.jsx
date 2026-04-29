@@ -228,11 +228,11 @@ export default function ShopFloorView() {
     onError: (err) => toast.error(`Failed: ${err?.message}`),
   });
 
-  const completeTaskMutation = useMutation({
-    mutationFn: (task) => base44.entities.ShopFloorTask.update(task.id, { status: "completed" }),
+  const updateTaskStatusMutation = useMutation({
+    mutationFn: ({ task, status }) => base44.entities.ShopFloorTask.update(task.id, { status }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["shopfloor_tasks"] });
-      toast.success("Task completed");
+      toast.success("Task updated");
     },
     onError: (err) => toast.error(`Failed: ${err?.message}`),
   });
@@ -382,7 +382,7 @@ export default function ShopFloorView() {
                   inventory={inventory}
                   labels={labels}
                   onAddTask={(d) => setAddTaskDialog(d)}
-                  onCompleteTask={(task) => completeTaskMutation.mutate(task)}
+                  onTaskStatusChange={(task, status) => updateTaskStatusMutation.mutate({ task, status })}
                 />
               </div>
             ))}
