@@ -84,6 +84,11 @@
       "type": "string",
       "description": "Additional notes"
     },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether this inventory item is active"
+    },
     "paired_item_id": {
       "type": "string",
       "description": "ID of paired item (e.g., matching lid for a bottle)"
