@@ -51,73 +51,278 @@ function parseBatchLine(b) {
   return l ? `Line ${l}` : "—";
 }
 
-// ── Traveller Print Helper ───────────────────────────────────────────────────
+// ── Traveller Print Helper (Bubble Factory format) ─────────────────────────
 async function printTraveller(batch, recipe) {
   const ingredients = recipe?.ingredients || [];
   const packaging = recipe?.packaging || [];
-  const procedures = recipe?.procedures || [];
 
   const qrData = await generateQRDataURL(batch.batch_id);
+  const fmtDate = (d) => d ? new Date(d.includes?.("T") ? d : d + "T00:00:00").toLocaleDateString("en-CA") : "";
+  const productCode = batch.product_code || "";
+  const lineLabel = parseBatchLine(batch);
 
-  const html = `<!DOCTYPE html><html><head><title>Batch Traveller — ${batch.batch_id}</title>
+  const sectionBar = (num, title) => `
+    <div class="section-bar"><span class="sec-num">${num}.</span> ${title}</div>`;
+
+  const fieldLine = (label, value, width = "auto") => `
+    <span class="field-line" style="${width !== "auto" ? `min-width:${width};` : ""}">
+      <span class="field-label">${label}</span>
+      <span class="field-value">${value || ""}</span>
+    </span>`;
+
+  const checkbox = (label) => `<span class="checkbox-row"><span class="cb"></span> ${label}</span>`;
+
+  const html = `<!DOCTYPE html><html><head><title>Manufacturing Traveller — ${batch.batch_id}</title>
   <style>
-    @page { margin: 0.5in; size: letter; }
-    body { font-family: Arial, sans-serif; font-size: 11px; color: #111; margin: 0; }
-    h1 { font-size: 16px; margin: 0 0 4px; }
-    h2 { font-size: 12px; margin: 12px 0 6px; border-bottom: 1px solid #ccc; padding-bottom: 3px; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-    th, td { border: 1px solid #ccc; padding: 4px 8px; text-align: left; }
-    th { background: #f3f3f3; font-weight: bold; }
-    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
-    .field { margin-bottom: 4px; }
-    .label { font-weight: bold; font-size: 10px; color: #555; }
-    .value { font-size: 12px; }
-    .sign { border-top: 1px solid #999; width: 180px; margin-top: 30px; font-size: 10px; color: #666; }
-    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
-    .qr-box { text-align: center; }
-    .qr-box img { width: 90px; height: 90px; display: block; }
-    .qr-box .qr-label { font-size: 9px; color: #666; margin-top: 2px; font-family: monospace; }
+    @page { margin: 0.4in; size: letter; }
+    * { box-sizing: border-box; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 10.5px; color: #111; margin: 0; line-height: 1.4; }
+
+    /* Brand header */
+    .brand-header {
+      background: #1e3a5f; color: #fff; padding: 14px 16px;
+      display: flex; justify-content: space-between; align-items: center;
+      border: 1px solid #1e3a5f;
+    }
+    .brand-name { font-size: 22px; font-weight: 900; letter-spacing: 0.5px; }
+    .brand-sub { font-size: 10px; opacity: 0.85; margin-top: 2px; }
+    .brand-center { font-size: 16px; font-weight: bold; text-align: center; flex: 1; }
+    .brand-right { font-size: 10px; text-align: right; line-height: 1.5; }
+
+    /* Section bars */
+    .section-bar {
+      background: #1e3a5f; color: #fff; font-size: 11px; font-weight: bold;
+      padding: 5px 10px; letter-spacing: 0.3px; margin-top: 8px;
+    }
+    .section-bar .sec-num { font-weight: 900; margin-right: 4px; }
+    .section-body {
+      border: 1px solid #1e3a5f; border-top: 0; padding: 10px 12px;
+    }
+
+    /* Fields */
+    .field-line {
+      display: inline-block; margin-right: 18px; margin-bottom: 6px;
+      white-space: nowrap;
+    }
+    .field-label { font-weight: bold; font-size: 10px; margin-right: 4px; }
+    .field-value {
+      display: inline-block; min-width: 130px;
+      border-bottom: 1px solid #555; padding: 0 4px 1px;
+      font-size: 11px;
+    }
+    .field-block { margin-bottom: 4px; }
+
+    /* Checkboxes */
+    .checkbox-row {
+      display: inline-flex; align-items: center; gap: 6px;
+      margin-right: 22px; margin-bottom: 6px; font-size: 10.5px;
+    }
+    .cb {
+      display: inline-block; width: 11px; height: 11px;
+      border: 1.5px solid #333; vertical-align: middle;
+    }
+
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; }
+
+    /* Tables */
+    table { width: 100%; border-collapse: collapse; font-size: 10px; }
+    th, td { border: 1px solid #999; padding: 4px 6px; text-align: left; }
+    th { background: #e6ebf2; font-weight: bold; }
+
+    /* Product codes line */
+    .codes {
+      font-size: 9.5px; color: #333; margin-bottom: 8px;
+      font-style: italic;
+    }
+
+    /* QR */
+    .qr-block { display: flex; align-items: flex-start; gap: 10px; }
+    .qr-block img { width: 70px; height: 70px; }
+
+    /* Label affix */
+    .label-box {
+      border: 2px dashed #999; min-height: 90px;
+      display: flex; align-items: center; justify-content: center;
+      color: #999; font-style: italic; font-size: 10px;
+    }
+
+    /* Office use */
+    .office-box {
+      background: #eaf0f9; border: 1px solid #1e3a5f;
+      padding: 8px 10px; margin-top: 8px;
+    }
+    .office-title {
+      font-size: 10px; font-weight: bold; color: #1e3a5f;
+      letter-spacing: 0.5px; margin-bottom: 6px;
+    }
+
+    .notes-area { min-height: 60px; }
+
+    .pass-fail { display: inline-flex; gap: 14px; align-items: center; margin-left: 8px; }
   </style></head><body>
-  <div class="header">
+
+  <!-- ═══ HEADER ═══ -->
+  <div class="brand-header">
     <div>
-      <h1>Manufacturing Traveller</h1>
-      <p style="color:#666;font-size:10px;margin:0;">Batch ID: ${batch.batch_id} &nbsp;|&nbsp; Printed: ${new Date().toLocaleString()}</p>
+      <div class="brand-name">BUBBLE FACTORY</div>
+      <div class="brand-sub">Manufacturing Traveller</div>
     </div>
-    ${qrData ? `<div class="qr-box"><img src="${qrData}" alt="QR" /><div class="qr-label">${batch.batch_id}</div></div>` : ""}
-  </div>
-  <div class="grid2">
-    <div>
-      <div class="field"><div class="label">Product</div><div class="value">${batch.product_name}</div></div>
-      <div class="field"><div class="label">SKU</div><div class="value">${batch.sku}</div></div>
-      <div class="field"><div class="label">Planned Qty</div><div class="value">${batch.quantity?.toLocaleString()} units</div></div>
-    </div>
-    <div>
-      <div class="field"><div class="label">Operator</div><div class="value">${batch.operator || "—"}</div></div>
-      <div class="field"><div class="label">Line</div><div class="value">${parseBatchLine(batch)}</div></div>
-      <div class="field"><div class="label">Status</div><div class="value">${batch.status}</div></div>
+    <div class="brand-center">High Priority Document</div>
+    <div class="brand-right">
+      Form: BF-TRV-001<br/>
+      Rev: 1.0
     </div>
   </div>
-  ${ingredients.length > 0 ? `<h2>Ingredients</h2>
-  <table><thead><tr><th>Material</th><th>SKU</th><th>Qty</th><th>Unit</th><th>Actual Used</th><th>Initials</th></tr></thead>
-  <tbody>${ingredients.map(i => `<tr><td>${i.material || ""}</td><td>${i.sku || ""}</td><td>${i.qty || ""}</td><td>${i.unit || ""}</td><td></td><td></td></tr>`).join("")}</tbody></table>` : ""}
-  ${packaging.length > 0 ? `<h2>Packaging</h2>
-  <table><thead><tr><th>Item</th><th>SKU</th><th>Qty/Unit</th><th>Total Qty</th><th>✓</th></tr></thead>
-  <tbody>${packaging.map(p => `<tr><td>${p.name || ""}</td><td>${p.sku || ""}</td><td>${p.qty_per_unit || ""}</td><td>${(p.qty_per_unit || 0) * (batch.quantity || 0)}</td><td></td></tr>`).join("")}</tbody></table>` : ""}
-  ${procedures.length > 0 ? `<h2>Procedures</h2>
-  <table><thead><tr><th>#</th><th>Step</th><th>Duration</th><th>Done</th></tr></thead>
-  <tbody>${procedures.map(p => `<tr><td>${p.step}</td><td>${p.description || ""}</td><td>${p.duration_minutes ? p.duration_minutes + " min" : ""}</td><td style="width:40px"></td></tr>`).join("")}</tbody></table>` : ""}
-  <h2>Yield &amp; Sign-Off</h2>
-  <div class="grid2">
-    <div class="field"><div class="label">Actual Units Produced</div><div style="border-bottom:1px solid #999;height:24px;margin-top:4px"></div></div>
-    <div class="field"><div class="label">Notes / Deviations</div><div style="border-bottom:1px solid #999;height:24px;margin-top:4px"></div></div>
+
+  <!-- ═══ I. BATCH IDENTIFICATION & PREP ═══ -->
+  ${sectionBar("I", "BATCH IDENTIFICATION &amp; PREP")}
+  <div class="section-body">
+    <div class="codes">
+      PRODUCT CODES: LS = Liquid Soap | FS = Face Serum | RO = Roll-on | BB = Bath Bomb | SB = Shampoo Bar | EO = Essential Oil
+    </div>
+    <div class="field-block" style="margin-bottom:6px;"><b>Format:</b> [PROD]-[Julian Date]-[QC]</div>
+
+    <div class="qr-block">
+      <div style="flex:1;">
+        ${fieldLine("Batch ID:", batch.batch_id, "150px")}
+        ${fieldLine("Date:", fmtDate(batch.production_date), "130px")}
+        ${fieldLine("Product Code:", productCode, "100px")}
+        <br/>
+        ${fieldLine("Product Name:", batch.product_name, "200px")}
+        ${fieldLine("Batch Prepped By:", batch.batch_prepped_by || batch.operator || "", "150px")}
+        <br/>
+        ${fieldLine("Total Theoretical Volume/Weight:", batch.total_theoretical_volume_weight || "", "200px")}
+      </div>
+      ${qrData ? `<div style="text-align:center;"><img src="${qrData}" alt="QR"/><div style="font-size:8px;font-family:monospace;color:#555;margin-top:2px;">${batch.batch_id}</div></div>` : ""}
+    </div>
   </div>
-  <div class="grid2" style="margin-top:20px">
-    <div class="sign">Operator Signature</div>
-    <div class="sign">QC Approval</div>
+
+  <!-- ═══ II. SANITIZATION REPORT ═══ -->
+  ${sectionBar("II", "SANITIZATION REPORT — FILL STAGE")}
+  <div class="section-body">
+    <div class="two-col">
+      <div>
+        ${checkbox("Filling Vessel cleaned &amp; sanitized")}<br/>
+        ${checkbox("Filling Equipment/Pumps flushed")}<br/>
+        ${checkbox("Utensils/Scales wiped (70% IPA)")}
+      </div>
+      <div>
+        ${checkbox("Work surface cleared &amp; sanitized")}<br/>
+        ${checkbox("Operator hands/gloves sanitized")}
+      </div>
+    </div>
+    <div style="margin-top:6px;">
+      ${fieldLine("Verified By:", batch.sanitization_verified_by || "", "150px")}
+      ${fieldLine("Time:", batch.sanitization_time || "", "120px")}
+      ${fieldLine("Sanitizer Used:", batch.sanitizer_used || "", "150px")}
+    </div>
   </div>
+
+  <!-- ═══ III. QUALITY CONTROL (QC) ═══ -->
+  ${sectionBar("III", "QUALITY CONTROL (QC)")}
+  <div class="section-body">
+    <div class="two-col">
+      <div>
+        ${fieldLine("Final pH:", batch.qc_final_ph || "", "80px")}
+        ${fieldLine("Target:", batch.qc_final_ph_target || "", "80px")}
+      </div>
+      <div>
+        <div style="margin-bottom:4px;"><b>Color/Scent Check:</b><span class="pass-fail"><span class="cb"></span> Pass <span class="cb"></span> Fail</span></div>
+        <div><b>Viscosity/Texture:</b><span class="pass-fail"><span class="cb"></span> Pass <span class="cb"></span> Fail</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ IV. FILLING & YIELD CALCULATION ═══ -->
+  ${sectionBar("IV", "FILLING &amp; YIELD CALCULATION")}
+  <div class="section-body" style="padding:0;">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:18%;">Container</th>
+          <th style="width:12%;">Size</th>
+          <th style="width:18%;">Expected (QTY)</th>
+          <th style="width:14%;">Actual</th>
+          <th style="width:14%;">Waste/Loss</th>
+          <th style="width:14%;">Yield %</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${(packaging.length > 0 ? packaging : [{}, {}, {}]).map((p) => `
+          <tr>
+            <td style="height:24px;">${p.name || ""}</td>
+            <td>${p.sku || ""}</td>
+            <td>${p.qty_per_unit ? (p.qty_per_unit * (batch.quantity || 0)) : (batch.quantity || "")}</td>
+            <td></td><td></td><td></td>
+          </tr>`).join("")}
+      </tbody>
+    </table>
+  </div>
+
+  ${ingredients.length > 0 ? `
+  <!-- ═══ INGREDIENTS / BOM ═══ -->
+  ${sectionBar("IV·a", "INGREDIENTS / BILL OF MATERIALS")}
+  <div class="section-body" style="padding:0;">
+    <table>
+      <thead>
+        <tr>
+          <th>SKU</th><th>Material</th>
+          <th style="text-align:right;">Target Qty</th>
+          <th>Unit</th><th>Lot #</th><th>Actual Qty</th><th style="width:50px;text-align:center;">✓</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${ingredients.map((ing) => `
+          <tr>
+            <td style="font-family:monospace;">${ing.sku || ""}</td>
+            <td>${ing.material || ""}</td>
+            <td style="text-align:right;font-weight:bold;">${ing.qty || ""}</td>
+            <td>${ing.unit || ""}</td>
+            <td></td><td></td><td style="text-align:center;">□</td>
+          </tr>`).join("")}
+      </tbody>
+    </table>
+  </div>` : ""}
+
+  <!-- ═══ V. LABEL VERIFICATION ═══ -->
+  ${sectionBar("V", "LABEL VERIFICATION")}
+  <div class="section-body">
+    <div class="two-col">
+      <div>
+        ${checkbox("Batch Number on label matches this Traveller")}<br/>
+        ${checkbox("Expiry Date / PAO is correct")}<br/>
+        ${checkbox("Label is straight and free of air bubbles")}
+      </div>
+      <div class="label-box">AFFIX SAMPLE LABEL HERE OR BACK</div>
+    </div>
+  </div>
+
+  <!-- ═══ VI. FINAL AUTHORIZATION ═══ -->
+  ${sectionBar("VI", "FINAL AUTHORIZATION")}
+  <div class="section-body">
+    <div style="margin-bottom:6px;">
+      ${fieldLine("Production Manager:", batch.production_manager || "", "200px")}
+      ${fieldLine("Date:", fmtDate(batch.authorization_date), "150px")}
+    </div>
+    <div style="font-style:italic;font-size:9.5px;color:#555;">Copy to Office for Filing &amp; Inventory Management</div>
+
+    <div class="office-box">
+      <div class="office-title">OFFICE USE ONLY — INVENTORY MANAGEMENT</div>
+      ${checkbox("Added to Inventory")}
+      ${fieldLine("By:", batch.inventory_added_by || "", "150px")}
+      ${fieldLine("Date:", fmtDate(batch.inventory_added_date), "130px")}
+    </div>
+  </div>
+
+  <!-- ═══ VII. NOTES ═══ -->
+  ${sectionBar("VII", "NOTES <span style='font-weight:normal;font-style:italic;float:right;font-size:10px;'>BATCH FORMULATION PROTECTED — NOT INCLUDED ON TRAVELLER</span>")}
+  <div class="section-body">
+    <div class="notes-area">${(batch.traveler_notes || batch.notes || "").replace(/\n/g, "<br/>")}</div>
+  </div>
+
   </body></html>`;
 
-  const win = window.open("", "_blank", "width=900,height=700");
+  const win = window.open("", "_blank", "width=900,height=900");
   win.document.write(html);
   win.document.close();
   win.focus();
