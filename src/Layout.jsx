@@ -53,11 +53,11 @@ const navItems = [
         { name: "Batch History", icon: History, page: "BatchHistory" },
         { name: "Inventory", icon: Package, page: "Inventory" },
         { name: "Inventory Act/Not", icon: Boxes, page: "InventoryActNot" },
+        { name: "Production Request", icon: ClipboardList, page: "ProductionRequest" },
         { name: "Recipes", icon: Beaker, page: "Recipes" },
 
         { name: "Purchase Orders", icon: ShoppingCart, page: "PurchaseOrders" },
         { name: "Requisitions", icon: FileText, page: "PurchaseRequisitions", badge: true },
-        { name: "Production Request", icon: ClipboardList, page: "ProductionRequest" },
         { name: "Planning", icon: Factory, page: "ProductionPlanning" },
 
         { name: "Shop Floor", icon: Factory, page: "ShopFloorView" },
