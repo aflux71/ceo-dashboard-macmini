@@ -101,6 +101,11 @@
       "default": 1,
       "description": "Quantity of paired item needed per unit"
     },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether the finished product is active (visible in production planning)"
+    },
     "lot_numbers": {
       "type": "array",
       "description": "List of lot numbers with quantities and expiration dates",

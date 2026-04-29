@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   Search, ArrowUpDown, ArrowUp, ArrowDown,
   CheckCircle2, XCircle, Package, ChevronDown,
-  LayoutGrid, List
+  LayoutGrid, List, Loader2
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
@@ -19,6 +19,8 @@ const SORT_OPTIONS = [
   { key: "source_asc", label: "Source A→Z", field: "source", dir: "asc" },
 ];
 
+const INACTIVE_SKUS_KEY = "inactive_demand_only_skus";
+
 export default function InventoryActNot() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
@@ -26,6 +28,7 @@ export default function InventoryActNot() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [viewMode, setViewMode] = useState("cards");
+  const [pendingSku, setPendingSku] = useState(null);
 
   const { data: inventoryItems = [] } = useQuery({
     queryKey: ["inv_act_inventory"],
@@ -42,13 +45,60 @@ export default function InventoryActNot() {
     queryFn: () => base44.entities.DemandSummary.list(),
   });
 
-  const updateRecipeMutation = useMutation({
-    mutationFn: ({ id, active }) => base44.entities.Recipe.update(id, { active }),
-    onSuccess: (_, { active }) => {
+  const { data: inactiveSkusSetting } = useQuery({
+    queryKey: ["inv_act_inactive_skus"],
+    queryFn: async () => {
+      const rows = await base44.entities.AppSettings.filter({ key: INACTIVE_SKUS_KEY });
+      return rows[0] || null;
+    },
+  });
+
+  const inactiveSkuSet = useMemo(() => {
+    if (!inactiveSkusSetting?.value) return new Set();
+    try {
+      const arr = JSON.parse(inactiveSkusSetting.value);
+      return new Set(Array.isArray(arr) ? arr.map((s) => s.toLowerCase()) : []);
+    } catch {
+      return new Set();
+    }
+  }, [inactiveSkusSetting]);
+
+  const toggleMutation = useMutation({
+    mutationFn: async (product) => {
+      const newActive = !product.active;
+      setPendingSku(product.sku);
+
+      if (product.recipeId) {
+        await base44.entities.Recipe.update(product.recipeId, { active: newActive });
+      } else if (product.inventoryId) {
+        await base44.entities.Inventory.update(product.inventoryId, { active: newActive });
+      } else {
+        // Demand-only — track in AppSettings
+        const skuLower = product.sku.toLowerCase();
+        const next = new Set(inactiveSkuSet);
+        if (newActive) next.delete(skuLower);
+        else next.add(skuLower);
+        const value = JSON.stringify(Array.from(next));
+        if (inactiveSkusSetting) {
+          await base44.entities.AppSettings.update(inactiveSkusSetting.id, { value });
+        } else {
+          await base44.entities.AppSettings.create({
+            key: INACTIVE_SKUS_KEY,
+            value,
+            description: "SKUs from demand-only sources marked inactive in Inventory Act/Not",
+          });
+        }
+      }
+      return newActive;
+    },
+    onSuccess: (newActive) => {
       queryClient.invalidateQueries({ queryKey: ["inv_act_recipes"] });
-      toast.success(`Product marked ${active ? "Active" : "Inactive"}`);
+      queryClient.invalidateQueries({ queryKey: ["inv_act_inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["inv_act_inactive_skus"] });
+      toast.success(`Marked ${newActive ? "Active" : "Inactive"}`);
     },
     onError: () => toast.error("Failed to update status"),
+    onSettled: () => setPendingSku(null),
   });
 
   const products = useMemo(() => {
@@ -58,17 +108,36 @@ export default function InventoryActNot() {
       const key = item.sku?.toLowerCase();
       if (!key) return;
       if (!map.has(key)) {
-        map.set(key, { sku: item.sku, name: item.name, sources: new Set(), inventoryId: item.id, recipeId: null, active: true, qty: item.quantity });
+        map.set(key, {
+          sku: item.sku,
+          name: item.name,
+          sources: new Set(),
+          inventoryId: item.id,
+          recipeId: null,
+          active: item.active !== false,
+          qty: item.quantity,
+        });
       }
-      map.get(key).sources.add("Inventory");
-      map.get(key).qty = item.quantity;
+      const entry = map.get(key);
+      entry.sources.add("Inventory");
+      entry.qty = item.quantity;
+      entry.inventoryId = item.id;
+      entry.active = item.active !== false;
     });
 
     demandSummaries.forEach((ds) => {
       const key = ds.sku?.toLowerCase();
       if (!key) return;
       if (!map.has(key)) {
-        map.set(key, { sku: ds.sku, name: ds.product || ds.sku, sources: new Set(), inventoryId: null, recipeId: null, active: true, qty: null });
+        map.set(key, {
+          sku: ds.sku,
+          name: ds.product || ds.sku,
+          sources: new Set(),
+          inventoryId: null,
+          recipeId: null,
+          active: !inactiveSkuSet.has(key),
+          qty: null,
+        });
       }
       map.get(key).sources.add("Demand");
       if (!map.get(key).name && ds.product) map.get(key).name = ds.product;
@@ -78,16 +147,25 @@ export default function InventoryActNot() {
       if (!r.sku) return;
       const key = r.sku.toLowerCase();
       if (!map.has(key)) {
-        map.set(key, { sku: r.sku, name: r.name, sources: new Set(), inventoryId: null, recipeId: r.id, active: r.active !== false, qty: null });
+        map.set(key, {
+          sku: r.sku,
+          name: r.name,
+          sources: new Set(),
+          inventoryId: null,
+          recipeId: r.id,
+          active: r.active !== false,
+          qty: null,
+        });
       }
       const entry = map.get(key);
       entry.sources.add("Recipe");
       entry.recipeId = r.id;
+      // Recipe active flag takes precedence
       entry.active = r.active !== false;
     });
 
     return Array.from(map.values()).map((p) => ({ ...p, sources: Array.from(p.sources) }));
-  }, [inventoryItems, recipes, demandSummaries]);
+  }, [inventoryItems, recipes, demandSummaries, inactiveSkuSet]);
 
   const sortConfig = SORT_OPTIONS.find((s) => s.key === sortKey) || SORT_OPTIONS[0];
 
@@ -119,11 +197,32 @@ export default function InventoryActNot() {
   }), [products]);
 
   const handleToggle = (product) => {
-    if (!product.recipeId) {
-      toast.error("No recipe found for this product — add a recipe first to manage status.");
-      return;
-    }
-    updateRecipeMutation.mutate({ id: product.recipeId, active: !product.active });
+    if (pendingSku) return;
+    toggleMutation.mutate(product);
+  };
+
+  const renderToggleButton = (product, sizeClass = "w-full px-3 py-2") => {
+    const isPending = pendingSku === product.sku;
+    return (
+      <button
+        onClick={(e) => { e.stopPropagation(); handleToggle(product); }}
+        disabled={isPending}
+        title={product.active ? "Click to mark Inactive" : "Click to mark Active"}
+        className={`${sizeClass} flex items-center justify-center gap-1.5 rounded-lg text-xs font-medium border transition-colors disabled:opacity-60 disabled:cursor-wait ${
+          product.active
+            ? "bg-green-500/10 border-green-500/20 text-green-400 hover:bg-red-500/10 hover:border-red-500/20 hover:text-red-400"
+            : "bg-zinc-800 border-zinc-700 text-zinc-500 hover:bg-green-500/10 hover:border-green-500/20 hover:text-green-400"
+        }`}
+      >
+        {isPending ? (
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        ) : product.active ? (
+          <><CheckCircle2 className="w-3.5 h-3.5" /> Active</>
+        ) : (
+          <><XCircle className="w-3.5 h-3.5" /> Inactive</>
+        )}
+      </button>
+    );
   };
 
   return (
@@ -235,8 +334,9 @@ export default function InventoryActNot() {
           {filtered.map((product) => (
             <div
               key={product.sku}
-              className={`bg-zinc-900 border rounded-xl p-4 flex flex-col gap-3 transition-colors ${
-                product.active ? "border-zinc-800 hover:border-zinc-700" : "border-zinc-800/50 opacity-60"
+              onClick={() => handleToggle(product)}
+              className={`bg-zinc-900 border rounded-xl p-4 flex flex-col gap-3 transition-colors cursor-pointer ${
+                product.active ? "border-zinc-800 hover:border-zinc-700" : "border-zinc-800/50 opacity-60 hover:opacity-80"
               }`}
             >
               <div className="flex-1 min-w-0">
@@ -257,21 +357,7 @@ export default function InventoryActNot() {
                   )}
                 </div>
               </div>
-              <button
-                onClick={() => handleToggle(product)}
-                title={product.active ? "Click to mark Inactive" : "Click to mark Active"}
-                className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${
-                  product.active
-                    ? "bg-green-500/10 border-green-500/20 text-green-400 hover:bg-red-500/10 hover:border-red-500/20 hover:text-red-400"
-                    : "bg-zinc-800 border-zinc-700 text-zinc-500 hover:bg-green-500/10 hover:border-green-500/20 hover:text-green-400"
-                }`}
-              >
-                {product.active ? (
-                  <><CheckCircle2 className="w-3.5 h-3.5" /> Active</>
-                ) : (
-                  <><XCircle className="w-3.5 h-3.5" /> Inactive</>
-                )}
-              </button>
+              {renderToggleButton(product)}
             </div>
           ))}
         </div>
@@ -286,7 +372,8 @@ export default function InventoryActNot() {
           {filtered.map((product, i) => (
             <div
               key={product.sku}
-              className={`grid grid-cols-[1fr_auto_auto_auto] items-center gap-0 px-4 py-3 transition-colors ${
+              onClick={() => handleToggle(product)}
+              className={`grid grid-cols-[1fr_auto_auto_auto] items-center gap-0 px-4 py-3 transition-colors cursor-pointer ${
                 i < filtered.length - 1 ? "border-b border-zinc-800/50" : ""
               } ${product.active ? "hover:bg-zinc-800/30" : "opacity-50 hover:bg-zinc-800/20"}`}
             >
@@ -307,21 +394,7 @@ export default function InventoryActNot() {
                 )}
               </div>
               <div className="px-3 flex justify-end">
-                <button
-                  onClick={() => handleToggle(product)}
-                  title={product.active ? "Click to mark Inactive" : "Click to mark Active"}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors whitespace-nowrap ${
-                    product.active
-                      ? "bg-green-500/10 border-green-500/20 text-green-400 hover:bg-red-500/10 hover:border-red-500/20 hover:text-red-400"
-                      : "bg-zinc-800 border-zinc-700 text-zinc-500 hover:bg-green-500/10 hover:border-green-500/20 hover:text-green-400"
-                  }`}
-                >
-                  {product.active ? (
-                    <><CheckCircle2 className="w-3.5 h-3.5" /> Active</>
-                  ) : (
-                    <><XCircle className="w-3.5 h-3.5" /> Inactive</>
-                  )}
-                </button>
+                {renderToggleButton(product, "px-3 py-1.5")}
               </div>
             </div>
           ))}
