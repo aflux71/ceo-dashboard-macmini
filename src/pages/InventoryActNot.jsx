@@ -51,15 +51,6 @@ export default function InventoryActNot() {
     onError: () => toast.error("Failed to update status"),
   });
 
-  const updateInventoryMutation = useMutation({
-    mutationFn: ({ id, active }) => base44.entities.Inventory.update(id, { active }),
-    onSuccess: (_, { active }) => {
-      queryClient.invalidateQueries({ queryKey: ["inv_act_inventory"] });
-      toast.success(`Product marked ${active ? "Active" : "Inactive"}`);
-    },
-    onError: () => toast.error("Failed to update status"),
-  });
-
   const products = useMemo(() => {
     const map = new Map();
 
@@ -67,11 +58,10 @@ export default function InventoryActNot() {
       const key = item.sku?.toLowerCase();
       if (!key) return;
       if (!map.has(key)) {
-        map.set(key, { sku: item.sku, name: item.name, sources: new Set(), inventoryId: item.id, recipeId: null, active: item.active !== false, qty: item.quantity });
+        map.set(key, { sku: item.sku, name: item.name, sources: new Set(), inventoryId: item.id, recipeId: null, active: true, qty: item.quantity });
       }
       map.get(key).sources.add("Inventory");
       map.get(key).qty = item.quantity;
-      map.get(key).inventoryId = item.id;
     });
 
     demandSummaries.forEach((ds) => {
@@ -129,13 +119,11 @@ export default function InventoryActNot() {
   }), [products]);
 
   const handleToggle = (product) => {
-    if (product.recipeId) {
-      updateRecipeMutation.mutate({ id: product.recipeId, active: !product.active });
-    } else if (product.inventoryId) {
-      updateInventoryMutation.mutate({ id: product.inventoryId, active: !product.active });
-    } else {
-      toast.error("No recipe or inventory record found to update.");
+    if (!product.recipeId) {
+      toast.error("No recipe found for this product — add a recipe first to manage status.");
+      return;
     }
+    updateRecipeMutation.mutate({ id: product.recipeId, active: !product.active });
   };
 
   return (
