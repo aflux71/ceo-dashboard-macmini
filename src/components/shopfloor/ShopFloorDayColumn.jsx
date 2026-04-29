@@ -329,6 +329,70 @@ async function printTraveller(batch, recipe) {
   setTimeout(() => { win.print(); }, 400);
 }
 
+// ── Receipt Printer Mini Traveller (80mm / 3" wide) ─────────────────────────
+async function printReceiptTraveller(batch) {
+  const qrData = await generateQRDataURL(batch.batch_id);
+  const fmtDate = (d) => d ? new Date(d.includes?.("T") ? d : d + "T00:00:00").toLocaleDateString("en-CA") : "—";
+  const lineLabel = parseBatchLine(batch);
+
+  const html = `<!DOCTYPE html><html><head><title>Receipt — ${batch.batch_id}</title>
+  <style>
+    @page { margin: 2mm; size: 80mm auto; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Courier New', monospace;
+      width: 76mm; margin: 0; padding: 2mm;
+      color: #000; font-size: 11px; line-height: 1.35;
+    }
+    .center { text-align: center; }
+    .title { font-size: 13px; font-weight: 900; letter-spacing: 0.5px; }
+    .sub { font-size: 9px; color: #333; margin-top: 1mm; }
+    hr { border: 0; border-top: 1px dashed #000; margin: 2mm 0; }
+    .qr { display: block; margin: 2mm auto; width: 40mm; height: 40mm; }
+    .batch-id { font-size: 12px; font-weight: bold; font-family: monospace; }
+    .row { display: flex; justify-content: space-between; gap: 4mm; margin: 0.5mm 0; }
+    .row .lbl { color: #555; font-size: 9.5px; }
+    .row .val { font-weight: bold; text-align: right; font-size: 11px; max-width: 60%; word-wrap: break-word; }
+    .product { font-size: 12px; font-weight: bold; margin: 1mm 0; }
+    .footer { font-size: 9px; color: #666; margin-top: 3mm; text-align: center; }
+  </style></head><body>
+
+  <div class="center">
+    <div class="title">BUBBLE FACTORY</div>
+    <div class="sub">Manufacturing Traveller</div>
+  </div>
+
+  <hr/>
+
+  ${qrData ? `<img class="qr" src="${qrData}" alt="QR" />` : ""}
+  <div class="center batch-id">${batch.batch_id}</div>
+
+  <hr/>
+
+  <div class="product center">${batch.product_name || ""}</div>
+
+  <div class="row"><span class="lbl">SKU</span><span class="val">${batch.sku || "—"}</span></div>
+  <div class="row"><span class="lbl">Line</span><span class="val">${lineLabel || "—"}</span></div>
+  <div class="row"><span class="lbl">Batch Date</span><span class="val">${fmtDate(batch.production_date)}</span></div>
+  <div class="row"><span class="lbl">Planned Qty</span><span class="val">${batch.quantity?.toLocaleString() || "—"} units</span></div>
+  <div class="row"><span class="lbl">Operator</span><span class="val">${batch.operator || "—"}</span></div>
+  <div class="row"><span class="lbl">Status</span><span class="val">${batch.status || "—"}</span></div>
+  ${batch.finished_product_lot_number ? `<div class="row"><span class="lbl">Lot #</span><span class="val">${batch.finished_product_lot_number}</span></div>` : ""}
+  ${batch.expiry_date ? `<div class="row"><span class="lbl">Expiry</span><span class="val">${fmtDate(batch.expiry_date)}</span></div>` : ""}
+
+  <hr/>
+
+  <div class="footer">Printed ${new Date().toLocaleString()}</div>
+
+  </body></html>`;
+
+  const win = window.open("", "_blank", "width=400,height=700");
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => { win.print(); }, 400);
+}
+
 // ── Qty Dialog ───────────────────────────────────────────────────────────────
 function QtyDialog({ open, batch, onClose, onSave }) {
   const [qty, setQty] = useState("");
@@ -429,8 +493,16 @@ function TravellerDialog({ open, batch, recipe, onClose, onSave }) {
             <span>Batch Traveller — {batch?.batch_id}</span>
             <div className="flex items-center gap-2">
               <button
+                onClick={() => printReceiptTraveller(batch)}
+                className="flex items-center gap-1.5 px-3 py-1 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-md transition-colors"
+                title="Print receipt-size label (80mm)"
+              >
+                <Printer className="w-3.5 h-3.5" /> Receipt
+              </button>
+              <button
                 onClick={() => { if (recipe !== undefined) { printTraveller(batch, recipe); } }}
                 className="flex items-center gap-1.5 px-3 py-1 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-md transition-colors"
+                title="Print full traveller (letter)"
               >
                 <Printer className="w-3.5 h-3.5" /> Print
               </button>
