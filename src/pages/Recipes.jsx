@@ -44,6 +44,7 @@ import PrintRecipesDialog from "@/components/recipes/PrintRecipesDialog";
 import PackagingSkuSelect from "@/components/recipes/PackagingSkuSelect";
 import IngredientConversionHint from "@/components/recipes/IngredientConversionHint";
 import RecipeSkuSearch from "@/components/recipes/RecipeSkuSearch.jsx";
+import RecipeScaleCalculator from "@/components/recipes/RecipeScaleCalculator";
 import { useFloorPin } from "@/components/auth/FloorPinContext";
 import {
   AlertDialog,
@@ -1208,6 +1209,9 @@ export default function Recipes() {
                   showBreakdown={true}
                 />
               </div>
+
+              {/* Recipe Scaling Calculator */}
+              <RecipeScaleCalculator recipe={selectedRecipe} />
 
               {selectedRecipe.ingredients?.length > 0 && (
                 <div>
