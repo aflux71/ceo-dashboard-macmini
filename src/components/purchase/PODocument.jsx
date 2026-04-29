@@ -114,26 +114,28 @@ export default function PODocument({ po, onEdit, onDelete, companyName = "neōb"
     pdf.line(pageWidth / 2, y, pageWidth - margin, y);
     y += 8;
 
-    // Totals
+    // Totals — labels right-aligned to a fixed column, values right-aligned to page edge
+    const labelX = pageWidth - margin - 50; // right edge for labels
+    const valueX = pageWidth - margin - 2;  // right edge for values
     pdf.setFontSize(10);
-    pdf.text('Subtotal:', pageWidth - margin - 40, y);
-    pdf.text(`$${(po.subtotal || 0).toFixed(2)}`, pageWidth - margin - 2, y, { align: 'right' });
+    pdf.text('Subtotal:', labelX, y, { align: 'right' });
+    pdf.text(`$${(po.subtotal || 0).toFixed(2)}`, valueX, y, { align: 'right' });
     y += 6;
     if (po.tax > 0) {
-      pdf.text('Tax:', pageWidth - margin - 40, y);
-      pdf.text(`$${po.tax.toFixed(2)}`, pageWidth - margin - 2, y, { align: 'right' });
+      pdf.text('Tax:', labelX, y, { align: 'right' });
+      pdf.text(`$${po.tax.toFixed(2)}`, valueX, y, { align: 'right' });
       y += 6;
     }
     if (po.shipping > 0) {
-      pdf.text('Shipping:', pageWidth - margin - 40, y);
-      pdf.text(`$${po.shipping.toFixed(2)}`, pageWidth - margin - 2, y, { align: 'right' });
+      pdf.text('Shipping:', labelX, y, { align: 'right' });
+      pdf.text(`$${po.shipping.toFixed(2)}`, valueX, y, { align: 'right' });
       y += 6;
     }
     y += 2;
     pdf.setFont(undefined, 'bold');
     pdf.setFontSize(12);
-    pdf.text('TOTAL:', pageWidth - margin - 40, y);
-    pdf.text(`$${(po.total || 0).toFixed(2)} ${po.currency || 'CAD'}`, pageWidth - margin - 2, y, { align: 'right' });
+    pdf.text('TOTAL:', labelX, y, { align: 'right' });
+    pdf.text(`$${(po.total || 0).toFixed(2)} ${po.currency || 'CAD'}`, valueX, y, { align: 'right' });
 
     // Notes
     if (po.notes) {
