@@ -34,7 +34,8 @@ import {
   GitMerge,
   Boxes,
   BrainCircuit,
-  Activity
+  Activity,
+  Phone
 } from "lucide-react";
 
 const navItems = [
@@ -61,6 +62,7 @@ const navItems = [
         { name: "Planning", icon: Factory, page: "ProductionPlanning" },
 
         { name: "Shop Floor", icon: Factory, page: "ShopFloorView" },
+        { name: "Batch Inspection", icon: Phone, page: "BatchInspection" },
         { name: "AI Assistant", icon: BrainCircuit, page: "AIAssistant" },
         { name: "Bug Reports", icon: AlertOctagon, page: "BugReports" },
       ];
