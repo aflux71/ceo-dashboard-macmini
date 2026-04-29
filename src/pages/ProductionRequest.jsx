@@ -9,44 +9,83 @@ export default function ProductionRequest() {
   const [selectedItems, setSelectedItems] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
 
-  // Fetch all recipes to know which SKUs are "active"
   const { data: recipes = [] } = useQuery({
     queryKey: ["prod_req_recipes"],
     queryFn: () => base44.entities.Recipe.list(),
   });
 
-  // Fetch finished product inventory
-  const { data: inventoryItems = [], isLoading } = useQuery({
+  const { data: inventoryItems = [], isLoading: loadingInv } = useQuery({
     queryKey: ["prod_req_inventory"],
     queryFn: () => base44.entities.Inventory.filter({ type: "finished_product" }),
   });
 
-  // Active SKUs = recipes where active !== false
-  const activeSkus = useMemo(
-    () => new Set(recipes.filter((r) => r.active !== false).map((r) => r.sku?.toLowerCase())),
-    [recipes]
-  );
+  const { data: demandSummaries = [], isLoading: loadingDemand } = useQuery({
+    queryKey: ["prod_req_demand"],
+    queryFn: () => base44.entities.DemandSummary.list(),
+  });
 
-  // Active inventory items = inventory items whose SKU has an active recipe
-  const activeInventory = useMemo(
-    () => inventoryItems.filter((item) => activeSkus.has(item.sku?.toLowerCase())),
-    [inventoryItems, activeSkus]
-  );
+  const { data: forecastSuggestions = [], isLoading: loadingForecast } = useQuery({
+    queryKey: ["prod_req_forecast"],
+    queryFn: () => base44.entities.ForecastSuggestion.list(),
+  });
+
+  const isLoading = loadingInv || loadingDemand || loadingForecast;
+
+  // Build a unified product map keyed by lowercase SKU
+  const allProducts = useMemo(() => {
+    const map = new Map();
+
+    const upsert = (sku, patch) => {
+      if (!sku) return;
+      const key = sku.toLowerCase();
+      if (!map.has(key)) map.set(key, { sku, name: "", onHand: null, unit: "", active: true, sources: new Set() });
+      const entry = map.get(key);
+      if (patch.name && !entry.name) entry.name = patch.name;
+      if (patch.onHand != null) entry.onHand = patch.onHand;
+      if (patch.unit && !entry.unit) entry.unit = patch.unit;
+      if (patch.active != null) entry.active = patch.active;
+      if (patch.source) entry.sources.add(patch.source);
+    };
+
+    // 1. Recipes (active flag comes from here)
+    recipes.forEach((r) => {
+      upsert(r.sku, { name: r.name, active: r.active !== false, source: "Recipe" });
+    });
+
+    // 2. Finished product inventory
+    inventoryItems.forEach((item) => {
+      upsert(item.sku, { name: item.name, onHand: item.quantity, unit: item.unit, source: "Inventory" });
+    });
+
+    // 3. Demand summaries
+    demandSummaries.forEach((ds) => {
+      upsert(ds.sku, { name: ds.product, source: "Demand" });
+    });
+
+    // 4. Forecast suggestions
+    forecastSuggestions.forEach((fs) => {
+      upsert(fs.sku, { name: fs.product_name, source: "Forecast" });
+    });
+
+    return Array.from(map.values()).map((p) => ({
+      ...p,
+      sources: Array.from(p.sources),
+      // Use SKU as id for dedup key since these are virtual merged entries
+      id: p.sku,
+    }));
+  }, [recipes, inventoryItems, demandSummaries, forecastSuggestions]);
 
   const selectedIds = useMemo(() => new Set(selectedItems.map((i) => i.id)), [selectedItems]);
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return activeInventory;
+    if (!search.trim()) return allProducts;
     const q = search.toLowerCase();
-    return activeInventory.filter(
+    return allProducts.filter(
       (item) =>
         item.name?.toLowerCase().includes(q) ||
-        item.sku?.toLowerCase().includes(q) ||
-        item.supplier_sku?.toLowerCase().includes(q) ||
-        item.location?.toLowerCase().includes(q) ||
-        item.material_type?.toLowerCase().includes(q)
+        item.sku?.toLowerCase().includes(q)
     );
-  }, [activeInventory, search]);
+  }, [allProducts, search]);
 
   const handleSelect = (item) => {
     if (!selectedIds.has(item.id)) {
@@ -60,34 +99,36 @@ export default function ProductionRequest() {
     setSelectedItems((prev) => prev.filter((i) => i.id !== id));
   };
 
+  const sourceColors = {
+    Recipe: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+    Inventory: "bg-green-500/10 text-green-400 border-green-500/20",
+    Demand: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+    Forecast: "bg-orange-500/10 text-orange-400 border-orange-500/20",
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-lg bg-orange-500/10 border border-orange-500/20">
-            <ClipboardList className="w-6 h-6 text-orange-500" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-zinc-100">Production Request</h1>
-            <p className="text-zinc-500 text-sm mt-0.5">
-              Search and select active products to include in a production request
-            </p>
-          </div>
+      <div className="flex items-center gap-3">
+        <div className="p-2.5 rounded-lg bg-orange-500/10 border border-orange-500/20">
+          <ClipboardList className="w-6 h-6 text-orange-500" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold text-zinc-100">Production Request</h1>
+          <p className="text-zinc-500 text-sm mt-0.5">
+            Search across all products — inventory, demand planner, forecast, and recipes
+          </p>
         </div>
       </div>
 
       {/* Search */}
-      <div className="relative max-w-xl">
+      <div className="relative max-w-xl" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setShowDropdown(false); }}>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
           <Input
-            placeholder="Search by name, SKU, supplier SKU, location..."
+            placeholder="Search by name or SKU..."
             value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setShowDropdown(true);
-            }}
+            onChange={(e) => { setSearch(e.target.value); setShowDropdown(true); }}
             onFocus={() => setShowDropdown(true)}
             className="pl-10 h-10 bg-zinc-800 border-zinc-700 text-zinc-100 placeholder:text-zinc-500 text-sm"
           />
@@ -103,39 +144,40 @@ export default function ProductionRequest() {
 
         {/* Dropdown */}
         {showDropdown && search.trim() && (
-          <div className="absolute z-50 mt-1 w-full bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl max-h-72 overflow-y-auto">
+          <div className="absolute z-50 mt-1 w-full bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl max-h-80 overflow-y-auto">
             {isLoading ? (
               <div className="px-4 py-3 text-sm text-zinc-500">Loading...</div>
             ) : filtered.length === 0 ? (
-              <div className="px-4 py-3 text-sm text-zinc-500">No active products found.</div>
+              <div className="px-4 py-3 text-sm text-zinc-500">No products found.</div>
             ) : (
-              filtered.map((item) => {
+              filtered.slice(0, 50).map((item) => {
                 const alreadySelected = selectedIds.has(item.id);
                 return (
                   <button
                     key={item.id}
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => !alreadySelected && handleSelect(item)}
                     disabled={alreadySelected}
                     className={`w-full text-left px-4 py-3 flex items-center gap-3 border-b border-zinc-700/50 last:border-0 transition-colors ${
-                      alreadySelected
-                        ? "opacity-40 cursor-not-allowed"
-                        : "hover:bg-zinc-700"
+                      alreadySelected ? "opacity-40 cursor-not-allowed" : "hover:bg-zinc-700"
                     }`}
                   >
                     <Package className="w-4 h-4 text-zinc-500 shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-zinc-100 truncate">{item.name}</p>
+                      <p className="text-sm font-medium text-zinc-100 truncate">{item.name || item.sku}</p>
                       <p className="text-xs text-zinc-500 font-mono">{item.sku}</p>
                     </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-xs text-zinc-400">{item.quantity ?? 0} {item.unit}</p>
-                      {item.location && (
-                        <p className="text-xs text-zinc-600">{item.location}</p>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {item.sources.map((src) => (
+                        <span key={src} className={`text-[10px] px-1.5 py-0.5 rounded border ${sourceColors[src] || "bg-zinc-700 text-zinc-400 border-zinc-600"}`}>
+                          {src}
+                        </span>
+                      ))}
+                      {item.onHand != null && (
+                        <span className="text-xs text-zinc-400 ml-1">{item.onHand} {item.unit}</span>
                       )}
                     </div>
-                    {alreadySelected && (
-                      <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
-                    )}
+                    {alreadySelected && <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />}
                   </button>
                 );
               })
@@ -144,17 +186,14 @@ export default function ProductionRequest() {
         )}
       </div>
 
-      {/* Selected Items List */}
+      {/* Selected Items */}
       {selectedItems.length > 0 ? (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider">
               Selected Products ({selectedItems.length})
             </h2>
-            <button
-              onClick={() => setSelectedItems([])}
-              className="text-xs text-zinc-500 hover:text-red-400 transition-colors"
-            >
+            <button onClick={() => setSelectedItems([])} className="text-xs text-zinc-500 hover:text-red-400 transition-colors">
               Clear all
             </button>
           </div>
@@ -162,23 +201,24 @@ export default function ProductionRequest() {
             {selectedItems.map((item, i) => (
               <div
                 key={item.id}
-                className={`flex items-center gap-4 px-4 py-3 ${
-                  i < selectedItems.length - 1 ? "border-b border-zinc-800/50" : ""
-                }`}
+                className={`flex items-center gap-4 px-4 py-3 ${i < selectedItems.length - 1 ? "border-b border-zinc-800/50" : ""}`}
               >
                 <div className="p-1.5 rounded-md bg-orange-500/10">
                   <Package className="w-4 h-4 text-orange-400" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-zinc-100 truncate">{item.name}</p>
+                  <p className="text-sm font-medium text-zinc-100 truncate">{item.name || item.sku}</p>
                   <p className="text-xs text-zinc-500 font-mono">{item.sku}</p>
                 </div>
-                <div className="text-right shrink-0">
-                  <p className="text-sm text-zinc-300">{item.quantity ?? 0}</p>
-                  <p className="text-xs text-zinc-600">{item.unit}</p>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {item.sources.map((src) => (
+                    <span key={src} className={`text-[10px] px-1.5 py-0.5 rounded border ${sourceColors[src] || "bg-zinc-700 text-zinc-400 border-zinc-600"}`}>
+                      {src}
+                    </span>
+                  ))}
                 </div>
-                {item.location && (
-                  <span className="text-xs text-zinc-600 shrink-0 hidden sm:block">{item.location}</span>
+                {item.onHand != null && (
+                  <span className="text-sm text-zinc-400 shrink-0">{item.onHand} {item.unit}</span>
                 )}
                 <button
                   onClick={() => handleRemove(item.id)}
