@@ -335,6 +335,10 @@ async function printReceiptTraveller(batch) {
   const fmtDate = (d) => d ? new Date(d.includes?.("T") ? d : d + "T00:00:00").toLocaleDateString("en-CA") : "—";
   const lineLabel = parseBatchLine(batch);
 
+  const qtyDone = batch.actual_yield_units;
+  const unlabeled = batch.unlabeled_qty;
+  const labeled = batch.labeled_qty;
+
   const html = `<!DOCTYPE html><html><head><title>Receipt — ${batch.batch_id}</title>
   <style>
     @page { margin: 2mm; size: 80mm auto; }
@@ -342,19 +346,30 @@ async function printReceiptTraveller(batch) {
     body {
       font-family: 'Courier New', monospace;
       width: 76mm; margin: 0; padding: 2mm;
-      color: #000; font-size: 11px; line-height: 1.35;
+      color: #000; font-size: 14px; line-height: 1.4;
+      font-weight: bold;
     }
     .center { text-align: center; }
-    .title { font-size: 13px; font-weight: 900; letter-spacing: 0.5px; }
-    .sub { font-size: 9px; color: #333; margin-top: 1mm; }
-    hr { border: 0; border-top: 1px dashed #000; margin: 2mm 0; }
-    .qr { display: block; margin: 2mm auto; width: 40mm; height: 40mm; }
-    .batch-id { font-size: 12px; font-weight: bold; font-family: monospace; }
-    .row { display: flex; justify-content: space-between; gap: 4mm; margin: 0.5mm 0; }
-    .row .lbl { color: #555; font-size: 9.5px; }
-    .row .val { font-weight: bold; text-align: right; font-size: 11px; max-width: 60%; word-wrap: break-word; }
-    .product { font-size: 12px; font-weight: bold; margin: 1mm 0; }
-    .footer { font-size: 9px; color: #666; margin-top: 3mm; text-align: center; }
+    .title { font-size: 18px; font-weight: 900; letter-spacing: 1px; }
+    .sub { font-size: 12px; color: #000; margin-top: 1mm; font-weight: bold; }
+    hr { border: 0; border-top: 2px dashed #000; margin: 2mm 0; }
+    .qr { display: block; margin: 2mm auto; width: 44mm; height: 44mm; }
+    .batch-id { font-size: 16px; font-weight: 900; font-family: monospace; }
+    .row { display: flex; justify-content: space-between; gap: 3mm; margin: 1mm 0; }
+    .row .lbl { color: #000; font-size: 12px; font-weight: bold; }
+    .row .val { font-weight: 900; text-align: right; font-size: 14px; max-width: 60%; word-wrap: break-word; }
+    .product { font-size: 15px; font-weight: 900; margin: 2mm 0; }
+    .section-title { font-size: 13px; font-weight: 900; text-align: center; margin: 1mm 0; letter-spacing: 1px; }
+    .signoff { margin: 3mm 0; }
+    .signoff .line { border-bottom: 1.5px solid #000; height: 7mm; margin-top: 1mm; }
+    .signoff .lbl-sm { font-size: 11px; font-weight: bold; }
+    .qty-box {
+      border: 2px solid #000; padding: 2mm; margin: 1mm 0;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .qty-box .qty-lbl { font-size: 13px; font-weight: 900; }
+    .qty-box .qty-val { font-size: 16px; font-weight: 900; }
+    .footer { font-size: 10px; color: #000; margin-top: 3mm; text-align: center; font-weight: bold; }
   </style></head><body>
 
   <div class="center">
@@ -379,6 +394,42 @@ async function printReceiptTraveller(batch) {
   <div class="row"><span class="lbl">Status</span><span class="val">${batch.status || "—"}</span></div>
   ${batch.finished_product_lot_number ? `<div class="row"><span class="lbl">Lot #</span><span class="val">${batch.finished_product_lot_number}</span></div>` : ""}
   ${batch.expiry_date ? `<div class="row"><span class="lbl">Expiry</span><span class="val">${fmtDate(batch.expiry_date)}</span></div>` : ""}
+
+  <hr/>
+
+  <div class="section-title">PRODUCTION QTY</div>
+  <div class="qty-box">
+    <span class="qty-lbl">QTY Done</span>
+    <span class="qty-val">${qtyDone != null ? qtyDone.toLocaleString() + " u" : "________"}</span>
+  </div>
+  <div class="qty-box">
+    <span class="qty-lbl">Unlabeled</span>
+    <span class="qty-val">${unlabeled != null ? unlabeled.toLocaleString() + " u" : "________"}</span>
+  </div>
+  <div class="qty-box">
+    <span class="qty-lbl">Labeled</span>
+    <span class="qty-val">${labeled != null ? labeled.toLocaleString() + " u" : "________"}</span>
+  </div>
+
+  <hr/>
+
+  <div class="section-title">QA SIGN-OFF</div>
+  <div class="signoff">
+    <div class="lbl-sm">QA Inspector Name:</div>
+    <div class="line"></div>
+  </div>
+  <div class="signoff">
+    <div class="lbl-sm">Signature:</div>
+    <div class="line"></div>
+  </div>
+  <div class="signoff">
+    <div class="lbl-sm">Date / Time:</div>
+    <div class="line"></div>
+  </div>
+  <div class="row" style="margin-top:2mm">
+    <span class="lbl">Pass / Fail</span>
+    <span class="val">[ ] PASS &nbsp; [ ] FAIL</span>
+  </div>
 
   <hr/>
 
