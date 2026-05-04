@@ -477,7 +477,7 @@ export default function PurchaseOrders() {
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
-                          {po.status !== 'received' && po.status !== 'cancelled' && (
+                          {po.status !== 'cancelled' && (
                             <Button
                               size="sm"
                               variant="ghost"

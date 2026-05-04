@@ -182,7 +182,7 @@ export default function PODocument({ po, onEdit, onDelete, companyName = "neōb"
           )}
         </div>
         <div className="flex gap-2">
-          {po.status !== 'received' && po.status !== 'cancelled' && onEdit && (
+          {po.status !== 'cancelled' && onEdit && (
             <Button variant="outline" onClick={onEdit} className="gap-2">
               <Edit className="w-4 h-4" /> Edit
             </Button>
