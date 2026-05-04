@@ -477,25 +477,27 @@ export default function PurchaseOrders() {
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
+                          {po.status !== 'received' && po.status !== 'cancelled' && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => openEditModal(po)}
+                              className="text-zinc-400 hover:text-zinc-100"
+                              title="Edit PO"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                          )}
                           {po.status === 'draft' && (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => openEditModal(po)}
-                                className="text-zinc-400 hover:text-zinc-100"
-                              >
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => updateStatusMutation.mutate({ id: po.id, status: 'submitted' })}
-                                className="text-amber-500 hover:text-amber-400"
-                              >
-                                <Send className="w-4 h-4" />
-                              </Button>
-                            </>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => updateStatusMutation.mutate({ id: po.id, status: 'submitted' })}
+                              className="text-amber-500 hover:text-amber-400"
+                              title="Submit PO"
+                            >
+                              <Send className="w-4 h-4" />
+                            </Button>
                           )}
                           {po.status === 'submitted' && (
                             <Button
