@@ -107,7 +107,7 @@ export default function ProductionRequest() {
     setSelectedItems((prev) => prev.map((i) => (i.id === id ? { ...i, quantity_needed: value } : i)));
   };
 
-  const canSubmit = selectedItems.length > 0 && selectedItems.every((i) => Number(i.quantity_needed) > 0);
+  const canSubmit = selectedItems.length > 0;
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -118,7 +118,7 @@ export default function ProductionRequest() {
           base44.entities.ProductionRequest.create({
             sku: item.sku,
             product_name: item.name || item.sku,
-            quantity_needed: Number(item.quantity_needed),
+            quantity_needed: Number(item.quantity_needed) || 0,
             status: "pending",
             urgency: "medium",
             source: "manual",
@@ -287,9 +287,6 @@ export default function ProductionRequest() {
 
           {/* Submit */}
           <div className="flex items-center justify-end gap-3 pt-2">
-            {!canSubmit && (
-              <span className="text-xs text-zinc-500">Enter a quantity for each product to submit.</span>
-            )}
             <Button
               onClick={handleSubmit}
               disabled={!canSubmit || submitting}
