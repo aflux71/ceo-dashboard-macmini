@@ -292,7 +292,7 @@ export default function Labels() {
         .footer { text-align: center; font-size: 11px; margin-top: 12px; color: #000; }
       </style></head><body>
         <div class="header">
-          <h1>REQUISITION</h1>
+          <h1>LABEL REQUISITION</h1>
           <div class="date">${today}</div>
         </div>
 
