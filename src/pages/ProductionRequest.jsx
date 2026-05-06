@@ -1,13 +1,17 @@
 import React, { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
-import { Search, X, Package, CheckCircle2, ClipboardList } from "lucide-react";
+import { Search, X, Package, CheckCircle2, ClipboardList, Send } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
 export default function ProductionRequest() {
   const [search, setSearch] = useState("");
   const [selectedItems, setSelectedItems] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const queryClient = useQueryClient();
 
   const { data: recipes = [] } = useQuery({
     queryKey: ["prod_req_recipes"],
@@ -89,7 +93,7 @@ export default function ProductionRequest() {
 
   const handleSelect = (item) => {
     if (!selectedIds.has(item.id)) {
-      setSelectedItems((prev) => [...prev, item]);
+      setSelectedItems((prev) => [...prev, { ...item, quantity_needed: "" }]);
     }
     setSearch("");
     setShowDropdown(false);
@@ -97,6 +101,38 @@ export default function ProductionRequest() {
 
   const handleRemove = (id) => {
     setSelectedItems((prev) => prev.filter((i) => i.id !== id));
+  };
+
+  const handleQtyChange = (id, value) => {
+    setSelectedItems((prev) => prev.map((i) => (i.id === id ? { ...i, quantity_needed: value } : i)));
+  };
+
+  const canSubmit = selectedItems.length > 0 && selectedItems.every((i) => Number(i.quantity_needed) > 0);
+
+  const handleSubmit = async () => {
+    if (!canSubmit) return;
+    setSubmitting(true);
+    try {
+      await Promise.all(
+        selectedItems.map((item) =>
+          base44.entities.ProductionRequest.create({
+            sku: item.sku,
+            product_name: item.name || item.sku,
+            quantity_needed: Number(item.quantity_needed),
+            status: "pending",
+            urgency: "medium",
+            source: "manual",
+            requested_by: "Production Request",
+          })
+        )
+      );
+      setSelectedItems([]);
+      setSubmitSuccess(true);
+      queryClient.invalidateQueries({ queryKey: ["production_requests"] });
+      setTimeout(() => setSubmitSuccess(false), 4000);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const sourceColors = {
@@ -186,6 +222,14 @@ export default function ProductionRequest() {
         )}
       </div>
 
+      {/* Success banner */}
+      {submitSuccess && (
+        <div className="bg-green-500/10 border border-green-500/30 rounded-lg px-4 py-3 flex items-center gap-2 text-green-400 text-sm">
+          <CheckCircle2 className="w-4 h-4" />
+          Production requests submitted successfully.
+        </div>
+      )}
+
       {/* Selected Items */}
       {selectedItems.length > 0 ? (
         <div className="space-y-2">
@@ -218,8 +262,19 @@ export default function ProductionRequest() {
                   ))}
                 </div>
                 {item.onHand != null && (
-                  <span className="text-sm text-zinc-400 shrink-0">{item.onHand} {item.unit}</span>
+                  <span className="text-xs text-zinc-500 shrink-0">On hand: {item.onHand} {item.unit}</span>
                 )}
+                <div className="flex items-center gap-1 shrink-0">
+                  <Input
+                    type="number"
+                    min="1"
+                    placeholder="Qty"
+                    value={item.quantity_needed}
+                    onChange={(e) => handleQtyChange(item.id, e.target.value)}
+                    className="w-24 h-8 bg-zinc-800 border-zinc-700 text-zinc-100 text-sm"
+                  />
+                  {item.unit && <span className="text-xs text-zinc-500">{item.unit}</span>}
+                </div>
                 <button
                   onClick={() => handleRemove(item.id)}
                   className="p-1.5 rounded-md text-zinc-600 hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0"
@@ -228,6 +283,21 @@ export default function ProductionRequest() {
                 </button>
               </div>
             ))}
+          </div>
+
+          {/* Submit */}
+          <div className="flex items-center justify-end gap-3 pt-2">
+            {!canSubmit && (
+              <span className="text-xs text-zinc-500">Enter a quantity for each product to submit.</span>
+            )}
+            <Button
+              onClick={handleSubmit}
+              disabled={!canSubmit || submitting}
+              className="bg-orange-500 hover:bg-orange-600 text-white"
+            >
+              <Send className="w-4 h-4 mr-2" />
+              {submitting ? "Submitting..." : `Submit Request${selectedItems.length > 1 ? "s" : ""}`}
+            </Button>
           </div>
         </div>
       ) : (
