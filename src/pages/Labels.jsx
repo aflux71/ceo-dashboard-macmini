@@ -259,6 +259,76 @@ export default function Labels() {
     w.onload = () => { w.print(); };
   };
 
+  const handlePrintThermalRequisition = (label) => {
+    const today = new Date().toLocaleDateString();
+    const suggested = label.reorder_qty || Math.max((label.reorder_point || 0) * 2 - (label.current_quantity || 0), 0);
+
+    const html = `
+      <!DOCTYPE html><html><head><title>Requisition - ${label.name || ""}</title>
+      <style>
+        @page { size: 80mm auto; margin: 4mm; }
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; color: #000; margin: 0; padding: 6px; width: 72mm; }
+        .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 8px; }
+        .header h1 { font-size: 20px; margin: 0; font-weight: 800; letter-spacing: 0.5px; }
+        .header .date { font-size: 13px; margin-top: 4px; }
+        .label-name { font-size: 22px; font-weight: 800; text-align: center; margin: 10px 0 4px; line-height: 1.15; }
+        .sku { font-size: 14px; text-align: center; color: #000; margin-bottom: 12px; font-family: monospace; }
+        .row { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; border-bottom: 1px dashed #000; }
+        .row .lbl { font-size: 14px; font-weight: 600; text-transform: uppercase; }
+        .row .val { font-size: 20px; font-weight: 800; text-align: right; }
+        .row .val.big { font-size: 28px; }
+        .verify { margin-top: 16px; border: 2px solid #000; padding: 10px; }
+        .verify h2 { font-size: 14px; margin: 0 0 10px; text-align: center; text-transform: uppercase; letter-spacing: 1px; }
+        .sig-line { border-bottom: 1px solid #000; height: 28px; margin-top: 8px; }
+        .sig-label { font-size: 12px; margin-top: 3px; color: #000; }
+        .footer { text-align: center; font-size: 11px; margin-top: 12px; color: #000; }
+      </style></head><body>
+        <div class="header">
+          <h1>REQUISITION</h1>
+          <div class="date">${today}</div>
+        </div>
+
+        <div class="label-name">${label.name || ""}</div>
+        <div class="sku">${label.sku || ""}</div>
+
+        <div class="row">
+          <span class="lbl">Bin Location</span>
+          <span class="val big">${label.bin_location || "-"}</span>
+        </div>
+        <div class="row">
+          <span class="lbl">Current Qty</span>
+          <span class="val">${label.current_quantity ?? 0}</span>
+        </div>
+        <div class="row">
+          <span class="lbl">Reorder Qty</span>
+          <span class="val big">${suggested}</span>
+        </div>
+        <div class="row">
+          <span class="lbl">Supplier</span>
+          <span class="val" style="font-size:14px;">${label.supplier_name || "-"}</span>
+        </div>
+
+        <div class="verify">
+          <h2>Verification</h2>
+          <div class="sig-line"></div>
+          <div class="sig-label">Requested By / Date</div>
+          <div class="sig-line"></div>
+          <div class="sig-label">Approved By / Date</div>
+          <div class="sig-line"></div>
+          <div class="sig-label">Received By / Date</div>
+        </div>
+
+        <div class="footer">${label.product_name || ""}</div>
+      </body></html>
+    `;
+
+    const w = window.open("", "_blank", "width=400,height=700");
+    w.document.write(html);
+    w.document.close();
+    w.onload = () => { w.print(); };
+  };
+
   const handleSendToLabelPO = (label) => {
     setQueuedLabels((prev) => {
       const next = new Set(prev);
@@ -457,6 +527,15 @@ export default function Labels() {
                             title={queuedLabels.has(label.id) ? "Remove from Label PO queue" : "Send to Label PO"}
                           >
                             <ShoppingCart className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handlePrintThermalRequisition(label)}
+                            className="text-zinc-400 hover:text-blue-400"
+                            title="Print thermal requisition"
+                          >
+                            <Printer className="w-4 h-4" />
                           </Button>
                           <Button
                             variant="ghost"
