@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
-import { Search, X, Package, CheckCircle2, ClipboardList, Send } from "lucide-react";
+import { Search, X, Package, CheckCircle2, ClipboardList, Send, Trash2, Clock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
@@ -31,6 +31,11 @@ export default function ProductionRequest() {
   const { data: forecastSuggestions = [], isLoading: loadingForecast } = useQuery({
     queryKey: ["prod_req_forecast"],
     queryFn: () => base44.entities.ForecastSuggestion.list(),
+  });
+
+  const { data: pendingRequests = [], isLoading: loadingPending } = useQuery({
+    queryKey: ["production_requests_pending"],
+    queryFn: () => base44.entities.ProductionRequest.filter({ status: "pending" }, "-created_date"),
   });
 
   const isLoading = loadingInv || loadingDemand || loadingForecast;
@@ -128,11 +133,22 @@ export default function ProductionRequest() {
       );
       setSelectedItems([]);
       setSubmitSuccess(true);
-      queryClient.invalidateQueries({ queryKey: ["production_requests"] });
+      queryClient.invalidateQueries({ queryKey: ["production_requests_pending"] });
       setTimeout(() => setSubmitSuccess(false), 4000);
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleDeleteRequest = async (id) => {
+    if (!confirm("Delete this production request?")) return;
+    await base44.entities.ProductionRequest.delete(id);
+    queryClient.invalidateQueries({ queryKey: ["production_requests_pending"] });
+  };
+
+  const handleAcknowledge = async (id) => {
+    await base44.entities.ProductionRequest.update(id, { status: "material_check" });
+    queryClient.invalidateQueries({ queryKey: ["production_requests_pending"] });
   };
 
   const sourceColors = {
@@ -297,12 +313,68 @@ export default function ProductionRequest() {
             </Button>
           </div>
         </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center py-20 text-zinc-700">
-          <ClipboardList className="w-10 h-10 mb-3" />
-          <p className="text-sm">Search and select products above to build your request</p>
+      ) : null}
+
+      {/* Submitted / Pending Requests */}
+      <div className="space-y-2 pt-4 border-t border-zinc-800">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
+            <Clock className="w-4 h-4" />
+            Submitted Requests {pendingRequests.length > 0 && `(${pendingRequests.length})`}
+          </h2>
         </div>
-      )}
+
+        {loadingPending ? (
+          <div className="text-sm text-zinc-500 py-4">Loading...</div>
+        ) : pendingRequests.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-zinc-700">
+            <ClipboardList className="w-10 h-10 mb-3" />
+            <p className="text-sm">No pending production requests</p>
+          </div>
+        ) : (
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+            {pendingRequests.map((req, i) => (
+              <div
+                key={req.id}
+                className={`flex items-center gap-4 px-4 py-3 ${i < pendingRequests.length - 1 ? "border-b border-zinc-800/50" : ""}`}
+              >
+                <div className="p-1.5 rounded-md bg-amber-500/10">
+                  <Package className="w-4 h-4 text-amber-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-zinc-100 truncate">{req.product_name || req.sku}</p>
+                  <p className="text-xs text-zinc-500 font-mono">{req.sku}</p>
+                </div>
+                {req.quantity_needed > 0 && (
+                  <span className="text-sm text-zinc-300 shrink-0">Qty: {req.quantity_needed}</span>
+                )}
+                <span className="text-xs text-zinc-500 shrink-0">
+                  {req.created_date ? new Date(req.created_date).toLocaleDateString() : ""}
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded border bg-amber-500/10 text-amber-400 border-amber-500/20 shrink-0">
+                  Pending
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleAcknowledge(req.id)}
+                  className="h-8 bg-zinc-800 border-zinc-700 text-zinc-200 hover:bg-green-500/10 hover:text-green-400 hover:border-green-500/30"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                  Acknowledge
+                </Button>
+                <button
+                  onClick={() => handleDeleteRequest(req.id)}
+                  className="p-1.5 rounded-md text-zinc-600 hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0"
+                  title="Delete request"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
