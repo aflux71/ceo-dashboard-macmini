@@ -446,6 +446,35 @@ export default function Inventory() {
     }
   };
 
+  const exportRawMaterialsCSV = () => {
+    const rawMaterials = inventory.filter(i => i.type === 'raw_material');
+    const headers = ['SKU', 'Name', 'Material Type', 'Quantity', 'Unit', 'Cost Per Unit', 'Currency', 'Total Value (COG)', 'Supplier', 'Location'];
+    const escape = (v) => {
+      const s = (v ?? '').toString();
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const rows = rawMaterials.map(item => {
+      const qty = Number(item.quantity) || 0;
+      const cost = Number(item.cost_per_unit) || 0;
+      const total = qty * cost;
+      return [
+        item.sku, item.name, item.material_type, qty, item.unit,
+        cost.toFixed(2), item.currency || 'CAD', total.toFixed(2),
+        item.supplier, item.location
+      ].map(escape).join(',');
+    });
+    const grandTotal = rawMaterials.reduce((sum, i) => sum + (Number(i.quantity) || 0) * (Number(i.cost_per_unit) || 0), 0);
+    rows.push(['', '', '', '', '', '', 'TOTAL', grandTotal.toFixed(2), '', ''].map(escape).join(','));
+    const csv = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `raw-materials-cog-${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleSaveLots = (lots, totalQty) => {
     if (!selectedItemForLots) return;
     updateMutation.mutate({
@@ -465,6 +494,14 @@ export default function Inventory() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button
+            onClick={exportRawMaterialsCSV}
+            variant="outline"
+            className="border-zinc-700 text-zinc-400 hover:text-zinc-100"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Export Raw Materials (CSV)
+          </Button>
           <Button
             onClick={() => setShowPhotoCaptureMode(true)}
             variant="outline"
