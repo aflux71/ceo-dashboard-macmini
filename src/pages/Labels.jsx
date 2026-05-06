@@ -42,6 +42,7 @@ import {
   ArrowUp,
   ArrowDown,
   ShoppingCart,
+  Printer,
 } from "lucide-react";
 
 export default function Labels() {
@@ -187,6 +188,77 @@ export default function Labels() {
     totalValue: labels.reduce((sum, l) => sum + (l.current_quantity * (l.cost_per_unit || 0)), 0),
   };
 
+  const handlePrintRequisition = () => {
+    // Use queued labels if any, otherwise default to low + out of stock
+    const itemsToPrint = queuedLabels.size > 0
+      ? labels.filter((l) => queuedLabels.has(l.id))
+      : labels.filter((l) => l.current_quantity <= l.reorder_point);
+
+    if (itemsToPrint.length === 0) {
+      toast.error("No labels to requisition");
+      return;
+    }
+
+    const today = new Date().toLocaleDateString();
+    const rows = itemsToPrint.map((l) => {
+      const suggested = l.reorder_qty || Math.max((l.reorder_point || 0) * 2 - (l.current_quantity || 0), 0);
+      return `
+        <tr>
+          <td>${l.name || ""}</td>
+          <td>${l.sku || ""}</td>
+          <td>${l.product_name || "-"}</td>
+          <td style="text-align:center;">${l.current_quantity ?? 0}</td>
+          <td style="text-align:center;">${l.reorder_point ?? 0}</td>
+          <td style="text-align:center; font-weight:600;">${suggested}</td>
+          <td>${l.supplier_name || "-"}</td>
+          <td>${l.bin_location || "-"}</td>
+          <td>${l.lead_time_days ? l.lead_time_days + " days" : "-"}</td>
+        </tr>
+      `;
+    }).join("");
+
+    const html = `
+      <!DOCTYPE html><html><head><title>Label Requisition</title>
+      <style>
+        @page { size: letter; margin: 0.5in; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #111; padding: 20px; }
+        h1 { font-size: 22px; margin: 0 0 4px; }
+        .meta { color: #555; font-size: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
+        th { background: #f3f4f6; font-weight: 600; }
+        tr:nth-child(even) td { background: #fafafa; }
+        .signatures { margin-top: 40px; display: flex; gap: 60px; font-size: 12px; }
+        .sig { flex: 1; }
+        .sig-line { border-top: 1px solid #333; margin-top: 40px; padding-top: 4px; color: #555; }
+      </style></head><body>
+        <h1>Label Requisition Request</h1>
+        <div class="meta">
+          <span><strong>Date:</strong> ${today}</span>
+          <span><strong>Items:</strong> ${itemsToPrint.length}</span>
+        </div>
+        <table>
+          <thead><tr>
+            <th>Label</th><th>SKU</th><th>Product</th>
+            <th>On Hand</th><th>Min</th><th>Order Qty</th>
+            <th>Supplier</th><th>Bin</th><th>Lead Time</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <div class="signatures">
+          <div class="sig"><div class="sig-line">Requested By</div></div>
+          <div class="sig"><div class="sig-line">Approved By</div></div>
+          <div class="sig"><div class="sig-line">Date</div></div>
+        </div>
+      </body></html>
+    `;
+
+    const w = window.open("", "_blank");
+    w.document.write(html);
+    w.document.close();
+    w.onload = () => { w.print(); };
+  };
+
   const handleSendToLabelPO = (label) => {
     setQueuedLabels((prev) => {
       const next = new Set(prev);
@@ -226,9 +298,19 @@ export default function Labels() {
           </h1>
           <p className="text-zinc-400 mt-1">Track and manage product labels inventory</p>
         </div>
-        <Button onClick={() => { setEditingLabel(null); setShowDialog(true); }} className="bg-orange-500 hover:bg-orange-600">
-          <Plus className="w-4 h-4 mr-2" /> Add Label
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={handlePrintRequisition}
+            variant="outline"
+            className="border-zinc-700 text-zinc-200 hover:bg-zinc-800"
+          >
+            <Printer className="w-4 h-4 mr-2" />
+            Print Requisition {queuedLabels.size > 0 && `(${queuedLabels.size})`}
+          </Button>
+          <Button onClick={() => { setEditingLabel(null); setShowDialog(true); }} className="bg-orange-500 hover:bg-orange-600">
+            <Plus className="w-4 h-4 mr-2" /> Add Label
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
