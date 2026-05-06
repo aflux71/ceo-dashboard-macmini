@@ -145,6 +145,12 @@ export default function Labels() {
     }
   };
 
+  const getStockStatus = (label) => {
+    if (label.current_quantity === 0) return { variant: "red", text: "Out of Stock" };
+    if (label.current_quantity <= label.reorder_point) return { variant: "amber", text: "Low Stock" };
+    return { variant: "green", text: "In Stock" };
+  };
+
   const sortedLabels = [...filteredLabels].sort((a, b) => {
     if (!sortField) return 0;
     const dir = sortDir === "asc" ? 1 : -1;
@@ -153,9 +159,10 @@ export default function Labels() {
       case "name": aVal = a.name || ""; bVal = b.name || ""; break;
       case "product": aVal = a.product_name || ""; bVal = b.product_name || ""; break;
       case "quantity": aVal = a.current_quantity ?? 0; bVal = b.current_quantity ?? 0; break;
-      case "status":
+      case "status": {
         const statusOrder = { "Out of Stock": 0, "Low Stock": 1, "In Stock": 2 };
         aVal = statusOrder[getStockStatus(a).text]; bVal = statusOrder[getStockStatus(b).text]; break;
+      }
       case "bin": aVal = a.bin_location || ""; bVal = b.bin_location || ""; break;
       case "supplier": aVal = a.supplier_name || ""; bVal = b.supplier_name || ""; break;
       case "lead_time": aVal = a.lead_time_days ?? 0; bVal = b.lead_time_days ?? 0; break;
@@ -349,12 +356,6 @@ export default function Labels() {
     } else {
       createMutation.mutate(formData);
     }
-  };
-
-  const getStockStatus = (label) => {
-    if (label.current_quantity === 0) return { variant: "red", text: "Out of Stock" };
-    if (label.current_quantity <= label.reorder_point) return { variant: "amber", text: "Low Stock" };
-    return { variant: "green", text: "In Stock" };
   };
 
   return (
