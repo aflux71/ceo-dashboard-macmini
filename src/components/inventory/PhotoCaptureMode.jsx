@@ -19,7 +19,10 @@ export default function PhotoCaptureMode({ open, onClose, inventory = [] }) {
 
   const queryClient = useQueryClient();
 
-  // Get items missing photos
+  // Initialize the session ONLY when the dialog opens.
+  // We intentionally don't depend on `inventory` here, otherwise re-fetches
+  // (triggered by our own photo upload invalidating the query) would reset
+  // the screen back to the list and kill the capture flow.
   useEffect(() => {
     if (open) {
       const missing = inventory.filter(item => !item.component_photo);
@@ -28,7 +31,8 @@ export default function PhotoCaptureMode({ open, onClose, inventory = [] }) {
       setSkippedInSession(new Set());
       setScreen("list");
     }
-  }, [open, inventory]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const uploadPhotoMutation = useMutation({
     mutationFn: async ({ itemId, photoData }) => {

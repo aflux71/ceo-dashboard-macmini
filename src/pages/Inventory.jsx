@@ -88,6 +88,12 @@ export default function Inventory() {
   const [showPhotoCaptureMode, setShowPhotoCaptureMode] = useState(false);
   const [retakePhotoItem, setRetakePhotoItem] = useState(null);
   const [viewPhotoItem, setViewPhotoItem] = useState(null);
+
+  // Stable array ref so PhotoCaptureMode doesn't reset its internal state on each parent re-render
+  const retakeInventory = React.useMemo(
+    () => (retakePhotoItem ? [{ ...retakePhotoItem, component_photo: "" }] : []),
+    [retakePhotoItem]
+  );
   const [barcodeItem, setBarcodeItem] = useState(null);
   const [showScanDialog, setShowScanDialog] = useState(false);
   const [pushToProdItem, setPushToProdItem] = useState(null);
@@ -1313,7 +1319,7 @@ export default function Inventory() {
       <PhotoCaptureMode
         open={!!retakePhotoItem}
         onClose={() => setRetakePhotoItem(null)}
-        inventory={retakePhotoItem ? [{ ...retakePhotoItem, component_photo: "" }] : []}
+        inventory={retakeInventory}
       />
 
       {/* Photo Viewer */}
