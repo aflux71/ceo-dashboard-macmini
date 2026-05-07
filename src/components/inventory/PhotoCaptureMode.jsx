@@ -15,6 +15,7 @@ export default function PhotoCaptureMode({ open, onClose, inventory = [] }) {
   const [itemsWithoutPhotos, setItemsWithoutPhotos] = useState([]);
   const [capturedInSession, setCapturedInSession] = useState({});
   const [skippedInSession, setSkippedInSession] = useState(new Set());
+  const [justSaved, setJustSaved] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -70,8 +71,9 @@ export default function PhotoCaptureMode({ open, onClose, inventory = [] }) {
         photoData
       });
 
-      // Mark as captured
+      // Mark as captured + show saved confirmation
       setCapturedInSession(prev => ({ ...prev, [currentItem.id]: true }));
+      setJustSaved(true);
 
       // Auto-advance to next item
       const currentIndex = itemsWithoutPhotos.findIndex(i => i.id === currentItem.id);
@@ -80,18 +82,21 @@ export default function PhotoCaptureMode({ open, onClose, inventory = [] }) {
       );
 
       if (remainingItems.length > 0) {
-        toast.success("Saved! Moving to next...", { duration: 1000 });
+        toast.success("Saved! Moving to next...", { duration: 1200 });
         setTimeout(() => {
+          setJustSaved(false);
           handleStartCapture(remainingItems[0]);
-        }, 500);
+        }, 1100);
       } else {
         // All done
         toast.success("All photos captured!");
         setTimeout(() => {
+          setJustSaved(false);
           setScreen("completion");
-        }, 500);
+        }, 1100);
       }
     } catch (error) {
+      setJustSaved(false);
       toast.error("Failed to save photo");
     }
   };
@@ -188,10 +193,13 @@ export default function PhotoCaptureMode({ open, onClose, inventory = [] }) {
 
           {screen === "capture" && currentItem && (
             <PhotoCaptureScreen
+              key={currentItem.id}
               item={currentItem}
               onApprove={handleApprovePhoto}
               onSkip={handleSkipItem}
               onExit={handleExitCapture}
+              isUploading={uploadPhotoMutation.isPending}
+              justSaved={justSaved}
             />
           )}
 

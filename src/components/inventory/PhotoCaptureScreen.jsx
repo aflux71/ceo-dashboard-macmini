@@ -1,10 +1,21 @@
 import React, { useRef, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Camera, RotateCcw, Check } from "lucide-react";
+import { Camera, RotateCcw, Check, Trash2, Loader2, CheckCircle2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
-export default function PhotoCaptureScreen({ item, onApprove, onRetake, onSkip }) {
+export default function PhotoCaptureScreen({ item, onApprove, onRetake, onSkip, isUploading = false, justSaved = false }) {
   const [capturedPhoto, setCapturedPhoto] = useState(null);
   const [cameraActive, setCameraActive] = useState(false);
+  const [confirmRetakeOpen, setConfirmRetakeOpen] = useState(false);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -94,6 +105,7 @@ export default function PhotoCaptureScreen({ item, onApprove, onRetake, onSkip }
 
   const handleRetake = () => {
     setCapturedPhoto(null);
+    setConfirmRetakeOpen(false);
     startCamera();
     onRetake?.();
   };
@@ -123,11 +135,29 @@ export default function PhotoCaptureScreen({ item, onApprove, onRetake, onSkip }
       {/* Camera / preview — fills available space */}
       <div className="flex-1 min-h-0 relative bg-black flex items-center justify-center overflow-hidden">
         {capturedPhoto ? (
-          <img
-            src={capturedPhoto}
-            alt="Captured"
-            className="w-full h-full object-contain"
-          />
+          <>
+            <img
+              src={capturedPhoto}
+              alt="Captured"
+              className="w-full h-full object-contain"
+            />
+            {/* Upload progress overlay */}
+            {isUploading && (
+              <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-3">
+                <Loader2 className="w-12 h-12 text-orange-500 animate-spin" />
+                <p className="text-white text-base font-medium">Uploading photo…</p>
+              </div>
+            )}
+            {/* Saved confirmation overlay */}
+            {justSaved && !isUploading && (
+              <div className="absolute inset-0 bg-green-500/20 flex flex-col items-center justify-center gap-3 backdrop-blur-sm">
+                <div className="w-20 h-20 rounded-full bg-green-500 flex items-center justify-center shadow-2xl animate-in zoom-in-50 duration-300">
+                  <CheckCircle2 className="w-12 h-12 text-white" strokeWidth={2.5} />
+                </div>
+                <p className="text-white text-lg font-semibold drop-shadow">Saved!</p>
+              </div>
+            )}
+          </>
         ) : cameraActive ? (
           <>
             <video
@@ -166,24 +196,41 @@ export default function PhotoCaptureScreen({ item, onApprove, onRetake, onSkip }
           <div className="space-y-2">
             <div className="grid grid-cols-2 gap-2">
               <Button
-                onClick={handleRetake}
+                onClick={() => setConfirmRetakeOpen(true)}
                 variant="outline"
+                disabled={isUploading || justSaved}
                 className="h-14 border-zinc-700 text-zinc-200 text-base"
               >
-                <RotateCcw className="w-5 h-5 mr-2" />
-                Retake
+                <Trash2 className="w-5 h-5 mr-2" />
+                Delete & Retake
               </Button>
               <Button
                 onClick={() => onApprove(capturedPhoto)}
-                className="h-14 bg-orange-500 hover:bg-orange-600 text-white text-base font-semibold"
+                disabled={isUploading || justSaved}
+                className="h-14 bg-orange-500 hover:bg-orange-600 text-white text-base font-semibold disabled:opacity-70"
               >
-                <Check className="w-5 h-5 mr-2" />
-                Approve → Next
+                {isUploading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Saving…
+                  </>
+                ) : justSaved ? (
+                  <>
+                    <CheckCircle2 className="w-5 h-5 mr-2" />
+                    Saved
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-5 h-5 mr-2" />
+                    Approve → Next
+                  </>
+                )}
               </Button>
             </div>
             <button
               onClick={onSkip}
-              className="w-full text-sm text-zinc-500 active:text-zinc-300 py-2"
+              disabled={isUploading || justSaved}
+              className="w-full text-sm text-zinc-500 active:text-zinc-300 py-2 disabled:opacity-50"
             >
               Skip this item
             </button>
@@ -197,6 +244,30 @@ export default function PhotoCaptureScreen({ item, onApprove, onRetake, onSkip }
           </button>
         )}
       </div>
+
+      {/* Confirm delete & retake */}
+      <AlertDialog open={confirmRetakeOpen} onOpenChange={setConfirmRetakeOpen}>
+        <AlertDialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this photo?</AlertDialogTitle>
+            <AlertDialogDescription className="text-zinc-400">
+              The current photo will be discarded and the camera will reopen so you can take a new one.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-zinc-800 border-zinc-700 text-zinc-200 hover:bg-zinc-700">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRetake}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete & Retake
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
