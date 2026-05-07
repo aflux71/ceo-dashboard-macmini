@@ -27,6 +27,7 @@ import Badge from "@/components/ui/Badge";
 import LotNumbersDialog from "@/components/inventory/LotNumbersDialog";
 import BarcodePrintDialog from "@/components/inventory/BarcodePrintDialog";
 import PhotoCaptureMode from "@/components/inventory/PhotoCaptureMode";
+import BinLocationPicker from "@/components/inventory/BinLocationPicker";
 import { Camera } from "lucide-react";
 
 const DEFAULT_UNITS = ["units", "Cases", "L", "ml", "Kg", "gram"];
@@ -153,6 +154,11 @@ export default function Inventory() {
   const { data: suppliers = [] } = useQuery({
     queryKey: ['suppliers'],
     queryFn: () => base44.entities.Supplier.list(),
+  });
+
+  const { data: binLocations = [] } = useQuery({
+    queryKey: ['bin_locations'],
+    queryFn: () => base44.entities.BinLocation.list(),
   });
 
   const createMutation = useMutation({
@@ -752,6 +758,7 @@ export default function Inventory() {
                   <th className="text-right p-4 text-xs font-semibold text-zinc-400 uppercase">Quantity</th>
                   <th className="text-center p-4 text-xs font-semibold text-zinc-400 uppercase">Lots</th>
                   <th className="text-right p-4 text-xs font-semibold text-zinc-400 uppercase">Reorder Point</th>
+                  <th className="text-left p-4 text-xs font-semibold text-zinc-400 uppercase">Bin / Rack</th>
                   <th className="text-left p-4 text-xs font-semibold text-zinc-400 uppercase">Status</th>
                   <th className="text-right p-4 text-xs font-semibold text-zinc-400 uppercase">Actions</th>
                 </tr>
@@ -759,11 +766,11 @@ export default function Inventory() {
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={8} className="p-8 text-center text-zinc-500">Loading...</td>
+                    <td colSpan={9} className="p-8 text-center text-zinc-500">Loading...</td>
                   </tr>
                 ) : paginated.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="p-8 text-center text-zinc-500">No inventory items found</td>
+                    <td colSpan={9} className="p-8 text-center text-zinc-500">No inventory items found</td>
                   </tr>
                 ) : (
                   paginated.map((item) => {
@@ -800,6 +807,22 @@ export default function Inventory() {
                         </td>
                         <td className="p-4 text-right text-zinc-400">
                           {item.reorder_point || '-'} {item.reorder_point ? item.unit : ''}
+                        </td>
+                        <td className="p-4">
+                          {item.location ? (() => {
+                            const bin = binLocations.find(b => b.name === item.location);
+                            return (
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  className="inline-block w-2 h-2 rounded-sm shrink-0"
+                                  style={{ backgroundColor: bin?.color || "#52525b" }}
+                                />
+                                <span className="font-mono text-xs text-zinc-300">{item.location}</span>
+                              </div>
+                            );
+                          })() : (
+                            <span className="text-zinc-600 text-xs">—</span>
+                          )}
                         </td>
                         <td className="p-4">
                           {isLow ? (
@@ -1028,11 +1051,11 @@ export default function Inventory() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Location</Label>
-                <Input
+                <Label>Bin / Rack Location</Label>
+                <BinLocationPicker
                   value={formData.location}
-                  onChange={(e) => setFormData({...formData, location: e.target.value})}
-                  className="bg-zinc-800 border-zinc-700"
+                  onChange={(v) => setFormData({...formData, location: v})}
+                  bins={binLocations}
                 />
               </div>
               <div className="space-y-2">
