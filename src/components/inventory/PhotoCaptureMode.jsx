@@ -146,7 +146,7 @@ export default function PhotoCaptureMode({ open, onClose, inventory = [] }) {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="bg-zinc-950 border-zinc-800 text-zinc-100 p-0 max-w-lg h-[100vh] md:h-auto md:max-h-[90vh] rounded-none md:rounded-lg">
+      <DialogContent className="bg-zinc-950 border-zinc-800 text-zinc-100 p-0 max-w-lg h-[100dvh] md:h-auto md:max-h-[90vh] rounded-none md:rounded-lg flex flex-col gap-0 overflow-hidden">
         {/* Progress Bar */}
         <div className="h-1 bg-zinc-800">
           <div
@@ -176,7 +176,7 @@ export default function PhotoCaptureMode({ open, onClose, inventory = [] }) {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto px-4 py-4">
+        <div className={`flex-1 min-h-0 ${screen === "capture" ? "" : "overflow-y-auto px-4 py-4"}`}>
           {screen === "list" && (
             <PhotoCaptureItemList
               items={itemsWithoutPhotos}
@@ -187,14 +187,12 @@ export default function PhotoCaptureMode({ open, onClose, inventory = [] }) {
           )}
 
           {screen === "capture" && currentItem && (
-            <div className="h-[calc(100vh-140px)] md:h-auto">
-              <PhotoCaptureScreen
-                item={currentItem}
-                onApprove={handleApprovePhoto}
-                onSkip={handleSkipItem}
-                onExit={handleExitCapture}
-              />
-            </div>
+            <PhotoCaptureScreen
+              item={currentItem}
+              onApprove={handleApprovePhoto}
+              onSkip={handleSkipItem}
+              onExit={handleExitCapture}
+            />
           )}
 
           {screen === "completion" && (
