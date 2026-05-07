@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 
 const FloorPinContext = createContext(null);
@@ -29,6 +29,7 @@ export function FloorPinProvider({ children }) {
   const [floorUser, setFloorUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [lastActivity, setLastActivity] = useState(Date.now());
+  const lastActivityRef = useRef(Date.now());
   const [sessionTimeoutMs, setSessionTimeoutMs] = useState(DEFAULT_TIMEOUT_MS);
   const [rolePermissions, setRolePermissions] = useState(DEFAULT_ROLE_PERMISSIONS);
 
@@ -43,7 +44,9 @@ export function FloorPinProvider({ children }) {
           const users = await base44.entities.FloorUser.filter({ id: session.userId });
           if (users.length > 0 && users[0].active) {
             setFloorUser(users[0]);
-            setLastActivity(session.lastActivity || Date.now());
+            const ts = session.lastActivity || Date.now();
+            setLastActivity(ts);
+            lastActivityRef.current = ts;
           } else {
             safeRemoveItem(STORAGE_KEY);
           }
@@ -74,31 +77,35 @@ export function FloorPinProvider({ children }) {
     loadSession();
   }, []);
 
-  // Check for inactivity timeout
+  // Check for inactivity timeout — uses ref so the interval is NOT reset on every activity event
   useEffect(() => {
     if (!floorUser) return;
 
     const checkTimeout = () => {
       const now = Date.now();
-      if (now - lastActivity > sessionTimeoutMs) {
+      if (now - lastActivityRef.current > sessionTimeoutMs) {
         logout();
       }
     };
 
-    const interval = setInterval(checkTimeout, 60000); // Check every minute
+    const interval = setInterval(checkTimeout, 30000); // Check every 30 seconds
     return () => clearInterval(interval);
-  }, [floorUser, lastActivity, sessionTimeoutMs]);
+  }, [floorUser, sessionTimeoutMs]);
 
-  // Track activity
+  // Track activity (throttled to once per 5 seconds to avoid excessive writes)
   const trackActivity = useCallback(() => {
     const now = Date.now();
+    if (now - lastActivityRef.current < 5000) return;
+    lastActivityRef.current = now;
     setLastActivity(now);
     if (floorUser) {
       const stored = safeGetItem(STORAGE_KEY);
       if (stored) {
-        const session = JSON.parse(stored);
-        session.lastActivity = now;
-        safeSetItem(STORAGE_KEY, JSON.stringify(session));
+        try {
+          const session = JSON.parse(stored);
+          session.lastActivity = now;
+          safeSetItem(STORAGE_KEY, JSON.stringify(session));
+        } catch { /* ignore */ }
       }
     }
   }, [floorUser]);
@@ -137,7 +144,9 @@ export function FloorPinProvider({ children }) {
       safeSetItem(STORAGE_KEY, JSON.stringify(session));
       
       setFloorUser(user);
-      setLastActivity(Date.now());
+      const now = Date.now();
+      setLastActivity(now);
+      lastActivityRef.current = now;
       
       return { success: true, user };
     } catch (error) {
