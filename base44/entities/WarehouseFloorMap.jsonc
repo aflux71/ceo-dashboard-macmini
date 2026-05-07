@@ -1,0 +1,25 @@
+{
+  "name": "WarehouseFloorMap",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Floor map name (e.g., Main Warehouse, Cold Storage)"
+    },
+    "image_url": {
+      "type": "string",
+      "description": "URL of the uploaded floor plan image"
+    },
+    "description": {
+      "type": "string"
+    },
+    "is_default": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this is the default floor map"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

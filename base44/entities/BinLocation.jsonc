@@ -1,0 +1,65 @@
+{
+  "name": "BinLocation",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Bin/rack identifier (e.g., A1-01, Rack 5)"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "bin",
+        "rack",
+        "shelf",
+        "pallet",
+        "zone"
+      ],
+      "default": "bin",
+      "description": "Type of storage location"
+    },
+    "floor_map_id": {
+      "type": "string",
+      "description": "ID of the WarehouseFloorMap this bin sits on"
+    },
+    "x": {
+      "type": "number",
+      "default": 50,
+      "description": "X coordinate (percentage 0-100) on the floor map"
+    },
+    "y": {
+      "type": "number",
+      "default": 50,
+      "description": "Y coordinate (percentage 0-100) on the floor map"
+    },
+    "width": {
+      "type": "number",
+      "default": 80,
+      "description": "Width in pixels"
+    },
+    "height": {
+      "type": "number",
+      "default": 60,
+      "description": "Height in pixels"
+    },
+    "color": {
+      "type": "string",
+      "default": "#f97316",
+      "description": "Display color for the bin"
+    },
+    "capacity": {
+      "type": "number",
+      "description": "Max number of items"
+    },
+    "photo_url": {
+      "type": "string",
+      "description": "Photo of the bin/area"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}
