@@ -28,8 +28,9 @@ import LotNumbersDialog from "@/components/inventory/LotNumbersDialog";
 import BarcodePrintDialog from "@/components/inventory/BarcodePrintDialog";
 import PhotoCaptureMode from "@/components/inventory/PhotoCaptureMode";
 import BinLocationPicker from "@/components/inventory/BinLocationPicker";
+import ScanInventoryDialog from "@/components/inventory/ScanInventoryDialog";
 import InventoryActNot from "@/pages/InventoryActNot";
-import { Camera, Boxes } from "lucide-react";
+import { Camera, Boxes, ScanLine } from "lucide-react";
 
 const DEFAULT_UNITS = ["units", "Cases", "L", "ml", "Kg", "gram"];
 const DEFAULT_INVENTORY_TYPES = [
@@ -85,6 +86,7 @@ export default function Inventory() {
   const [mergeResult, setMergeResult] = useState(null);
   const [showPhotoCaptureMode, setShowPhotoCaptureMode] = useState(false);
   const [barcodeItem, setBarcodeItem] = useState(null);
+  const [showScanDialog, setShowScanDialog] = useState(false);
   const [pushToProdItem, setPushToProdItem] = useState(null);
   const [pushQty, setPushQty] = useState(0);
   const [pushNotes, setPushNotes] = useState("");
@@ -510,6 +512,14 @@ export default function Inventory() {
           >
             <Download className="w-4 h-4 mr-2" />
             Export Raw Materials (CSV)
+          </Button>
+          <Button
+            onClick={() => setShowScanDialog(true)}
+            variant="outline"
+            className="border-orange-500/40 text-orange-400 hover:bg-orange-500/10 hover:text-orange-300"
+          >
+            <ScanLine className="w-4 h-4 mr-2" />
+            Scan
           </Button>
           <Button
             onClick={() => setShowPhotoCaptureMode(true)}
@@ -1281,6 +1291,14 @@ export default function Inventory() {
         open={!!barcodeItem}
         item={barcodeItem}
         onClose={() => setBarcodeItem(null)}
+      />
+
+      {/* Scan Inventory Dialog */}
+      <ScanInventoryDialog
+        open={showScanDialog}
+        onClose={() => setShowScanDialog(false)}
+        inventory={inventory}
+        binLocations={binLocations}
       />
       </>
       )}
