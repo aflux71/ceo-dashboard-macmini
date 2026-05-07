@@ -27,10 +27,11 @@ import Badge from "@/components/ui/Badge";
 import LotNumbersDialog from "@/components/inventory/LotNumbersDialog";
 import BarcodePrintDialog from "@/components/inventory/BarcodePrintDialog";
 import PhotoCaptureMode from "@/components/inventory/PhotoCaptureMode";
+import PhotoViewerDialog from "@/components/inventory/PhotoViewerDialog";
 import BinLocationPicker from "@/components/inventory/BinLocationPicker";
 import ScanInventoryDialog from "@/components/inventory/ScanInventoryDialog";
 import InventoryActNot from "@/pages/InventoryActNot";
-import { Camera, Boxes, ScanLine } from "lucide-react";
+import { Camera, Boxes, ScanLine, Eye } from "lucide-react";
 
 const DEFAULT_UNITS = ["units", "Cases", "L", "ml", "Kg", "gram"];
 const DEFAULT_INVENTORY_TYPES = [
@@ -85,6 +86,8 @@ export default function Inventory() {
   const [isMerging, setIsMerging] = useState(false);
   const [mergeResult, setMergeResult] = useState(null);
   const [showPhotoCaptureMode, setShowPhotoCaptureMode] = useState(false);
+  const [retakePhotoItem, setRetakePhotoItem] = useState(null);
+  const [viewPhotoItem, setViewPhotoItem] = useState(null);
   const [barcodeItem, setBarcodeItem] = useState(null);
   const [showScanDialog, setShowScanDialog] = useState(false);
   const [pushToProdItem, setPushToProdItem] = useState(null);
@@ -877,26 +880,46 @@ export default function Inventory() {
                         </td>
                         <td className="p-4">
                          <div className="flex justify-end gap-2">
-                           {item.type === "finished_product" && (
-                             <Button
-                               size="sm"
-                               variant="ghost"
-                               onClick={() => { setPushToProdItem(item); setPushQty(0); setPushNotes(""); }}
-                               className="text-zinc-400 hover:text-orange-400"
-                               title="Push to Production Planning"
-                             >
-                               <Factory className="w-4 h-4" />
-                             </Button>
-                           )}
-                           <Button
-                             size="sm"
-                             variant="ghost"
-                             onClick={() => setBarcodeItem(item)}
-                             className="text-zinc-400 hover:text-orange-400"
-                             title="Print barcode label"
-                           >
-                             <BarcodeIcon className="w-4 h-4" />
-                           </Button>
+                          {item.type === "finished_product" && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => { setPushToProdItem(item); setPushQty(0); setPushNotes(""); }}
+                              className="text-zinc-400 hover:text-orange-400"
+                              title="Push to Production Planning"
+                            >
+                              <Factory className="w-4 h-4" />
+                            </Button>
+                          )}
+                          {item.component_photo && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setViewPhotoItem(item)}
+                              className="text-zinc-400 hover:text-blue-400"
+                              title="View product photo"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setRetakePhotoItem(item)}
+                            className="text-zinc-400 hover:text-orange-400"
+                            title={item.component_photo ? "Retake product photo" : "Take product photo"}
+                          >
+                            <Camera className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setBarcodeItem(item)}
+                            className="text-zinc-400 hover:text-orange-400"
+                            title="Print barcode label"
+                          >
+                            <BarcodeIcon className="w-4 h-4" />
+                          </Button>
                            <Button
                              size="sm"
                              variant="ghost"
@@ -1279,11 +1302,25 @@ export default function Inventory() {
         </DialogContent>
       </Dialog>
 
-      {/* Photo Capture Mode */}
+      {/* Photo Capture Mode (bulk) */}
       <PhotoCaptureMode
         open={showPhotoCaptureMode}
         onClose={() => setShowPhotoCaptureMode(false)}
         inventory={inventory}
+      />
+
+      {/* Photo Capture Mode (single-item retake) */}
+      <PhotoCaptureMode
+        open={!!retakePhotoItem}
+        onClose={() => setRetakePhotoItem(null)}
+        inventory={retakePhotoItem ? [{ ...retakePhotoItem, component_photo: "" }] : []}
+      />
+
+      {/* Photo Viewer */}
+      <PhotoViewerDialog
+        open={!!viewPhotoItem}
+        onClose={() => setViewPhotoItem(null)}
+        item={viewPhotoItem}
       />
 
       {/* Barcode Print Dialog */}
