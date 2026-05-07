@@ -15,6 +15,7 @@ export default function PhotoCaptureMode({ open, onClose, inventory = [] }) {
   const [capturedInSession, setCapturedInSession] = useState({});
   const [skippedInSession, setSkippedInSession] = useState(new Set());
   const [inFlightCount, setInFlightCount] = useState(0);
+  const [justSaved, setJustSaved] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -82,17 +83,22 @@ export default function PhotoCaptureMode({ open, onClose, inventory = [] }) {
     // Kick off background upload — does NOT block UI
     uploadPhotoInBackground(itemId, photoData);
 
-    // Advance immediately to the next item
-    const currentIndex = itemsWithoutPhotos.findIndex(i => i.id === itemId);
-    const remainingItems = itemsWithoutPhotos.slice(currentIndex + 1).filter(
-      item => !skippedInSession.has(item.id) && !capturedInSession[item.id]
-    );
+    // Show brief "Saved!" confirmation, then advance
+    setJustSaved(true);
+    setTimeout(() => {
+      setJustSaved(false);
 
-    if (remainingItems.length > 0) {
-      handleStartCapture(remainingItems[0]);
-    } else {
-      setScreen("completion");
-    }
+      const currentIndex = itemsWithoutPhotos.findIndex(i => i.id === itemId);
+      const remainingItems = itemsWithoutPhotos.slice(currentIndex + 1).filter(
+        item => !skippedInSession.has(item.id) && !capturedInSession[item.id]
+      );
+
+      if (remainingItems.length > 0) {
+        handleStartCapture(remainingItems[0]);
+      } else {
+        setScreen("completion");
+      }
+    }, 500);
   };
 
   const handleSkipItem = () => {
@@ -170,7 +176,9 @@ export default function PhotoCaptureMode({ open, onClose, inventory = [] }) {
                 <X className="w-5 h-5" />
               </button>
               <span className="text-sm text-zinc-400 font-medium">
-                {screen === "capture" ? `${Object.keys(capturedInSession).length + skippedInSession.size + 1} of ${itemsWithoutPhotos.length}` : "Photo Capture"}
+                {screen === "capture"
+                  ? `${Math.min(Object.keys(capturedInSession).length + skippedInSession.size + (justSaved ? 0 : 1), itemsWithoutPhotos.length)} of ${itemsWithoutPhotos.length}`
+                  : "Photo Capture"}
               </span>
               <div className="w-9 flex items-center justify-end">
                 {inFlightCount > 0 && (
@@ -205,7 +213,7 @@ export default function PhotoCaptureMode({ open, onClose, inventory = [] }) {
               onSkip={handleSkipItem}
               onExit={handleExitCapture}
               isUploading={false}
-              justSaved={false}
+              justSaved={justSaved}
             />
           )}
 
