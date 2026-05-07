@@ -4,7 +4,7 @@ import { CheckCircle, ArrowRight } from "lucide-react";
 
 export default function PhotoCaptureCompletion({ capturedCount, skippedCount, onExit, onReviewSkipped }) {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-zinc-950 px-4 py-6">
+    <div className="flex flex-col items-center justify-center h-full bg-zinc-950 px-4 py-6">
       <div className="text-center space-y-6 max-w-sm">
         {/* Success Icon */}
         <div className="flex justify-center">
