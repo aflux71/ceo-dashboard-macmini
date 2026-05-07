@@ -55,7 +55,8 @@ export default function PhotoCaptureMode({ open, onClose, inventory = [] }) {
         component_photo: uploadRes.file_url
       });
     } catch (error) {
-      toast.error("Failed to save a photo — please retake that item");
+      console.error("[PhotoCapture] Upload failed for item", itemId, error);
+      toast.error(`Failed to save photo: ${error?.message || "Unknown error"}`);
       // Roll back so user knows it didn't save
       setCapturedInSession(prev => {
         const next = { ...prev };
@@ -76,9 +77,14 @@ export default function PhotoCaptureMode({ open, onClose, inventory = [] }) {
     if (!currentItem) return;
 
     const itemId = currentItem.id;
+    console.log("[PhotoCapture] Approve clicked for", currentItem.name, itemId);
 
     // Mark as captured immediately so the UI advances right away.
-    setCapturedInSession(prev => ({ ...prev, [itemId]: true }));
+    setCapturedInSession(prev => {
+      const next = { ...prev, [itemId]: true };
+      console.log("[PhotoCapture] capturedInSession now has", Object.keys(next).length, "items");
+      return next;
+    });
 
     // Kick off background upload — does NOT block UI
     uploadPhotoInBackground(itemId, photoData);
@@ -92,6 +98,7 @@ export default function PhotoCaptureMode({ open, onClose, inventory = [] }) {
       const remainingItems = itemsWithoutPhotos.slice(currentIndex + 1).filter(
         item => !skippedInSession.has(item.id) && !capturedInSession[item.id]
       );
+      console.log("[PhotoCapture] Advancing — remaining:", remainingItems.length);
 
       if (remainingItems.length > 0) {
         handleStartCapture(remainingItems[0]);
