@@ -8,6 +8,7 @@ import { MapPin, Plus, Search } from "lucide-react";
 import FloorMapCanvas from "@/components/binmap/FloorMapCanvas";
 import FloorMapManager from "@/components/binmap/FloorMapManager";
 import BinDetailPanel from "@/components/binmap/BinDetailPanel";
+import PickPackPanel from "@/components/binmap/PickPackPanel";
 
 export default function BinMap() {
   const qc = useQueryClient();
@@ -155,6 +156,7 @@ export default function BinMap() {
         </div>
 
         <div className="space-y-4">
+          <PickPackPanel inventory={inventory} bins={bins} />
           {selectedBin ? (
             <BinDetailPanel
               bin={selectedBin}
