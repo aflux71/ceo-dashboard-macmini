@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { X } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import PhotoCaptureItemList from "./PhotoCaptureItemList";
@@ -15,7 +14,7 @@ export default function PhotoCaptureMode({ open, onClose, inventory = [] }) {
   const [itemsWithoutPhotos, setItemsWithoutPhotos] = useState([]);
   const [capturedInSession, setCapturedInSession] = useState({});
   const [skippedInSession, setSkippedInSession] = useState(new Set());
-  const [justSaved, setJustSaved] = useState(false);
+  const [inFlightCount, setInFlightCount] = useState(0);
 
   const queryClient = useQueryClient();
 
@@ -34,8 +33,13 @@ export default function PhotoCaptureMode({ open, onClose, inventory = [] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  const uploadPhotoMutation = useMutation({
-    mutationFn: async ({ itemId, photoData }) => {
+  // Fire-and-forget upload that runs fully in parallel with other uploads.
+  // We do NOT use useMutation here because it only tracks one at a time and
+  // invalidates the inventory query on every success, which would cause the
+  // capture session to re-render mid-flow.
+  const uploadPhotoInBackground = async (itemId, photoData) => {
+    setInFlightCount(c => c + 1);
+    try {
       // Convert base64 to blob
       const byteCharacters = atob(photoData.split(",")[1]);
       const byteNumbers = new Array(byteCharacters.length);
@@ -45,21 +49,22 @@ export default function PhotoCaptureMode({ open, onClose, inventory = [] }) {
       const byteArray = new Uint8Array(byteNumbers);
       const blob = new Blob([byteArray], { type: "image/jpeg" });
 
-      // Upload file
       const uploadRes = await base44.integrations.Core.UploadFile({ file: blob });
-      const fileUrl = uploadRes.file_url;
-
-      // Update inventory item
       await base44.entities.Inventory.update(itemId, {
-        component_photo: fileUrl
+        component_photo: uploadRes.file_url
       });
-
-      return fileUrl;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+    } catch (error) {
+      toast.error("Failed to save a photo — please retake that item");
+      // Roll back so user knows it didn't save
+      setCapturedInSession(prev => {
+        const next = { ...prev };
+        delete next[itemId];
+        return next;
+      });
+    } finally {
+      setInFlightCount(c => Math.max(0, c - 1));
     }
-  });
+  };
 
   const handleStartCapture = (item) => {
     setCurrentItem(item);
@@ -72,24 +77,10 @@ export default function PhotoCaptureMode({ open, onClose, inventory = [] }) {
     const itemId = currentItem.id;
 
     // Mark as captured immediately so the UI advances right away.
-    // The actual upload runs in the background — no need to wait.
     setCapturedInSession(prev => ({ ...prev, [itemId]: true }));
 
-    // Fire upload in background
-    uploadPhotoMutation.mutate(
-      { itemId, photoData },
-      {
-        onError: () => {
-          toast.error(`Failed to save photo for this item`);
-          // Roll back so user can retry
-          setCapturedInSession(prev => {
-            const next = { ...prev };
-            delete next[itemId];
-            return next;
-          });
-        }
-      }
-    );
+    // Kick off background upload — does NOT block UI
+    uploadPhotoInBackground(itemId, photoData);
 
     // Advance immediately to the next item
     const currentIndex = itemsWithoutPhotos.findIndex(i => i.id === itemId);
@@ -98,10 +89,8 @@ export default function PhotoCaptureMode({ open, onClose, inventory = [] }) {
     );
 
     if (remainingItems.length > 0) {
-      toast.success("Saved — next item", { duration: 1000 });
       handleStartCapture(remainingItems[0]);
     } else {
-      toast.success("All photos captured!");
       setScreen("completion");
     }
   };
@@ -126,13 +115,18 @@ export default function PhotoCaptureMode({ open, onClose, inventory = [] }) {
 
   const handleExitCapture = () => {
     const savedCount = Object.keys(capturedInSession).length;
-    if (savedCount > 0 && !confirm(`You've captured ${savedCount} photos. Exit?`)) {
+    if (inFlightCount > 0 && !confirm(`${inFlightCount} photo(s) still uploading. Exit anyway?`)) {
       return;
     }
+    if (savedCount > 0 && inFlightCount === 0 && !confirm(`You've captured ${savedCount} photos. Exit?`)) {
+      return;
+    }
+    queryClient.invalidateQueries({ queryKey: ["inventory"] });
     onClose();
   };
 
   const handleExitCompletion = () => {
+    queryClient.invalidateQueries({ queryKey: ["inventory"] });
     onClose();
   };
 
@@ -178,7 +172,14 @@ export default function PhotoCaptureMode({ open, onClose, inventory = [] }) {
               <span className="text-sm text-zinc-400 font-medium">
                 {screen === "capture" ? `${Object.keys(capturedInSession).length + skippedInSession.size + 1} of ${itemsWithoutPhotos.length}` : "Photo Capture"}
               </span>
-              <div className="w-9" />
+              <div className="w-9 flex items-center justify-end">
+                {inFlightCount > 0 && (
+                  <span className="flex items-center gap-1 text-xs text-orange-400" title={`${inFlightCount} uploading`}>
+                    <span className="w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
+                    {inFlightCount}
+                  </span>
+                )}
+              </div>
             </>
           ) : (
             <div className="w-full" />
