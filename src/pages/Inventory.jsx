@@ -28,7 +28,8 @@ import LotNumbersDialog from "@/components/inventory/LotNumbersDialog";
 import BarcodePrintDialog from "@/components/inventory/BarcodePrintDialog";
 import PhotoCaptureMode from "@/components/inventory/PhotoCaptureMode";
 import BinLocationPicker from "@/components/inventory/BinLocationPicker";
-import { Camera } from "lucide-react";
+import InventoryActNot from "@/pages/InventoryActNot";
+import { Camera, Boxes } from "lucide-react";
 
 const DEFAULT_UNITS = ["units", "Cases", "L", "ml", "Kg", "gram"];
 const DEFAULT_INVENTORY_TYPES = [
@@ -38,6 +39,7 @@ const DEFAULT_INVENTORY_TYPES = [
 ];
 
 export default function Inventory() {
+  const [activeTab, setActiveTab] = useState("items"); // "items" | "active_inactive"
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all"); // all | low_stock | in_stock
@@ -499,6 +501,7 @@ export default function Inventory() {
             Manage raw materials, packaging, and finished products
           </p>
         </div>
+        {activeTab === "items" && (
         <div className="flex gap-2">
           <Button
             onClick={exportRawMaterialsCSV}
@@ -521,8 +524,39 @@ export default function Inventory() {
             Add Item
           </Button>
         </div>
+        )}
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-zinc-800">
+        <button
+          onClick={() => setActiveTab("items")}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            activeTab === "items"
+              ? "border-orange-500 text-orange-400"
+              : "border-transparent text-zinc-500 hover:text-zinc-300"
+          }`}
+        >
+          <Package className="w-4 h-4" />
+          Items
+        </button>
+        <button
+          onClick={() => setActiveTab("active_inactive")}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            activeTab === "active_inactive"
+              ? "border-orange-500 text-orange-400"
+              : "border-transparent text-zinc-500 hover:text-zinc-300"
+          }`}
+        >
+          <Boxes className="w-4 h-4" />
+          Active / Inactive
+        </button>
+      </div>
+
+      {activeTab === "active_inactive" ? (
+        <InventoryActNot />
+      ) : (
+      <>
       {/* Low Stock Alert */}
       {lowStock.length > 0 && (
         <div className="bg-red-500/10 border border-red-500/30 rounded-lg overflow-hidden">
@@ -1248,6 +1282,8 @@ export default function Inventory() {
         item={barcodeItem}
         onClose={() => setBarcodeItem(null)}
       />
+      </>
+      )}
     </div>
   );
 }

@@ -53,7 +53,6 @@ const navItems = [
         { name: "Batch Travellers", icon: FileText, page: "BatchTraveler" },
         { name: "Batch History", icon: History, page: "BatchHistory" },
         { name: "Inventory", icon: Package, page: "Inventory" },
-        { name: "Inventory Act/Not", icon: Boxes, page: "InventoryActNot" },
         { name: "Bin Map", icon: MapPin, page: "BinMap" },
         { name: "Production Request", icon: ClipboardList, page: "ProductionRequest" },
         { name: "Recipes", icon: Beaker, page: "Recipes" },
