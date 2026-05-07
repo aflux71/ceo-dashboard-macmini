@@ -36,7 +36,8 @@ import {
   BrainCircuit,
   Activity,
   Phone,
-  MapPin
+  MapPin,
+  BarChart2
 } from "lucide-react";
 
 const navItems = [
@@ -54,6 +55,7 @@ const navItems = [
         { name: "Inventory", icon: Package, page: "Inventory" },
         { name: "Bin Map", icon: MapPin, page: "BinMap" },
         { name: "Production Request", icon: ClipboardList, page: "ProductionRequest" },
+        { name: "Demand Planner", icon: BarChart2, page: "DemandPlanner" },
         { name: "Recipes", icon: Beaker, page: "Recipes" },
 
         { name: "Purchase Orders", icon: ShoppingCart, page: "PurchaseOrders" },
