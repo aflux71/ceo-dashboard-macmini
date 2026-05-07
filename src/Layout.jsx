@@ -51,7 +51,6 @@ const navItems = [
         { name: "Add to Inventory", icon: ShoppingCart, page: "AddToInventory", badge: true, isAddToInventoryLink: true },
         { name: "Unlabeled Products", icon: Tag, page: "UnlabeledProducts", isUnlabeledLink: true },
         { name: "Batch Travellers", icon: FileText, page: "BatchTraveler" },
-        { name: "Batch History", icon: History, page: "BatchHistory" },
         { name: "Inventory", icon: Package, page: "Inventory" },
         { name: "Bin Map", icon: MapPin, page: "BinMap" },
         { name: "Production Request", icon: ClipboardList, page: "ProductionRequest" },

@@ -2,7 +2,8 @@ import React, { useState, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Printer, Search, ChevronDown, ChevronUp, Plus, Save, CheckCircle, Clock, FileText, Eye } from "lucide-react";
+import { Printer, Search, ChevronDown, ChevronUp, Plus, Save, CheckCircle, Clock, FileText, Eye, History } from "lucide-react";
+import BatchHistory from "@/pages/BatchHistory";
 
 const STATUS_COLORS = {
   draft: "bg-zinc-700 text-zinc-300",
@@ -521,6 +522,7 @@ function PrintableTraveler({ batch }) {
 
 export default function BatchTraveler() {
   const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState("travellers"); // "travellers" | "history"
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedBatch, setSelectedBatch] = useState(null);
@@ -698,6 +700,36 @@ export default function BatchTraveler() {
             <p className="text-zinc-400 text-sm">Manufacturing Traveller — Form BF-TRV-001 | Edit online or print for floor use</p>
           </div>
 
+          {/* Tabs */}
+          <div className="flex gap-1 border-b border-zinc-800 mb-6">
+            <button
+              onClick={() => setActiveTab("travellers")}
+              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                activeTab === "travellers"
+                  ? "border-orange-500 text-orange-400"
+                  : "border-transparent text-zinc-500 hover:text-zinc-300"
+              }`}
+            >
+              <FileText className="w-4 h-4" />
+              Travellers
+            </button>
+            <button
+              onClick={() => setActiveTab("history")}
+              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                activeTab === "history"
+                  ? "border-orange-500 text-orange-400"
+                  : "border-transparent text-zinc-500 hover:text-zinc-300"
+              }`}
+            >
+              <History className="w-4 h-4" />
+              Batch History
+            </button>
+          </div>
+
+          {activeTab === "history" ? (
+            <BatchHistory />
+          ) : (
+          <>
           {/* Filters */}
           <div className="flex gap-3 mb-6 flex-wrap">
             <div className="flex-1 min-w-[200px] relative">
@@ -728,6 +760,8 @@ export default function BatchTraveler() {
               <BatchGroup title="In Progress" items={inProgress} defaultOpen={true} />
               <BatchGroup title="Completed" items={completed} defaultOpen={false} />
             </>
+          )}
+          </>
           )}
         </div>
       )}
