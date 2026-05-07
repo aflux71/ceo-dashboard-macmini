@@ -54,6 +54,7 @@ export default function PhotoCaptureMode({ open, onClose, inventory = [] }) {
       await base44.entities.Inventory.update(itemId, {
         component_photo: uploadRes.file_url
       });
+      console.log("[PhotoCapture] Upload SUCCESS for item", itemId, uploadRes.file_url);
     } catch (error) {
       console.error("[PhotoCapture] Upload failed for item", itemId, error);
       toast.error(`Failed to save photo: ${error?.message || "Unknown error"}`);
