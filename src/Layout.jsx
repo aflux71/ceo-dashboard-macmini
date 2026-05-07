@@ -46,7 +46,6 @@ const navItems = [
         { name: "Equipment Repairs", icon: Wrench, page: "EquipmentRepairs", isRepairLink: true },
         { name: "Low Consumables", icon: PackageOpen, page: "LowConsumables", isConsumablesLink: true },
         { name: "Labels", icon: Tag, page: "Labels", isLabelsLink: true },
-        { name: "Label Usage", icon: Tag, page: "LabelUsage" },
         { name: "Review Queue", icon: ClipboardList, page: "ReviewQueue", badge: true },
 
         { name: "Add to Inventory", icon: ShoppingCart, page: "AddToInventory", badge: true, isAddToInventoryLink: true },

@@ -63,7 +63,6 @@ import Inventory from './pages/Inventory';
 import IssueAlerts from './pages/IssueAlerts';
 import Kiosk from './pages/Kiosk';
 import LabelPurchaseOrders from './pages/LabelPurchaseOrders';
-import LabelUsage from './pages/LabelUsage';
 import Labels from './pages/Labels';
 import LineCapacity from './pages/LineCapacity';
 import LiquidBatchDetail from './pages/LiquidBatchDetail';
@@ -106,7 +105,6 @@ export const PAGES = {
     "IssueAlerts": IssueAlerts,
     "Kiosk": Kiosk,
     "LabelPurchaseOrders": LabelPurchaseOrders,
-    "LabelUsage": LabelUsage,
     "Labels": Labels,
     "LineCapacity": LineCapacity,
     "LiquidBatchDetail": LiquidBatchDetail,
