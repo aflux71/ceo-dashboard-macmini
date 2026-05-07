@@ -66,42 +66,43 @@ export default function PhotoCaptureMode({ open, onClose, inventory = [] }) {
     setScreen("capture");
   };
 
-  const handleApprovePhoto = async (photoData) => {
+  const handleApprovePhoto = (photoData) => {
     if (!currentItem) return;
 
-    try {
-      await uploadPhotoMutation.mutateAsync({
-        itemId: currentItem.id,
-        photoData
-      });
+    const itemId = currentItem.id;
 
-      // Mark as captured + show saved confirmation
-      setCapturedInSession(prev => ({ ...prev, [currentItem.id]: true }));
-      setJustSaved(true);
+    // Mark as captured immediately so the UI advances right away.
+    // The actual upload runs in the background — no need to wait.
+    setCapturedInSession(prev => ({ ...prev, [itemId]: true }));
 
-      // Auto-advance to next item
-      const currentIndex = itemsWithoutPhotos.findIndex(i => i.id === currentItem.id);
-      const remainingItems = itemsWithoutPhotos.slice(currentIndex + 1).filter(
-        item => !skippedInSession.has(item.id) && !capturedInSession[item.id]
-      );
-
-      if (remainingItems.length > 0) {
-        toast.success("Saved! Moving to next...", { duration: 1200 });
-        setTimeout(() => {
-          setJustSaved(false);
-          handleStartCapture(remainingItems[0]);
-        }, 1100);
-      } else {
-        // All done
-        toast.success("All photos captured!");
-        setTimeout(() => {
-          setJustSaved(false);
-          setScreen("completion");
-        }, 1100);
+    // Fire upload in background
+    uploadPhotoMutation.mutate(
+      { itemId, photoData },
+      {
+        onError: () => {
+          toast.error(`Failed to save photo for this item`);
+          // Roll back so user can retry
+          setCapturedInSession(prev => {
+            const next = { ...prev };
+            delete next[itemId];
+            return next;
+          });
+        }
       }
-    } catch (error) {
-      setJustSaved(false);
-      toast.error("Failed to save photo");
+    );
+
+    // Advance immediately to the next item
+    const currentIndex = itemsWithoutPhotos.findIndex(i => i.id === itemId);
+    const remainingItems = itemsWithoutPhotos.slice(currentIndex + 1).filter(
+      item => !skippedInSession.has(item.id) && !capturedInSession[item.id]
+    );
+
+    if (remainingItems.length > 0) {
+      toast.success("Saved — next item", { duration: 1000 });
+      handleStartCapture(remainingItems[0]);
+    } else {
+      toast.success("All photos captured!");
+      setScreen("completion");
     }
   };
 
@@ -202,8 +203,8 @@ export default function PhotoCaptureMode({ open, onClose, inventory = [] }) {
               onApprove={handleApprovePhoto}
               onSkip={handleSkipItem}
               onExit={handleExitCapture}
-              isUploading={uploadPhotoMutation.isPending}
-              justSaved={justSaved}
+              isUploading={false}
+              justSaved={false}
             />
           )}
 
