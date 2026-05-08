@@ -4,7 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import {
   Plus, Package, Loader2, AlertTriangle, CheckCircle2, Clock, Eye, EyeOff,
-  Timer, Send, Building2, MapPin, RotateCcw, ExternalLink, Hammer, ShoppingCart, FileText, Search, ChevronDown
+  Timer, Send, Building2, MapPin, RotateCcw, ExternalLink, Hammer, ShoppingCart, FileText, Search, ChevronDown, Printer, Hash, Pencil
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import Badge from "@/components/ui/Badge";
+import { printCopackTraveller } from "./CopackTravellerPrint";
 
 function addDays(dateStr, days) {
   if (!dateStr) return "";
@@ -47,7 +48,13 @@ const COPACK_ADVANCE = {
   returned:      { next: "complete",      label: "Mark Complete",      icon: CheckCircle2 },
 };
 
-const emptyCopackForm = { product_name: "", sku: "", quantity: "", co_packer_name: "", ship_by: "", notes: "" };
+const emptyCopackForm = { product_name: "", sku: "", quantity: "", co_packer_name: "", batch_id: "", ship_by: "", notes: "" };
+
+function generateBatchId() {
+  const year = new Date().getFullYear();
+  const rand = String(Date.now()).slice(-4);
+  return `CP-${year}-${rand}`;
+}
 
 export default function WipCopackTab() {
   const queryClient = useQueryClient();
@@ -62,6 +69,8 @@ export default function WipCopackTab() {
   const [newPoExpectedDate, setNewPoExpectedDate] = useState("");
   const [supplierSearch, setSupplierSearch] = useState("");
   const [supplierDropdownOpen, setSupplierDropdownOpen] = useState(false);
+  const [batchEditDialog, setBatchEditDialog] = useState(null);
+  const [batchEditValue, setBatchEditValue] = useState("");
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["planning_copack_orders"],
@@ -119,7 +128,35 @@ export default function WipCopackTab() {
 
   const handleCreate = () => {
     if (!form.product_name || !form.sku || !form.quantity || !form.co_packer_name) { toast.error("Product name, SKU, quantity, and co-packer are required"); return; }
-    createMutation.mutate({ product_name: form.product_name, sku: form.sku, quantity: Number(form.quantity), co_packer_name: form.co_packer_name, ship_by: form.ship_by || null, notes: form.notes || "", status: "draft" });
+    createMutation.mutate({ product_name: form.product_name, sku: form.sku, quantity: Number(form.quantity), co_packer_name: form.co_packer_name, batch_id: form.batch_id || generateBatchId(), ship_by: form.ship_by || null, notes: form.notes || "", status: "draft" });
+  };
+
+  const handleOpenBatchEdit = (order) => {
+    setBatchEditDialog(order);
+    setBatchEditValue(order.batch_id || generateBatchId());
+  };
+
+  const handleSaveBatchId = () => {
+    if (!batchEditDialog) return;
+    advanceMutation.mutate(
+      { id: batchEditDialog.id, updates: { batch_id: batchEditValue.trim() } },
+      { onSuccess: () => { setBatchEditDialog(null); setBatchEditValue(""); } }
+    );
+  };
+
+  const handlePrintTraveller = (order) => {
+    if (!order.batch_id) {
+      // Auto-assign a batch ID when printing without one, then print with the new value
+      const newBatchId = generateBatchId();
+      base44.entities.CopackOrder.update(order.id, { batch_id: newBatchId })
+        .then(() => {
+          queryClient.invalidateQueries({ queryKey: ["planning_copack_orders"] });
+          printCopackTraveller({ ...order, batch_id: newBatchId });
+        })
+        .catch(() => printCopackTraveller(order));
+    } else {
+      printCopackTraveller(order);
+    }
   };
 
   const handleAdvance = (order) => {
@@ -245,7 +282,19 @@ export default function WipCopackTab() {
                         <Card key={order.id} className={`bg-zinc-900 border-zinc-800 hover:border-zinc-700 transition-colors ${isOverdue ? "border-red-500/30" : ""} ${order.status === "complete" ? "opacity-75" : ""}`}>
                           <CardContent className="p-4 space-y-3">
                             <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0"><h4 className="text-sm font-medium text-zinc-100 truncate">{order.product_name}</h4><span className="text-xs font-mono text-zinc-500">{order.sku}</span></div>
+                              <div className="min-w-0">
+                                <h4 className="text-sm font-medium text-zinc-100 truncate">{order.product_name}</h4>
+                                <span className="text-xs font-mono text-zinc-500">{order.sku}</span>
+                                <button
+                                  onClick={() => handleOpenBatchEdit(order)}
+                                  className={`mt-1 flex items-center gap-1 text-[11px] font-mono px-1.5 py-0.5 rounded border transition-colors ${order.batch_id ? "bg-cyan-500/10 border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/20" : "bg-zinc-800 border-zinc-700 text-zinc-500 hover:text-zinc-300 border-dashed"}`}
+                                  title="Edit batch ID"
+                                >
+                                  <Hash className="w-3 h-3" />
+                                  {order.batch_id || "Assign batch ID"}
+                                  <Pencil className="w-2.5 h-2.5 opacity-60" />
+                                </button>
+                              </div>
                               <div className="flex items-center gap-1.5 shrink-0">{isOverdue && <Badge variant="red">Overdue</Badge>}{order.status === "complete" && <CheckCircle2 className="w-4 h-4 text-green-400" />}</div>
                             </div>
                             <div className="space-y-1 text-xs text-zinc-500">
@@ -264,6 +313,9 @@ export default function WipCopackTab() {
                                 <ShoppingCart className="w-3 h-3 mr-1.5" />Add to P.O.
                               </Button>
                             )}
+                            <Button size="sm" variant="outline" onClick={() => handlePrintTraveller(order)} className="w-full text-xs border-zinc-700 text-zinc-300 hover:bg-zinc-800">
+                              <Printer className="w-3 h-3 mr-1.5" />Print Traveller
+                            </Button>
                           </CardContent>
                         </Card>
                       );
@@ -288,7 +340,10 @@ export default function WipCopackTab() {
               <div className="space-y-1.5"><Label className="text-zinc-400 text-xs">Quantity *</Label><Input type="number" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} placeholder="5000" className="bg-zinc-800 border-zinc-700 text-zinc-100 h-9 text-sm" /></div>
               <div className="space-y-1.5"><Label className="text-zinc-400 text-xs">Co-packer Name *</Label><Input value={form.co_packer_name} onChange={(e) => setForm({ ...form, co_packer_name: e.target.value })} placeholder="Acme Fill Co." className="bg-zinc-800 border-zinc-700 text-zinc-100 h-9 text-sm" /></div>
             </div>
-            <div className="space-y-1.5"><Label className="text-zinc-400 text-xs">Ship By Date</Label><Input type="date" value={form.ship_by} onChange={(e) => setForm({ ...form, ship_by: e.target.value })} className="bg-zinc-800 border-zinc-700 text-zinc-100 h-9 text-sm" /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5"><Label className="text-zinc-400 text-xs">Batch ID</Label><Input value={form.batch_id} onChange={(e) => setForm({ ...form, batch_id: e.target.value })} placeholder="Auto-generate (CP-YYYY-####)" className="bg-zinc-800 border-zinc-700 text-zinc-100 h-9 text-sm font-mono" /></div>
+              <div className="space-y-1.5"><Label className="text-zinc-400 text-xs">Ship By Date</Label><Input type="date" value={form.ship_by} onChange={(e) => setForm({ ...form, ship_by: e.target.value })} className="bg-zinc-800 border-zinc-700 text-zinc-100 h-9 text-sm" /></div>
+            </div>
             <div className="space-y-1.5"><Label className="text-zinc-400 text-xs">Notes</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Special instructions, packaging requirements, etc." rows={2} className="bg-zinc-800 border-zinc-700 text-zinc-100 text-sm resize-none" /></div>
           </div>
           <DialogFooter>
@@ -398,6 +453,35 @@ export default function WipCopackTab() {
                 >
                   {addPoMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ShoppingCart className="w-4 h-4 mr-2" />}
                   {selectedPoId === "new" ? "Create P.O." : "Add to P.O."}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Batch ID Dialog */}
+      <Dialog open={!!batchEditDialog} onOpenChange={(open) => { if (!open) { setBatchEditDialog(null); setBatchEditValue(""); } }}>
+        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 max-w-sm">
+          {batchEditDialog && (
+            <>
+              <DialogHeader><DialogTitle>Batch ID</DialogTitle></DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="text-sm text-zinc-400">
+                  <span className="text-zinc-200 font-medium">{batchEditDialog.product_name}</span>
+                  <span className="text-zinc-600 mx-1.5">·</span>
+                  <span className="font-mono text-xs">{batchEditDialog.sku}</span>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-zinc-400 text-xs">Batch ID</Label>
+                  <Input value={batchEditValue} onChange={(e) => setBatchEditValue(e.target.value)} placeholder="CP-2026-0001" className="bg-zinc-800 border-zinc-700 text-zinc-100 h-9 text-sm font-mono" autoFocus />
+                  <button type="button" onClick={() => setBatchEditValue(generateBatchId())} className="text-xs text-cyan-400 hover:text-cyan-300">Generate new ID</button>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => { setBatchEditDialog(null); setBatchEditValue(""); }} className="border-zinc-700">Cancel</Button>
+                <Button onClick={handleSaveBatchId} disabled={advanceMutation.isPending || !batchEditValue.trim()} className="bg-cyan-600 hover:bg-cyan-700 text-white">
+                  {advanceMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Hash className="w-4 h-4 mr-2" />}Save
                 </Button>
               </DialogFooter>
             </>

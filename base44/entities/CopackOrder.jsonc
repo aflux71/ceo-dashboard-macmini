@@ -1,0 +1,62 @@
+{
+  "name": "CopackOrder",
+  "type": "object",
+  "properties": {
+    "product_name": {
+      "type": "string",
+      "description": "Product name"
+    },
+    "sku": {
+      "type": "string",
+      "description": "Product SKU"
+    },
+    "quantity": {
+      "type": "number",
+      "description": "Quantity to produce"
+    },
+    "co_packer_name": {
+      "type": "string",
+      "description": "Co-packer name"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "sent",
+        "in_production",
+        "qc_hold",
+        "returned",
+        "complete"
+      ],
+      "default": "draft",
+      "description": "Current status of the copack order"
+    },
+    "batch_id": {
+      "type": "string",
+      "description": "Batch ID assigned to this co-pack order (e.g. CP-2026-001)"
+    },
+    "ship_by": {
+      "type": "string",
+      "format": "date",
+      "description": "Target ship-by date"
+    },
+    "sent_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date materials were sent to the co-packer"
+    },
+    "actual_return_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Actual date finished goods were returned"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Additional notes"
+    }
+  },
+  "required": [
+    "product_name",
+    "status"
+  ]
+}
