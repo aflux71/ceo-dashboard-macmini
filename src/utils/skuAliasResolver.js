@@ -22,8 +22,12 @@ export const resolveCanonicalSKU = (sku, aliasMap) => {
 export const buildAliasMap = (aliases = []) => {
   const map = new Map();
   aliases.forEach(alias => {
-    if (alias.alias_sku && alias.canonical_sku) {
-      map.set(alias.alias_sku, alias.canonical_sku);
+    // Only approved aliases should hide/consolidate SKUs
+    if (alias.status !== "approved") return;
+    // SKUDeduplication page stores the canonical SKU in `primary_sku`
+    const canonical = alias.primary_sku || alias.canonical_sku;
+    if (alias.alias_sku && canonical) {
+      map.set(alias.alias_sku, canonical);
     }
   });
   return map;
