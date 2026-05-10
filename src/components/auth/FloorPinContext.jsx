@@ -27,11 +27,19 @@ export const ROLE_PERMISSIONS = DEFAULT_ROLE_PERMISSIONS;
 
 export function FloorPinProvider({ children }) {
   const [floorUser, setFloorUser] = useState(null);
+  const [dashboardUser, setDashboardUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [lastActivity, setLastActivity] = useState(Date.now());
   const lastActivityRef = useRef(Date.now());
   const [sessionTimeoutMs, setSessionTimeoutMs] = useState(DEFAULT_TIMEOUT_MS);
   const [rolePermissions, setRolePermissions] = useState(DEFAULT_ROLE_PERMISSIONS);
+
+  // Load dashboard user (Base44 auth user) so we can check their role for permissions
+  useEffect(() => {
+    base44.auth.me()
+      .then(setDashboardUser)
+      .catch(() => setDashboardUser(null));
+  }, []);
 
   // Load session from storage
   useEffect(() => {
@@ -161,14 +169,25 @@ export function FloorPinProvider({ children }) {
   };
 
   const hasPermission = (permission) => {
-    if (!floorUser) return false;
-    const permissions = rolePermissions[floorUser.role] || [];
-    return permissions.includes(permission);
+    // Floor user (PIN) takes precedence when active
+    if (floorUser) {
+      const permissions = rolePermissions[floorUser.role] || [];
+      return permissions.includes(permission);
+    }
+    // Fall back to dashboard user role
+    if (dashboardUser) {
+      // Base44 admins always have full access
+      if (dashboardUser.role === "admin") return true;
+      const permissions = rolePermissions[dashboardUser.role] || [];
+      return permissions.includes(permission);
+    }
+    return false;
   };
 
   return (
     <FloorPinContext.Provider value={{
       floorUser,
+      dashboardUser,
       loading,
       login,
       logout,
