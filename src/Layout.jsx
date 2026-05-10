@@ -56,7 +56,6 @@ const navItems = [
         { name: "Inventory", icon: Package, page: "Inventory" },
         { name: "Bin Map", icon: MapPin, page: "BinMap" },
         { name: "Production Request", icon: ClipboardList, page: "ProductionRequest" },
-        { name: "Demand Planner", icon: BarChart2, page: "DemandPlanner" },
         { name: "Inventory Requirements", icon: Eye, page: "InventoryRequirements" },
         { name: "Recipes", icon: Beaker, page: "Recipes" },
 
