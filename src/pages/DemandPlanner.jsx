@@ -2,16 +2,14 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
   BarChart3, Table, Calendar, Database, Settings,
-  Plus, Trash2, Save, Copy, X, Check, Loader2, Upload, ArrowRight,
+  Trash2, Save, Copy, Loader2, ArrowRight,
 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import Papa from "papaparse";
 import { toast } from "sonner";
 import { base44 } from "@/api/base44Client";
 import { generatePlan, categorize } from "@/components/demand/demandEngine";
@@ -96,25 +94,9 @@ export default function DemandPlanner() {
     return results;
   };
 
-  // Merges all three exclusion sources into one unified system default list
-  const mergeAllExclusions = async (baseList = [], loadedWorkspaces = []) => {
+  // Loads the central MasterExclusion list (the new master exclusion system)
+  const loadMasterExclusions = async (baseList = []) => {
     const merged = new Set(baseList.map(String));
-    // 1. Load default_exclusion_list from AppSettings
-    try {
-      const defSettings = await base44.entities.AppSettings.filter({ key: "default_exclusion_list" });
-      if (defSettings.length > 0) {
-        JSON.parse(defSettings[0].value || "[]").forEach((s) => merged.add(String(s)));
-      }
-    } catch {}
-    // 2. Load "Master Exclusion List" workspace exclusions
-    const masterWs = loadedWorkspaces.find((w) => w.name === "Master Exclusion List");
-    if (masterWs) {
-      const masterList = typeof masterWs.exclusionList === "string"
-        ? JSON.parse(masterWs.exclusionList || "[]")
-        : masterWs.exclusionList || [];
-      masterList.forEach((s) => merged.add(String(s)));
-    }
-    // 3. Load MasterExclusion entity (new centralized list)
     try {
       const masterExclusions = await base44.entities.MasterExclusion.list();
       masterExclusions.forEach((m) => {
@@ -195,16 +177,16 @@ export default function DemandPlanner() {
       } catch (e) {}
       setWorkspaces(loadedWorkspaces);
 
-      // Apply default workspace — always merge all three exclusion sources
+      // Apply default workspace and merge with the MasterExclusion entity list
       const defaultWs = loadedWorkspaces.find((w) => w.isDefault);
       if (defaultWs) {
         const baseList = typeof defaultWs.exclusionList === "string"
           ? JSON.parse(defaultWs.exclusionList || "[]")
           : defaultWs.exclusionList || [];
-        const mergedList = await mergeAllExclusions(baseList, loadedWorkspaces);
+        const mergedList = await loadMasterExclusions(baseList);
         applyWorkspace({ ...defaultWs, exclusionList: mergedList });
       } else {
-        const mergedList = await mergeAllExclusions([], loadedWorkspaces);
+        const mergedList = await loadMasterExclusions([]);
         if (mergedList.length > 0) {
           setWorkspace((prev) => ({ ...prev, exclusionList: mergedList }));
         }
@@ -424,30 +406,33 @@ export default function DemandPlanner() {
   };
 
   // ── Exclusion management ──────────────────────────────────────────────────
-  const handleExclude = (sku) => {
-    setWorkspace((prev) => {
-      const newList = [...new Set([...prev.exclusionList, sku])];
-      persistExclusions(newList);
-      return { ...prev, exclusionList: newList };
-    });
-    toast.success(`SKU ${sku} excluded`);
-  };
-
-  const handleBulkExclude = (skus) => {
-    setWorkspace((prev) => {
-      const newList = [...new Set([...prev.exclusionList, ...skus])];
-      persistExclusions(newList);
-      return { ...prev, exclusionList: newList };
-    });
-    toast.success(`${skus.length} SKUs excluded`);
-  };
-
-  const handleRemoveExclusion = (sku) => {
-    setWorkspace((prev) => {
-      const newList = prev.exclusionList.filter((s) => s !== sku);
-      persistExclusions(newList);
-      return { ...prev, exclusionList: newList };
-    });
+  // Adding an exclusion now creates a record in the central MasterExclusion list
+  const handleExclude = async (sku) => {
+    if (workspace.exclusionList.includes(sku)) {
+      toast.info(`SKU ${sku} is already excluded`);
+      return;
+    }
+    try {
+      const existing = await base44.entities.MasterExclusion.filter({ sku });
+      if (existing.length === 0) {
+        const summary = summaries.find((s) => s.sku === sku);
+        const me = await base44.auth.me().catch(() => null);
+        await base44.entities.MasterExclusion.create({
+          sku,
+          product_name: summary?.product || "",
+          scope: "demand_planner",
+          reason: "Excluded from Demand Planner dashboard",
+          added_by: me?.full_name || me?.email || "unknown",
+        });
+      }
+      setWorkspace((prev) => ({
+        ...prev,
+        exclusionList: [...new Set([...prev.exclusionList, sku])],
+      }));
+      toast.success(`SKU ${sku} added to Master Exclusion List`);
+    } catch (err) {
+      toast.error(`Failed to exclude SKU: ${err.message}`);
+    }
   };
 
   // ── Inventory override ────────────────────────────────────────────────────
@@ -627,10 +612,6 @@ export default function DemandPlanner() {
               onDuplicate={duplicateWorkspace}
               onDelete={deleteWorkspace}
               onApply={applyWorkspace}
-              onRemoveExclusion={handleRemoveExclusion}
-              summaries={summaries}
-              onExclude={handleExclude}
-              onBulkExclude={handleBulkExclude}
             />
           </div>
         </TabsContent>
@@ -716,42 +697,7 @@ function SettingsPanel({
   onDuplicate,
   onDelete,
   onApply,
-  onRemoveExclusion,
-  summaries,
-  onExclude,
-  onBulkExclude,
 }) {
-  const [exclusionSearch, setExclusionSearch] = useState("");
-  const exclusionCsvRef = React.useRef(null);
-
-  const handleExclusionCSV = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (result) => {
-        const skus = result.data.flatMap((row) => {
-          const sku = String(row.SKU || row.sku || row.Sku || "").trim();
-          return sku ? [sku] : [];
-        });
-        if (skus.length > 0) onBulkExclude(skus);
-      },
-    });
-    e.target.value = "";
-  };
-
-  const exclusionResults = useMemo(() => {
-    if (!exclusionSearch.trim()) return [];
-    const q = exclusionSearch.toLowerCase();
-    return summaries
-      .filter((s) =>
-        (s.product?.toLowerCase().includes(q) || s.sku?.toLowerCase().includes(q)) &&
-        !workspace.exclusionList.includes(s.sku)
-      )
-      .slice(0, 10);
-  }, [exclusionSearch, summaries, workspace.exclusionList]);
-
   return (
     <div className="space-y-4 max-w-2xl">
       {/* Current workspace */}
@@ -838,94 +784,14 @@ function SettingsPanel({
         </CardContent>
       </Card>
 
-      {/* System Default Exclusion List (unified — merges all sources on load) */}
+      {/* Exclusions are managed centrally in Settings → Master Exclusion List */}
       <Card className="bg-zinc-900 border-zinc-800">
         <CardContent className="p-4">
-          <div className="flex items-center justify-between mb-1">
-            <h3 className="text-sm font-semibold text-zinc-300 flex items-center gap-2">
-              System Default Exclusion List
-              <span className="text-xs text-zinc-500 font-normal">
-                ({workspace.exclusionList.length} SKUs excluded)
-              </span>
-            </h3>
-            <div>
-              <input type="file" accept=".csv" ref={exclusionCsvRef} onChange={handleExclusionCSV} className="hidden" />
-              <button
-                onClick={() => exclusionCsvRef.current?.click()}
-                className="flex items-center gap-1 px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 text-[10px] rounded transition-colors"
-              >
-                <Upload className="w-3 h-3" /> Upload CSV
-              </button>
-            </div>
-          </div>
-          <p className="text-[10px] text-zinc-500 mb-3">
-            All exclusion sources (Default list, Master Exclusion List workspace) are merged into this single system-wide list on load.
+          <h3 className="text-sm font-semibold text-zinc-300 mb-1">Excluded SKUs</h3>
+          <p className="text-xs text-zinc-500">
+            {workspace.exclusionList.length} SKU{workspace.exclusionList.length === 1 ? "" : "s"} are currently excluded.
+            Manage them in <span className="text-orange-400">Settings → Master Exclusion List</span>.
           </p>
-
-          <div className="relative mb-3">
-            <Input
-              placeholder="Search product name or SKU to exclude..."
-              value={exclusionSearch}
-              onChange={(e) => setExclusionSearch(e.target.value)}
-              className="h-8 bg-zinc-800 border-zinc-700 text-sm pr-8"
-            />
-            {exclusionSearch && (
-              <button
-                onClick={() => setExclusionSearch("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            )}
-          </div>
-
-          {exclusionResults.length > 0 && (
-            <div className="mb-3 border border-zinc-700 rounded-lg overflow-hidden">
-              {exclusionResults.map((s) => (
-                <div
-                  key={s.sku}
-                  className="flex items-center justify-between px-3 py-2 hover:bg-zinc-800/80 cursor-pointer border-b border-zinc-800 last:border-b-0"
-                  onClick={() => { onExclude(s.sku); setExclusionSearch(""); }}
-                >
-                  <div>
-                    <span className="text-xs text-zinc-200">{s.product}</span>
-                    <span className="text-[10px] text-zinc-500 ml-2 font-mono">SKU {s.sku}</span>
-                  </div>
-                  <span className="text-[10px] text-orange-400 flex items-center gap-1">
-                    <Plus className="w-3 h-3" /> Exclude
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-          {exclusionSearch && exclusionResults.length === 0 && (
-            <p className="text-xs text-zinc-500 mb-3">No matching SKUs found.</p>
-          )}
-
-          {workspace.exclusionList.length === 0 ? (
-            <p className="text-xs text-zinc-500">No SKUs excluded. Search above or use the ⊘ button on any Dashboard card.</p>
-          ) : (
-            <div className="space-y-1 max-h-72 overflow-y-auto">
-              {workspace.exclusionList.map((sku) => {
-                const summary = summaries.find((s) => s.sku === sku);
-                return (
-                  <div key={sku} className="flex items-center justify-between px-3 py-1.5 bg-zinc-800/50 rounded text-xs">
-                    <span className="text-zinc-300">
-                      <span className="font-mono text-zinc-500">SKU {sku}</span>
-                      {summary && ` — ${summary.product}`}
-                    </span>
-                    <button
-                      onClick={() => onRemoveExclusion(sku)}
-                      className="text-zinc-500 hover:text-green-400"
-                      title="Re-include"
-                    >
-                      <Check className="w-3 h-3" />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>

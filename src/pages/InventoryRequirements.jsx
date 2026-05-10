@@ -41,21 +41,16 @@ const fetchAll = async (entity, sort = "-created_date") => {
   return results;
 };
 
-const mergeAllExclusions = async (baseList = [], loadedWorkspaces = []) => {
+const loadMasterExclusions = async (baseList = []) => {
   const merged = new Set(baseList.map(String));
   try {
-    const defSettings = await base44.entities.AppSettings.filter({ key: "default_exclusion_list" });
-    if (defSettings.length > 0) {
-      JSON.parse(defSettings[0].value || "[]").forEach((s) => merged.add(String(s)));
-    }
+    const masterExclusions = await base44.entities.MasterExclusion.list();
+    masterExclusions.forEach((m) => {
+      if (m.sku && (m.scope === "all" || m.scope === "demand_planner")) {
+        merged.add(String(m.sku));
+      }
+    });
   } catch {}
-  const masterWs = loadedWorkspaces.find((w) => w.name === "Master Exclusion List");
-  if (masterWs) {
-    const masterList = typeof masterWs.exclusionList === "string"
-      ? JSON.parse(masterWs.exclusionList || "[]")
-      : masterWs.exclusionList || [];
-    masterList.forEach((s) => merged.add(String(s)));
-  }
   return [...merged];
 };
 
@@ -141,10 +136,10 @@ export default function InventoryRequirements() {
           const baseList = typeof defaultWs.exclusionList === "string"
             ? JSON.parse(defaultWs.exclusionList || "[]")
             : defaultWs.exclusionList || [];
-          const mergedList = await mergeAllExclusions(baseList, loadedWorkspaces);
+          const mergedList = await loadMasterExclusions(baseList);
           setWorkspace({ ...applyWorkspaceShape(defaultWs), exclusionList: mergedList });
         } else {
-          const mergedList = await mergeAllExclusions([], loadedWorkspaces);
+          const mergedList = await loadMasterExclusions([]);
           setWorkspace((prev) => ({ ...prev, exclusionList: mergedList }));
         }
 
