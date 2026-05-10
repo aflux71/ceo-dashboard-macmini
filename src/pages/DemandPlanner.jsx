@@ -114,6 +114,15 @@ export default function DemandPlanner() {
         : masterWs.exclusionList || [];
       masterList.forEach((s) => merged.add(String(s)));
     }
+    // 3. Load MasterExclusion entity (new centralized list)
+    try {
+      const masterExclusions = await base44.entities.MasterExclusion.list();
+      masterExclusions.forEach((m) => {
+        if (m.sku && (m.scope === "all" || m.scope === "demand_planner")) {
+          merged.add(String(m.sku));
+        }
+      });
+    } catch {}
     return [...merged];
   };
 

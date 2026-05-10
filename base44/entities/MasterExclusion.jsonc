@@ -1,0 +1,35 @@
+{
+  "name": "MasterExclusion",
+  "type": "object",
+  "properties": {
+    "sku": {
+      "type": "string",
+      "description": "Product SKU to exclude"
+    },
+    "product_name": {
+      "type": "string",
+      "description": "Product name for reference"
+    },
+    "scope": {
+      "type": "string",
+      "enum": [
+        "all",
+        "demand_planner"
+      ],
+      "default": "demand_planner",
+      "description": "Scope of exclusion: 'all' hides everywhere, 'demand_planner' hides from Demand Planner & Inventory Requirements only"
+    },
+    "reason": {
+      "type": "string",
+      "description": "Optional reason/notes"
+    },
+    "added_by": {
+      "type": "string",
+      "description": "User who added the exclusion"
+    }
+  },
+  "required": [
+    "sku",
+    "scope"
+  ]
+}

@@ -38,7 +38,8 @@ import {
   Phone,
   MapPin,
   BarChart2,
-  Eye
+  Eye,
+  Ban
 } from "lucide-react";
 
 const navItems = [
@@ -79,6 +80,7 @@ const settingsItems = [
         { name: "Product Categories", icon: Tag, page: "CategorySettings" },
         { name: "Measurement Units", icon: Package, page: "MeasurementSettings" },
         { name: "SKU Dedup", icon: GitMerge, page: "SKUDeduplication" },
+        { name: "Master Exclusion List", icon: Ban, page: "MasterExclusionList" },
         { name: "Audit Log", icon: ClipboardList, page: "AuditLog" },
         { name: "Recipe Versions", icon: History, page: "RecipeVersions" },
         { name: "Sync Log", icon: History, page: "SyncLog" },
