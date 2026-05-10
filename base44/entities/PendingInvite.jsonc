@@ -1,0 +1,37 @@
+{
+  "name": "PendingInvite",
+  "type": "object",
+  "properties": {
+    "email": {
+      "type": "string",
+      "description": "Invited user's email"
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "user",
+        "admin"
+      ],
+      "default": "user",
+      "description": "Invited role"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "registered"
+      ],
+      "default": "pending",
+      "description": "Invite status"
+    },
+    "invited_by": {
+      "type": "string",
+      "description": "Name of admin who sent the invite"
+    }
+  },
+  "required": [
+    "email",
+    "role",
+    "status"
+  ]
+}

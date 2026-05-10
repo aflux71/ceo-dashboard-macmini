@@ -1,0 +1,50 @@
+{
+  "name": "ForecastVersion",
+  "type": "object",
+  "properties": {
+    "workspace_id": {
+      "type": "string",
+      "description": "Reference to ForecastWorkspace entity"
+    },
+    "workspace_name": {
+      "type": "string",
+      "description": "Workspace name at time of save"
+    },
+    "version_label": {
+      "type": "string",
+      "description": "User-defined label for this version"
+    },
+    "config": {
+      "type": "object",
+      "description": "Forecast configuration snapshot"
+    },
+    "sales_data": {
+      "type": "object",
+      "description": "Sales data snapshot"
+    },
+    "inventory_data": {
+      "type": "array",
+      "description": "Inventory snapshot"
+    },
+    "events": {
+      "type": "array",
+      "description": "Events snapshot"
+    },
+    "exclusions": {
+      "type": "array",
+      "description": "Exclusions snapshot"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Notes about this version"
+    },
+    "saved_by": {
+      "type": "string",
+      "description": "User who created this version"
+    }
+  },
+  "required": [
+    "workspace_id",
+    "workspace_name"
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "name": "ShopifySaleRecord",
+  "type": "object",
+  "properties": {
+    "order_id": {
+      "type": "string",
+      "description": "Shopify order ID"
+    },
+    "sku": {
+      "type": "string",
+      "description": "Product variant SKU"
+    },
+    "product_name": {
+      "type": "string",
+      "description": "Product title + variant title"
+    },
+    "quantity": {
+      "type": "number",
+      "description": "Quantity sold in this line item"
+    },
+    "order_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Date the order was created"
+    },
+    "location_id": {
+      "type": "string",
+      "description": "Shopify location ID where order was placed"
+    },
+    "location_name": {
+      "type": "string",
+      "description": "Shopify location name"
+    },
+    "channel": {
+      "type": "string",
+      "enum": [
+        "pos",
+        "online"
+      ],
+      "description": "Sales channel: pos for in-store, online for web orders"
+    }
+  },
+  "required": [
+    "order_id",
+    "sku"
+  ]
+}

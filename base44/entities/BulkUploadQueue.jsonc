@@ -1,0 +1,50 @@
+{
+  "name": "BulkUploadQueue",
+  "type": "object",
+  "properties": {
+    "entity_type": {
+      "type": "string",
+      "enum": [
+        "inventory",
+        "recipe",
+        "supplier"
+      ],
+      "description": "Type of data being uploaded"
+    },
+    "data": {
+      "type": "object",
+      "description": "The parsed row data"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "rejected"
+      ],
+      "default": "pending",
+      "description": "Review status"
+    },
+    "batch_id": {
+      "type": "string",
+      "description": "Groups items from same upload"
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Validation errors if any"
+    },
+    "uploaded_by": {
+      "type": "string",
+      "description": "User who uploaded"
+    }
+  },
+  "required": [
+    "entity_type",
+    "data",
+    "status",
+    "batch_id"
+  ]
+}

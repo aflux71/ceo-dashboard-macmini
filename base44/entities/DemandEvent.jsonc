@@ -1,0 +1,48 @@
+{
+  "name": "DemandEvent",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Event name"
+    },
+    "type": {
+      "type": "string",
+      "description": "Event type (e.g. store_opening, wholesale)"
+    },
+    "stock_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date inventory is needed"
+    },
+    "items": {
+      "type": "array",
+      "description": "SKUs and quantities for this event",
+      "items": {
+        "type": "object",
+        "properties": {
+          "sku": {
+            "type": "string"
+          },
+          "product": {
+            "type": "string"
+          },
+          "qty": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "notes": {
+      "type": "string",
+      "description": "Additional notes"
+    },
+    "createdBy": {
+      "type": "string",
+      "description": "User who created the event"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

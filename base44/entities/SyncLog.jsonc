@@ -1,0 +1,63 @@
+{
+  "name": "SyncLog",
+  "type": "object",
+  "properties": {
+    "sync_type": {
+      "type": "string",
+      "enum": [
+        "shopify_orders",
+        "shopify_inventory",
+        "demand_summaries",
+        "label_stock_check",
+        "low_inventory_check",
+        "manual"
+      ],
+      "description": "Type of sync performed"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "success",
+        "error",
+        "partial"
+      ],
+      "description": "Result of the sync"
+    },
+    "records_processed": {
+      "type": "number",
+      "description": "Number of records processed"
+    },
+    "records_created": {
+      "type": "number",
+      "description": "Number of records created"
+    },
+    "records_updated": {
+      "type": "number",
+      "description": "Number of records updated"
+    },
+    "duration_seconds": {
+      "type": "number",
+      "description": "How long the sync took in seconds"
+    },
+    "triggered_by": {
+      "type": "string",
+      "description": "User or system that triggered the sync"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Additional details or error message"
+    },
+    "date_range_start": {
+      "type": "string",
+      "description": "Start of date range synced (if applicable)"
+    },
+    "date_range_end": {
+      "type": "string",
+      "description": "End of date range synced (if applicable)"
+    }
+  },
+  "required": [
+    "sync_type",
+    "status"
+  ]
+}

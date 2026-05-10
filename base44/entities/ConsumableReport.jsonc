@@ -1,0 +1,41 @@
+{
+  "name": "ConsumableReport",
+  "type": "object",
+  "properties": {
+    "item_name": {
+      "type": "string",
+      "description": "Name of the consumable item"
+    },
+    "reported_by": {
+      "type": "string",
+      "description": "Name of user who reported"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "acknowledged",
+        "restocked"
+      ],
+      "default": "pending",
+      "description": "Status of the report"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Additional notes"
+    },
+    "acknowledged_by": {
+      "type": "string",
+      "description": "Who acknowledged the report"
+    },
+    "acknowledged_date": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "item_name",
+    "reported_by",
+    "status"
+  ]
+}

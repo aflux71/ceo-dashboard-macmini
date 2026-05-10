@@ -1,0 +1,125 @@
+{
+  "name": "RecipeTemplate",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Template name (e.g., Bath Bomb Base)"
+    },
+    "category": {
+      "type": "string",
+      "description": "Product category"
+    },
+    "description": {
+      "type": "string",
+      "description": "Description of what this template is for"
+    },
+    "batch_size": {
+      "type": "number",
+      "description": "Default batch size"
+    },
+    "production_line": {
+      "type": "number",
+      "description": "Default production line"
+    },
+    "ingredients": {
+      "type": "array",
+      "description": "Template ingredients",
+      "items": {
+        "type": "object",
+        "properties": {
+          "material": {
+            "type": "string"
+          },
+          "sku": {
+            "type": "string"
+          },
+          "qty": {
+            "type": "number"
+          },
+          "unit": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "packaging": {
+      "type": "array",
+      "description": "Template packaging items",
+      "items": {
+        "type": "object",
+        "properties": {
+          "sku": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "qty_per_unit": {
+            "type": "number"
+          },
+          "qty_per_batch": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "procedures": {
+      "type": "array",
+      "description": "Template procedures",
+      "items": {
+        "type": "object",
+        "properties": {
+          "step": {
+            "type": "number"
+          },
+          "description": {
+            "type": "string"
+          },
+          "duration_minutes": {
+            "type": "number"
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "qc_checks": {
+      "type": "array",
+      "description": "Template QC checks",
+      "items": {
+        "type": "object",
+        "properties": {
+          "checkpoint": {
+            "type": "string"
+          },
+          "criteria": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "is_seasonal": {
+      "type": "boolean",
+      "default": false
+    },
+    "season": {
+      "type": "string"
+    },
+    "holiday": {
+      "type": "string"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "name",
+    "category"
+  ]
+}

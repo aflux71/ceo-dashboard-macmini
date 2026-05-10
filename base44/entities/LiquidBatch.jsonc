@@ -1,0 +1,161 @@
+{
+  "name": "LiquidBatch",
+  "type": "object",
+  "properties": {
+    "batch_id": {
+      "type": "string",
+      "description": "Unique batch identifier (e.g., LB-2026-001)"
+    },
+    "name": {
+      "type": "string",
+      "description": "Batch name (e.g., Massuet Hand Soap Base)"
+    },
+    "product_type": {
+      "type": "string",
+      "enum": [
+        "Hand Soap",
+        "Body Wash",
+        "Shampoo",
+        "Conditioner",
+        "Lotion",
+        "Other"
+      ],
+      "description": "Type of liquid product"
+    },
+    "total_volume_liters": {
+      "type": "number",
+      "description": "Total batch volume in liters (e.g., 300)"
+    },
+    "remaining_volume_liters": {
+      "type": "number",
+      "description": "Remaining unallocated volume in liters"
+    },
+    "production_line": {
+      "type": "number",
+      "description": "Production line used (1 or 2)"
+    },
+    "recipe_id": {
+      "type": "string",
+      "description": "Reference to base recipe if applicable"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "mixing",
+        "ready_to_fill",
+        "filling",
+        "completed",
+        "on_hold"
+      ],
+      "default": "draft",
+      "description": "Current batch status"
+    },
+    "allocations": {
+      "type": "array",
+      "description": "How the batch is divided among products",
+      "items": {
+        "type": "object",
+        "properties": {
+          "sku": {
+            "type": "string"
+          },
+          "product_name": {
+            "type": "string"
+          },
+          "container_size_ml": {
+            "type": "number",
+            "description": "Container size in ml (250, 500, 1000, etc.)"
+          },
+          "volume_allocated_liters": {
+            "type": "number",
+            "description": "Volume allocated to this product in liters"
+          },
+          "units_to_produce": {
+            "type": "number",
+            "description": "Number of units to fill"
+          },
+          "units_filled": {
+            "type": "number",
+            "default": 0,
+            "description": "Units actually filled"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "filling",
+              "completed"
+            ],
+            "default": "pending"
+          },
+          "filled_by": {
+            "type": "string"
+          },
+          "filled_at": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "ingredients_used": {
+      "type": "array",
+      "description": "Ingredients used in the batch",
+      "items": {
+        "type": "object",
+        "properties": {
+          "material_sku": {
+            "type": "string"
+          },
+          "material_name": {
+            "type": "string"
+          },
+          "qty": {
+            "type": "number"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "lot_number": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "mixing_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the batch was mixed"
+    },
+    "mixed_by": {
+      "type": "string",
+      "description": "Operator who mixed the batch"
+    },
+    "qc_status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "passed",
+        "failed"
+      ],
+      "default": "pending"
+    },
+    "qc_notes": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "expiry_date": {
+      "type": "string",
+      "format": "date"
+    }
+  },
+  "required": [
+    "batch_id",
+    "name",
+    "product_type",
+    "total_volume_liters",
+    "status"
+  ]
+}

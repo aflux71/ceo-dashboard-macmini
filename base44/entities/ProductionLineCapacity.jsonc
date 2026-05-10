@@ -1,0 +1,61 @@
+{
+  "name": "ProductionLineCapacity",
+  "type": "object",
+  "properties": {
+    "line_number": {
+      "type": "number",
+      "description": "Production line number (1, 2, etc.)"
+    },
+    "line_name": {
+      "type": "string",
+      "description": "Friendly name for the line"
+    },
+    "product_types": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Product types this line can produce"
+    },
+    "max_batch_size_liters": {
+      "type": "number",
+      "description": "Maximum liquid batch size in liters"
+    },
+    "max_batch_size_units": {
+      "type": "number",
+      "description": "Maximum solid batch size in units"
+    },
+    "daily_capacity_liters": {
+      "type": "number",
+      "description": "Daily production capacity in liters"
+    },
+    "daily_capacity_units": {
+      "type": "number",
+      "description": "Daily production capacity in units"
+    },
+    "filling_rate_units_per_hour": {
+      "type": "number",
+      "description": "Filling rate for liquids (units per hour)"
+    },
+    "changeover_time_minutes": {
+      "type": "number",
+      "description": "Time needed to switch between products"
+    },
+    "operating_hours_per_day": {
+      "type": "number",
+      "default": 8,
+      "description": "Hours of operation per day"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "line_number",
+    "line_name"
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "name": "DemandSummary",
+  "type": "object",
+  "properties": {
+    "sku": {
+      "type": "string",
+      "description": "Product SKU"
+    },
+    "product": {
+      "type": "string",
+      "description": "Product name"
+    },
+    "category": {
+      "type": "string",
+      "description": "Product category"
+    },
+    "totalQty": {
+      "type": "number",
+      "description": "Total quantity sold"
+    },
+    "avgMonthly": {
+      "type": "number",
+      "description": "Average monthly quantity sold"
+    },
+    "monthly": {
+      "type": "string",
+      "description": "Monthly breakdown (JSON stringified)"
+    },
+    "byChannel": {
+      "type": "string",
+      "description": "Sales by channel (JSON stringified)"
+    },
+    "byLocation": {
+      "type": "string",
+      "description": "Sales by location (JSON stringified)"
+    },
+    "totalRevenue": {
+      "type": "number",
+      "description": "Total revenue"
+    },
+    "dataMonths": {
+      "type": "number",
+      "description": "Number of months of data"
+    },
+    "periodStart": {
+      "type": "string",
+      "description": "Start of data period"
+    },
+    "periodEnd": {
+      "type": "string",
+      "description": "End of data period"
+    },
+    "updatedAt": {
+      "type": "string",
+      "description": "Last updated timestamp"
+    }
+  },
+  "required": [
+    "sku",
+    "product"
+  ]
+}

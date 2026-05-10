@@ -1,0 +1,37 @@
+{
+  "name": "ForecastOverride",
+  "type": "object",
+  "properties": {
+    "sku": {
+      "type": "string",
+      "description": "Product SKU"
+    },
+    "product_name": {
+      "type": "string",
+      "description": "Product name (for display)"
+    },
+    "growth_pct": {
+      "type": "number",
+      "description": "Override growth percentage (null = use global)"
+    },
+    "safety_weeks": {
+      "type": "number",
+      "description": "Override safety stock weeks (null = use global)"
+    },
+    "lead_time_weeks": {
+      "type": "number",
+      "description": "Override lead time in weeks (null = use global)"
+    },
+    "forecast_months": {
+      "type": "number",
+      "description": "Override forecast months (null = use global)"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Optional notes about this override"
+    }
+  },
+  "required": [
+    "sku"
+  ]
+}

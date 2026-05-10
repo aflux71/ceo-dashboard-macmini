@@ -1,0 +1,80 @@
+{
+  "name": "ProductionRequest",
+  "type": "object",
+  "properties": {
+    "sku": {
+      "type": "string",
+      "description": "Product SKU"
+    },
+    "product_name": {
+      "type": "string",
+      "description": "Product name"
+    },
+    "quantity_needed": {
+      "type": "number",
+      "description": "Quantity requested to produce"
+    },
+    "reason": {
+      "type": "string",
+      "description": "Reason for the production request"
+    },
+    "requested_by": {
+      "type": "string",
+      "description": "Person who submitted the request"
+    },
+    "due_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date by which production is needed"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "material_check",
+        "approved",
+        "in_production",
+        "complete",
+        "cancelled"
+      ],
+      "default": "pending",
+      "description": "Current status of the request"
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "forecast",
+        "manual"
+      ],
+      "description": "How the request was generated"
+    },
+    "urgency": {
+      "type": "string",
+      "enum": [
+        "critical",
+        "soon",
+        "ok"
+      ],
+      "description": "Urgency level of the request"
+    },
+    "production_type": {
+      "type": "string",
+      "enum": [
+        "make",
+        "buy",
+        "copacked"
+      ],
+      "description": "How the product will be produced"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Additional notes"
+    }
+  },
+  "required": [
+    "sku",
+    "product_name",
+    "quantity_needed",
+    "status"
+  ]
+}

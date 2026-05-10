@@ -1,0 +1,48 @@
+{
+  "name": "LabelUsage",
+  "type": "object",
+  "properties": {
+    "label_id": {
+      "type": "string",
+      "description": "Reference to the Label entity"
+    },
+    "label_name": {
+      "type": "string",
+      "description": "Label name for display"
+    },
+    "label_sku": {
+      "type": "string",
+      "description": "Label SKU"
+    },
+    "quantity_deducted": {
+      "type": "number",
+      "description": "Number of labels deducted"
+    },
+    "reason": {
+      "type": "string",
+      "enum": [
+        "production",
+        "damaged",
+        "sample",
+        "adjustment",
+        "other"
+      ],
+      "default": "production",
+      "description": "Reason for label usage"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Additional notes"
+    },
+    "deducted_by": {
+      "type": "string",
+      "description": "User who recorded the deduction"
+    }
+  },
+  "required": [
+    "label_id",
+    "label_name",
+    "quantity_deducted",
+    "reason"
+  ]
+}

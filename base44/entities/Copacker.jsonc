@@ -1,0 +1,46 @@
+{
+  "name": "Copacker",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Copacker company name"
+    },
+    "contact_name": {
+      "type": "string",
+      "description": "Primary contact name"
+    },
+    "contact_email": {
+      "type": "string",
+      "description": "Contact email address"
+    },
+    "phone": {
+      "type": "string",
+      "description": "Contact phone number"
+    },
+    "lead_time_days": {
+      "type": "number",
+      "description": "Typical lead time in days"
+    },
+    "is_preferred": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this is a preferred copacker"
+    },
+    "sku_restrictions": {
+      "type": "string",
+      "description": "SKUs or product types this copacker can or cannot handle"
+    },
+    "components_on_hand": {
+      "type": "string",
+      "description": "Components or materials the copacker keeps on hand"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Additional notes"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

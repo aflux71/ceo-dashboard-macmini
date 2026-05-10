@@ -1,0 +1,144 @@
+{
+  "name": "EquipmentRepair",
+  "type": "object",
+  "properties": {
+    "equipment_type": {
+      "type": "string",
+      "description": "Type of equipment needing repair"
+    },
+    "location": {
+      "type": "string",
+      "description": "Location of the equipment"
+    },
+    "description": {
+      "type": "string",
+      "description": "Detailed description of the issue"
+    },
+    "urgency": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "default": "medium",
+      "description": "Urgency level of the repair"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "new_submission",
+        "queued_for_repair",
+        "parts_ordered_waiting",
+        "in_progress",
+        "completed"
+      ],
+      "default": "new_submission",
+      "description": "Current status of the repair ticket"
+    },
+    "media_urls": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Photos or videos of the equipment issue"
+    },
+    "submitted_by": {
+      "type": "string",
+      "description": "Name of user who submitted"
+    },
+    "assigned_to": {
+      "type": "string",
+      "description": "Technician assigned to repair"
+    },
+    "assignment_history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "technician": {
+            "type": "string"
+          },
+          "assigned_date": {
+            "type": "string"
+          },
+          "reassigned_by": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "History of technician assignments"
+    },
+    "parts_ordered": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "part_name": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number"
+          },
+          "cost": {
+            "type": "number"
+          },
+          "order_date": {
+            "type": "string"
+          },
+          "expected_arrival": {
+            "type": "string"
+          },
+          "received": {
+            "type": "boolean"
+          }
+        }
+      },
+      "description": "Parts ordered for this repair"
+    },
+    "parts_notes": {
+      "type": "string",
+      "description": "Notes about parts ordered"
+    },
+    "estimated_parts_cost": {
+      "type": "number",
+      "description": "Estimated cost for parts"
+    },
+    "estimated_labor_hours": {
+      "type": "number",
+      "description": "Estimated labor hours"
+    },
+    "labor_rate_per_hour": {
+      "type": "number",
+      "description": "Labor rate per hour"
+    },
+    "estimated_total_cost": {
+      "type": "number",
+      "description": "Total estimated repair cost"
+    },
+    "actual_cost": {
+      "type": "number",
+      "description": "Actual final cost of repair"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Additional notes or updates"
+    },
+    "completed_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the repair was completed"
+    }
+  },
+  "required": [
+    "equipment_type",
+    "location",
+    "description",
+    "urgency",
+    "status"
+  ]
+}

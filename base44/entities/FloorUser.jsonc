@@ -1,0 +1,41 @@
+{
+  "name": "FloorUser",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Full name of floor user"
+    },
+    "pin": {
+      "type": "string",
+      "description": "4-digit PIN code"
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "owner",
+        "admin",
+        "production_lead",
+        "production_labor",
+        "qc"
+      ],
+      "default": "production_labor",
+      "description": "User role determining permissions"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether user can log in"
+    },
+    "last_login": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Last login timestamp"
+    }
+  },
+  "required": [
+    "name",
+    "pin",
+    "role"
+  ]
+}

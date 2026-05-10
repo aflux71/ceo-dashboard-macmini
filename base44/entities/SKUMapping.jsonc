@@ -1,0 +1,55 @@
+{
+  "name": "SKUMapping",
+  "type": "object",
+  "properties": {
+    "old_sku": {
+      "type": "string",
+      "description": "Previous SKU / UPC code"
+    },
+    "new_sku": {
+      "type": "string",
+      "description": "New SKU / UPC code that replaced the old one"
+    },
+    "product_name": {
+      "type": "string",
+      "description": "Product name for reference"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "rejected"
+      ],
+      "default": "pending",
+      "description": "Approval status \u2014 only approved mappings are used by sync"
+    },
+    "detected_by": {
+      "type": "string",
+      "enum": [
+        "auto",
+        "manual"
+      ],
+      "default": "manual",
+      "description": "How the mapping was created"
+    },
+    "approved_by": {
+      "type": "string",
+      "description": "Who approved the mapping"
+    },
+    "approved_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the mapping was approved"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Notes about the change"
+    }
+  },
+  "required": [
+    "old_sku",
+    "new_sku",
+    "status"
+  ]
+}

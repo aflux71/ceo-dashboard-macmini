@@ -1,0 +1,47 @@
+{
+  "name": "SKUAlias",
+  "type": "object",
+  "properties": {
+    "primary_sku": {
+      "type": "string",
+      "description": "The canonical SKU to keep"
+    },
+    "alias_sku": {
+      "type": "string",
+      "description": "The duplicate SKU to suppress"
+    },
+    "product_name": {
+      "type": "string",
+      "description": "Product name for reference"
+    },
+    "reason": {
+      "type": "string",
+      "description": "Short note e.g. barcode vs variant SKU, old UPC, supplier code"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending_review",
+        "approved",
+        "rejected"
+      ],
+      "default": "pending_review",
+      "description": "Review status"
+    },
+    "reviewed_by": {
+      "type": "string",
+      "description": "Name of user who reviewed"
+    },
+    "reviewed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the record was reviewed"
+    }
+  },
+  "required": [
+    "primary_sku",
+    "alias_sku",
+    "product_name",
+    "status"
+  ]
+}

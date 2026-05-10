@@ -1,0 +1,55 @@
+{
+  "name": "DemandConfig",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Workspace name"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "forecast",
+        "target"
+      ],
+      "default": "forecast",
+      "description": "Planning mode"
+    },
+    "forecastMonths": {
+      "type": "number",
+      "description": "Number of months to forecast"
+    },
+    "growthPct": {
+      "type": "number",
+      "description": "Growth percentage"
+    },
+    "safetyPct": {
+      "type": "number",
+      "description": "Safety stock percentage"
+    },
+    "minMonthlyVelocity": {
+      "type": "number",
+      "description": "Minimum monthly velocity to include in plan"
+    },
+    "targetLevels": {
+      "type": "string",
+      "description": "Target stock levels per SKU (JSON stringified)"
+    },
+    "inventoryOverrides": {
+      "type": "string",
+      "description": "On-hand inventory overrides per SKU (JSON stringified)"
+    },
+    "exclusionList": {
+      "type": "string",
+      "description": "List of excluded SKUs (JSON stringified)"
+    },
+    "isDefault": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this is the default workspace"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

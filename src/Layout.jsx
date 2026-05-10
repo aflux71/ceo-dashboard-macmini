@@ -37,7 +37,8 @@ import {
   Activity,
   Phone,
   MapPin,
-  BarChart2
+  BarChart2,
+  Eye
 } from "lucide-react";
 
 const navItems = [
@@ -56,6 +57,7 @@ const navItems = [
         { name: "Bin Map", icon: MapPin, page: "BinMap" },
         { name: "Production Request", icon: ClipboardList, page: "ProductionRequest" },
         { name: "Demand Planner", icon: BarChart2, page: "DemandPlanner" },
+        { name: "Inventory Requirements", icon: Eye, page: "InventoryRequirements" },
         { name: "Recipes", icon: Beaker, page: "Recipes" },
 
         { name: "Purchase Orders", icon: ShoppingCart, page: "PurchaseOrders" },

@@ -1,0 +1,108 @@
+{
+  "name": "LabelPurchaseOrder",
+  "type": "object",
+  "properties": {
+    "po_number": {
+      "type": "string",
+      "description": "Purchase order number (e.g., LPO-2026-001)"
+    },
+    "supplier_id": {
+      "type": "string",
+      "description": "Reference to Supplier entity"
+    },
+    "supplier_name": {
+      "type": "string",
+      "description": "Supplier name"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending_approval",
+        "approved",
+        "submitted",
+        "shipped",
+        "received",
+        "cancelled"
+      ],
+      "default": "pending_approval",
+      "description": "Order status"
+    },
+    "items": {
+      "type": "array",
+      "description": "Label items in this order",
+      "items": {
+        "type": "object",
+        "properties": {
+          "label_id": {
+            "type": "string"
+          },
+          "label_name": {
+            "type": "string"
+          },
+          "label_sku": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number"
+          },
+          "unit_cost": {
+            "type": "number"
+          },
+          "total_cost": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "subtotal": {
+      "type": "number",
+      "description": "Order subtotal"
+    },
+    "total": {
+      "type": "number",
+      "description": "Order total"
+    },
+    "expected_delivery_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Expected delivery based on lead time"
+    },
+    "order_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date order was placed"
+    },
+    "received_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Actual received date"
+    },
+    "auto_generated": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this PO was auto-generated"
+    },
+    "generation_reason": {
+      "type": "string",
+      "description": "Why this PO was generated (e.g., 'Low stock alert')"
+    },
+    "approved_by": {
+      "type": "string",
+      "description": "User who approved"
+    },
+    "approved_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Additional notes"
+    }
+  },
+  "required": [
+    "po_number",
+    "supplier_id",
+    "status",
+    "items"
+  ]
+}

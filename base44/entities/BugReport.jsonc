@@ -1,0 +1,56 @@
+{
+  "name": "BugReport",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Bug report title"
+    },
+    "description": {
+      "type": "string",
+      "description": "Detailed description of the bug"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "default": "medium",
+      "description": "Priority level"
+    },
+    "category": {
+      "type": "string",
+      "description": "Bug category"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "open",
+        "in_progress",
+        "resolved",
+        "closed"
+      ],
+      "default": "open",
+      "description": "Current status"
+    },
+    "submitted_by": {
+      "type": "string",
+      "description": "Who submitted the bug report"
+    },
+    "assigned_to": {
+      "type": "string",
+      "description": "Who is assigned to fix the bug"
+    },
+    "resolution_notes": {
+      "type": "string",
+      "description": "Notes on how the bug was resolved"
+    }
+  },
+  "required": [
+    "title",
+    "description"
+  ]
+}

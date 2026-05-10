@@ -1,0 +1,57 @@
+{
+  "name": "MaterialUsage",
+  "type": "object",
+  "properties": {
+    "batch_id": {
+      "type": "string",
+      "description": "Reference to Batch entity"
+    },
+    "material_sku": {
+      "type": "string",
+      "description": "SKU of the material used"
+    },
+    "material_name": {
+      "type": "string",
+      "description": "Name of the material"
+    },
+    "target_qty": {
+      "type": "number",
+      "description": "Expected quantity per recipe"
+    },
+    "actual_qty": {
+      "type": "number",
+      "description": "Actual quantity used"
+    },
+    "variance": {
+      "type": "number",
+      "description": "Difference (actual - target)"
+    },
+    "variance_percent": {
+      "type": "number",
+      "description": "Variance as percentage"
+    },
+    "unit": {
+      "type": "string",
+      "description": "Unit of measure"
+    },
+    "recorded_by": {
+      "type": "string",
+      "description": "Floor user who recorded usage"
+    },
+    "recorded_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When usage was recorded"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Optional notes about variance"
+    }
+  },
+  "required": [
+    "batch_id",
+    "material_sku",
+    "target_qty",
+    "actual_qty"
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "ForecastExclusion",
+  "type": "object",
+  "properties": {
+    "sku": {
+      "type": "string",
+      "description": "Product SKU to exclude from forecasting"
+    },
+    "product_name": {
+      "type": "string",
+      "description": "Product name (for display)"
+    },
+    "reason": {
+      "type": "string",
+      "description": "Optional reason for exclusion"
+    }
+  },
+  "required": [
+    "sku"
+  ]
+}

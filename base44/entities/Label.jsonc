@@ -1,0 +1,80 @@
+{
+  "name": "Label",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Label name (e.g., 'Lavender Bath Bomb Label')"
+    },
+    "sku": {
+      "type": "string",
+      "description": "Label SKU code"
+    },
+    "product_sku": {
+      "type": "string",
+      "description": "SKU of the product this label is for"
+    },
+    "product_name": {
+      "type": "string",
+      "description": "Name of the product this label is for"
+    },
+    "current_quantity": {
+      "type": "number",
+      "default": 0,
+      "description": "Current label stock quantity"
+    },
+    "reorder_point": {
+      "type": "number",
+      "default": 100,
+      "description": "Low stock threshold for reorder alert"
+    },
+    "reorder_qty": {
+      "type": "number",
+      "description": "Suggested reorder quantity"
+    },
+    "bin_location": {
+      "type": "string",
+      "description": "Storage bin location"
+    },
+    "supplier_id": {
+      "type": "string",
+      "description": "Reference to Supplier entity"
+    },
+    "supplier_name": {
+      "type": "string",
+      "description": "Supplier name (denormalized for display)"
+    },
+    "lead_time_days": {
+      "type": "number",
+      "description": "Lead time from supplier in days"
+    },
+    "cost_per_unit": {
+      "type": "number",
+      "description": "Cost per label"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Additional notes"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether label is active"
+    },
+    "print_on_demand": {
+      "type": "boolean",
+      "default": false,
+      "description": "If true, labels are printed on demand and low stock alerts are suppressed"
+    },
+    "seasonal": {
+      "type": "boolean",
+      "default": false,
+      "description": "If true, label is seasonal and low stock alerts are suppressed"
+    }
+  },
+  "required": [
+    "name",
+    "sku",
+    "current_quantity"
+  ]
+}

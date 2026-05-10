@@ -1,0 +1,132 @@
+{
+  "name": "ForecastSuggestion",
+  "type": "object",
+  "properties": {
+    "workspace_id": {
+      "type": "string",
+      "description": "Source forecast workspace ID"
+    },
+    "workspace_name": {
+      "type": "string",
+      "description": "Name of source workspace"
+    },
+    "sku": {
+      "type": "string",
+      "description": "Product SKU"
+    },
+    "product_name": {
+      "type": "string",
+      "description": "Product name"
+    },
+    "category": {
+      "type": "string",
+      "description": "Product category"
+    },
+    "production_line": {
+      "type": "number",
+      "description": "Suggested production line (1 or 2)"
+    },
+    "forecast_qty": {
+      "type": "number",
+      "description": "Forecasted demand"
+    },
+    "event_qty": {
+      "type": "number",
+      "description": "Event-based demand"
+    },
+    "on_hand": {
+      "type": "number",
+      "description": "Current inventory"
+    },
+    "suggested_qty": {
+      "type": "number",
+      "description": "Suggested production quantity"
+    },
+    "urgency": {
+      "type": "string",
+      "enum": [
+        "critical",
+        "event",
+        "soon",
+        "ok"
+      ],
+      "description": "Urgency level"
+    },
+    "target_date": {
+      "type": "string",
+      "format": "date",
+      "description": "When inventory is needed by"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "suggested",
+        "scheduled",
+        "on_hold",
+        "in_progress",
+        "completed",
+        "dismissed"
+      ],
+      "default": "suggested",
+      "description": "Status of suggestion"
+    },
+    "scheduled_batch_id": {
+      "type": "string",
+      "description": "Linked batch if scheduled"
+    },
+    "scheduled_start_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Scheduled production start date/time"
+    },
+    "scheduled_end_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Scheduled production end date/time"
+    },
+    "assigned_production_line": {
+      "type": "number",
+      "description": "Assigned production line (1 or 2)"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Custom tags for categorization"
+    },
+    "degassing_time_days": {
+      "type": "number",
+      "description": "Override degassing time for this run"
+    },
+    "qc_hold_time_days": {
+      "type": "number",
+      "description": "Override QC hold time for this run"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Additional notes"
+    },
+    "pushed_by": {
+      "type": "string",
+      "description": "User who pushed from forecast"
+    },
+    "pushed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When pushed"
+    },
+    "conflict_acknowledged": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether scheduling conflict has been acknowledged"
+    }
+  },
+  "required": [
+    "sku",
+    "product_name",
+    "suggested_qty",
+    "urgency",
+    "status"
+  ]
+}

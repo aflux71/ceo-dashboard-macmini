@@ -1,0 +1,131 @@
+{
+  "name": "ForecastWorkspace",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Workspace name"
+    },
+    "version": {
+      "type": "string",
+      "default": "6.6",
+      "description": "Workspace version"
+    },
+    "config": {
+      "type": "object",
+      "description": "Forecast configuration",
+      "properties": {
+        "growth": {
+          "type": "number",
+          "description": "Overall growth percentage"
+        },
+        "lead_time": {
+          "type": "number",
+          "description": "Lead time in weeks"
+        },
+        "safety_stock_percent": {
+          "type": "number",
+          "description": "Safety stock percentage"
+        },
+        "forecast_months": {
+          "type": "number",
+          "description": "Number of months to forecast"
+        },
+        "monthly_growth": {
+          "type": "object",
+          "description": "Monthly growth adjustments (1-12)"
+        },
+        "category_growth": {
+          "type": "object",
+          "description": "Category growth adjustments"
+        }
+      }
+    },
+    "sales_data": {
+      "type": "object",
+      "description": "Aggregated sales data by SKU",
+      "properties": {
+        "retail": {
+          "type": "array",
+          "description": "Retail sales data"
+        },
+        "online": {
+          "type": "array",
+          "description": "Online sales data"
+        },
+        "min_date": {
+          "type": "string",
+          "description": "Earliest date in dataset"
+        },
+        "max_date": {
+          "type": "string",
+          "description": "Latest date in dataset"
+        }
+      }
+    },
+    "inventory_data": {
+      "type": "array",
+      "description": "Inventory snapshot data"
+    },
+    "events": {
+      "type": "array",
+      "description": "Demand events (store openings, wholesale orders)",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "stock_date": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "sku": {
+                  "type": "string"
+                },
+                "product": {
+                  "type": "string"
+                },
+                "qty": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "exclusions": {
+      "type": "array",
+      "description": "SKUs to exclude from forecast",
+      "items": {
+        "type": "string"
+      }
+    },
+    "results": {
+      "type": "object",
+      "description": "Calculated forecast results"
+    },
+    "saved_by": {
+      "type": "string",
+      "description": "User who last saved"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Workspace notes"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}
