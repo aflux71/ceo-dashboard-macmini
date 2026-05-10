@@ -914,6 +914,13 @@ export default function UserManagement() {
                 <SelectContent>
                   <SelectItem value="user">User</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
+                  {Object.keys(rolePermissions)
+                    .filter((r) => r !== "admin" && r !== "user")
+                    .map((role) => (
+                      <SelectItem key={role} value={role}>
+                        {role.charAt(0).toUpperCase() + role.slice(1).replace(/_/g, ' ')}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
