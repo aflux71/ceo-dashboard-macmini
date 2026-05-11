@@ -37,7 +37,8 @@ const DEFAULT_UNITS = ["units", "Cases", "L", "ml", "Kg", "gram"];
 const DEFAULT_INVENTORY_TYPES = [
   { value: "raw_material", label: "Raw Material", color: "orange" },
   { value: "packaging", label: "Packaging", color: "blue" },
-  { value: "finished_product", label: "Finished Product", color: "green" }
+  { value: "finished_product", label: "Finished Product", color: "green" },
+  { value: "private_brand", label: "Private Brand", color: "purple" }
 ];
 
 export default function Inventory() {
@@ -176,8 +177,8 @@ export default function Inventory() {
 
   const createMutation = useMutation({
     mutationFn: async (data) => {
-      // Generate SKU at submission time to avoid conflicts
-      if (!editItem) {
+      // Generate SKU at submission time to avoid conflicts (skip for private_brand — manual SKU)
+      if (!editItem && data.type !== "private_brand") {
         const currentInventory = await base44.entities.Inventory.list();
         const rmPattern = /^RM-(\d+)$/i;
         let maxNum = 0;
@@ -1018,12 +1019,13 @@ export default function Inventory() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>SKU</Label>
+                <Label>SKU {!editItem && formData.type === "private_brand" && <span className="text-xs text-purple-400 ml-1">(manual)</span>}</Label>
                 <Input
-                  value={formData.sku}
+                  value={!editItem && formData.type === "private_brand" && formData.sku === "(auto-generated)" ? "" : formData.sku}
                   onChange={(e) => setFormData({...formData, sku: e.target.value})}
                   required
-                  disabled={!editItem}
+                  disabled={!editItem && formData.type !== "private_brand"}
+                  placeholder={!editItem && formData.type === "private_brand" ? "Enter SKU" : ""}
                   className="bg-zinc-800 border-zinc-700 disabled:opacity-50"
                 />
               </div>

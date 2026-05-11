@@ -15,7 +15,8 @@
       "enum": [
         "raw_material",
         "packaging",
-        "finished_product"
+        "finished_product",
+        "private_brand"
       ],
       "description": "Type of inventory item"
     },
