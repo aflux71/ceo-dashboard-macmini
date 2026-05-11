@@ -887,12 +887,12 @@ export default function Inventory() {
                         </td>
                         <td className="p-4">
                          <div className="flex justify-end gap-2">
-                          {item.type === "finished_product" && (
+                          {(item.type === "finished_product" || item.type === "private_brand") && (
                             <Button
                               size="sm"
                               variant="ghost"
                               onClick={() => { setPushToProdItem(item); setPushQty(0); setPushNotes(""); }}
-                              className="text-zinc-400 hover:text-orange-400"
+                              className={item.type === "private_brand" ? "text-zinc-400 hover:text-purple-400" : "text-zinc-400 hover:text-orange-400"}
                               title="Push to Production Planning"
                             >
                               <Factory className="w-4 h-4" />
