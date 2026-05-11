@@ -101,6 +101,7 @@ export default function Inventory() {
   const [pushQty, setPushQty] = useState(0);
   const [pushNotes, setPushNotes] = useState("");
   const [isPushing, setIsPushing] = useState(false);
+  const [manualSkuOverride, setManualSkuOverride] = useState(false);
 
   const CURRENCIES = ["CAD", "USD", "EUR", "GBP"];
 
@@ -177,8 +178,8 @@ export default function Inventory() {
 
   const createMutation = useMutation({
     mutationFn: async (data) => {
-      // Generate SKU at submission time to avoid conflicts (skip for private_brand — manual SKU)
-      if (!editItem && data.type !== "private_brand") {
+      // Generate SKU at submission time to avoid conflicts (skip for private_brand or manual override)
+      if (!editItem && data.type !== "private_brand" && !manualSkuOverride) {
         const currentInventory = await base44.entities.Inventory.list();
         const rmPattern = /^RM-(\d+)$/i;
         let maxNum = 0;
@@ -324,6 +325,7 @@ export default function Inventory() {
   const closeModal = () => {
     setShowModal(false);
     setEditItem(null);
+    setManualSkuOverride(false);
   };
 
   const handleSubmit = (e) => {
@@ -1019,13 +1021,35 @@ export default function Inventory() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>SKU {!editItem && formData.type === "private_brand" && <span className="text-xs text-purple-400 ml-1">(manual)</span>}</Label>
+                <div className="flex items-center justify-between">
+                  <Label>
+                    SKU
+                    {!editItem && (formData.type === "private_brand" || manualSkuOverride) && (
+                      <span className="text-xs text-purple-400 ml-1">(manual)</span>
+                    )}
+                  </Label>
+                  {!editItem && formData.type !== "private_brand" && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setManualSkuOverride(v => {
+                          const next = !v;
+                          setFormData(prev => ({ ...prev, sku: next ? "" : "(auto-generated)" }));
+                          return next;
+                        });
+                      }}
+                      className="text-xs text-zinc-500 hover:text-orange-400 transition-colors"
+                    >
+                      {manualSkuOverride ? "Use auto-generated" : "Manual override"}
+                    </button>
+                  )}
+                </div>
                 <Input
                   value={!editItem && formData.type === "private_brand" && formData.sku === "(auto-generated)" ? "" : formData.sku}
                   onChange={(e) => setFormData({...formData, sku: e.target.value})}
                   required
-                  disabled={!editItem && formData.type !== "private_brand"}
-                  placeholder={!editItem && formData.type === "private_brand" ? "Enter SKU" : ""}
+                  disabled={!editItem && formData.type !== "private_brand" && !manualSkuOverride}
+                  placeholder={!editItem && (formData.type === "private_brand" || manualSkuOverride) ? "Enter SKU" : ""}
                   className="bg-zinc-800 border-zinc-700 disabled:opacity-50"
                 />
               </div>
