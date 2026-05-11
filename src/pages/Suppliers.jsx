@@ -8,8 +8,7 @@ import {
   Edit,
   Trash2,
   Mail,
-  Phone,
-  Briefcase
+  Phone
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,7 +21,6 @@ import Badge from "@/components/ui/Badge";
 
 export default function Suppliers() {
   const [search, setSearch] = useState("");
-  const [filterType, setFilterType] = useState("all"); // all | suppliers | clients
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [formData, setFormData] = useState({
@@ -34,8 +32,7 @@ export default function Suppliers() {
     payment_terms: "",
     lead_time_days: 0,
     notes: "",
-    active: true,
-    is_client: false
+    active: true
   });
 
   const queryClient = useQueryClient();
@@ -78,8 +75,7 @@ export default function Suppliers() {
         payment_terms: supplier.payment_terms || "",
         lead_time_days: supplier.lead_time_days || 0,
         notes: supplier.notes || "",
-        active: supplier.active !== false,
-        is_client: supplier.is_client === true
+        active: supplier.active !== false
       });
     } else {
       setEditItem(null);
@@ -92,8 +88,7 @@ export default function Suppliers() {
         payment_terms: "",
         lead_time_days: 0,
         notes: "",
-        active: true,
-        is_client: false
+        active: true
       });
     }
     setShowModal(true);
@@ -117,11 +112,7 @@ export default function Suppliers() {
     const matchesSearch = !search || 
       supplier.name?.toLowerCase().includes(search.toLowerCase()) ||
       supplier.contact_name?.toLowerCase().includes(search.toLowerCase());
-    const matchesType =
-      filterType === "all" ||
-      (filterType === "clients" && supplier.is_client === true) ||
-      (filterType === "suppliers" && supplier.is_client !== true);
-    return matchesSearch && matchesType;
+    return matchesSearch;
   });
 
   return (
@@ -129,48 +120,28 @@ export default function Suppliers() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-100">Suppliers & Clients</h1>
+          <h1 className="text-2xl font-bold text-zinc-100">Suppliers</h1>
           <p className="text-zinc-500 text-sm mt-1">
-            Manage supplier and private label client contacts
+            Manage supplier contacts and information
           </p>
         </div>
         <Button onClick={() => openModal()} className="bg-orange-500 hover:bg-orange-600 text-white">
           <Plus className="w-4 h-4 mr-2" />
-          Add Contact
+          Add Supplier
         </Button>
       </div>
 
-      {/* Search + Filter */}
+      {/* Search */}
       <Card className="bg-zinc-900 border-zinc-800">
-        <CardContent className="pt-6 flex flex-col md:flex-row gap-3">
-          <div className="relative flex-1">
+        <CardContent className="pt-6">
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
             <Input
-              placeholder="Search by name or contact..."
+              placeholder="Search suppliers..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9 bg-zinc-800 border-zinc-700 text-zinc-100"
             />
-          </div>
-          <div className="flex gap-1 bg-zinc-800 border border-zinc-700 rounded-md p-1">
-            {[
-              { key: "all", label: "All" },
-              { key: "suppliers", label: "Suppliers" },
-              { key: "clients", label: "Clients" },
-            ].map(opt => (
-              <button
-                key={opt.key}
-                type="button"
-                onClick={() => setFilterType(opt.key)}
-                className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
-                  filterType === opt.key
-                    ? "bg-orange-500 text-white"
-                    : "text-zinc-400 hover:text-zinc-100"
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
           </div>
         </CardContent>
       </Card>
@@ -182,17 +153,13 @@ export default function Suppliers() {
         ) : filtered.length === 0 ? (
           <p className="col-span-full text-center text-zinc-500 py-8">No suppliers found</p>
         ) : (
-          filtered.map((supplier) => {
-            const isClient = supplier.is_client === true;
-            return (
+          filtered.map((supplier) => (
             <Card key={supplier.id} className="bg-zinc-900 border-zinc-800 hover:border-zinc-700 transition-colors">
               <CardContent className="pt-6">
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isClient ? 'bg-purple-500/20' : 'bg-orange-500/20'}`}>
-                      {isClient
-                        ? <Briefcase className="w-5 h-5 text-purple-400" />
-                        : <Truck className="w-5 h-5 text-orange-400" />}
+                    <div className="w-10 h-10 rounded-full bg-orange-500/20 flex items-center justify-center">
+                      <Truck className="w-5 h-5 text-orange-400" />
                     </div>
                     <div>
                       <h3 className="font-semibold text-zinc-100">{supplier.name}</h3>
@@ -201,14 +168,9 @@ export default function Suppliers() {
                       )}
                     </div>
                   </div>
-                  <div className="flex flex-col items-end gap-1">
-                    {isClient && (
-                      <Badge variant="purple">Client</Badge>
-                    )}
-                    <Badge variant={supplier.active !== false ? 'green' : 'default'}>
-                      {supplier.active !== false ? 'Active' : 'Inactive'}
-                    </Badge>
-                  </div>
+                  <Badge variant={supplier.active !== false ? 'green' : 'default'}>
+                    {supplier.active !== false ? 'Active' : 'Inactive'}
+                  </Badge>
                 </div>
                 
                 <div className="space-y-2 text-sm mb-4">
@@ -251,7 +213,7 @@ export default function Suppliers() {
                     size="sm"
                     variant="ghost"
                     onClick={() => {
-                      if (confirm('Delete this contact?')) {
+                      if (confirm('Delete this supplier?')) {
                         deleteMutation.mutate(supplier.id);
                       }
                     }}
@@ -262,8 +224,7 @@ export default function Suppliers() {
                 </div>
               </CardContent>
             </Card>
-            );
-          })
+          ))
         )}
       </div>
 
@@ -271,19 +232,9 @@ export default function Suppliers() {
       <Dialog open={showModal} onOpenChange={setShowModal}>
         <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editItem ? 'Edit Contact' : 'Add Contact'}</DialogTitle>
+            <DialogTitle>{editItem ? 'Edit Supplier' : 'Add Supplier'}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="flex items-center justify-between rounded-md border border-zinc-800 bg-zinc-800/50 px-3 py-2">
-              <div>
-                <Label className="text-zinc-200">Private Label Client</Label>
-                <p className="text-xs text-zinc-500 mt-0.5">Toggle on if this is a client (not a supplier)</p>
-              </div>
-              <Switch
-                checked={formData.is_client}
-                onCheckedChange={(checked) => setFormData({...formData, is_client: checked})}
-              />
-            </div>
             <div className="space-y-2">
               <Label>Company Name</Label>
               <Input
@@ -357,7 +308,7 @@ export default function Suppliers() {
               />
             </div>
             <div className="flex items-center justify-between pt-2">
-              <Label>Active</Label>
+              <Label>Active Supplier</Label>
               <Switch
                 checked={formData.active}
                 onCheckedChange={(checked) => setFormData({...formData, active: checked})}

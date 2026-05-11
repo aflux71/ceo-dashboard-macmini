@@ -4,7 +4,7 @@
   "properties": {
     "name": {
       "type": "string",
-      "description": "Supplier or Client company name"
+      "description": "Supplier company name"
     },
     "contact_name": {
       "type": "string",
@@ -37,12 +37,7 @@
     "active": {
       "type": "boolean",
       "default": true,
-      "description": "Whether supplier/client is active"
-    },
-    "is_client": {
-      "type": "boolean",
-      "default": false,
-      "description": "Indicates if this record represents a private label client"
+      "description": "Whether supplier is active"
     }
   },
   "required": [
