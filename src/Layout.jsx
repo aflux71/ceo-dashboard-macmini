@@ -39,7 +39,8 @@ import {
   MapPin,
   BarChart2,
   Eye,
-  Ban
+  Ban,
+  Briefcase
 } from "lucide-react";
 
 const navItems = [
@@ -58,6 +59,7 @@ const navItems = [
         { name: "Bin Map", icon: MapPin, page: "BinMap" },
         { name: "Production Request", icon: ClipboardList, page: "ProductionRequest" },
         { name: "Inventory Requirements", icon: Eye, page: "InventoryRequirements" },
+        { name: "Private Label", icon: Briefcase, page: "PrivateLabel" },
         { name: "Recipes", icon: Beaker, page: "Recipes" },
 
         { name: "Purchase Orders", icon: ShoppingCart, page: "PurchaseOrders" },

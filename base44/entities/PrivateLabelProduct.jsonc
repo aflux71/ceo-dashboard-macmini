@@ -1,0 +1,65 @@
+{
+  "name": "PrivateLabelProduct",
+  "type": "object",
+  "properties": {
+    "client_id": {
+      "type": "string",
+      "description": "ID of the Supplier record marked as is_client"
+    },
+    "client_name": {
+      "type": "string",
+      "description": "Client company name (denormalized for display)"
+    },
+    "po_number": {
+      "type": "string",
+      "description": "Customer purchase order number"
+    },
+    "product_name": {
+      "type": "string",
+      "description": "Private label product name"
+    },
+    "sku": {
+      "type": "string",
+      "description": "SKU used for this private label product (can mirror recipe SKU or be unique)"
+    },
+    "recipe_sku": {
+      "type": "string",
+      "description": "SKU of the base Recipe used for production"
+    },
+    "quantity": {
+      "type": "number",
+      "description": "Quantity to produce"
+    },
+    "due_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Target completion / ship date"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "approved",
+        "in_production",
+        "complete",
+        "shipped",
+        "cancelled"
+      ],
+      "default": "draft",
+      "description": "Lifecycle status"
+    },
+    "production_request_id": {
+      "type": "string",
+      "description": "Linked ProductionRequest created when approved"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Additional notes"
+    }
+  },
+  "required": [
+    "client_name",
+    "product_name",
+    "quantity"
+  ]
+}
