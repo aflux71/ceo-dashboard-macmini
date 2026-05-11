@@ -18,7 +18,7 @@ export default function RecipeSkuSearch({ inventory, value, onChange, onSelect, 
   }, []);
 
   const finishedProducts = useMemo(() => {
-    return (inventory || []).filter(i => i.type === "finished_product");
+    return (inventory || []).filter(i => i.type === "finished_product" || i.type === "private_brand");
   }, [inventory]);
 
   const results = useMemo(() => {
