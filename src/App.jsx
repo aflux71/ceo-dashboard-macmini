@@ -19,6 +19,7 @@ import ProductionRequest from './pages/ProductionRequest';
 import BatchInspection from './pages/BatchInspection';
 import BinMap from './pages/BinMap';
 import InventoryRequirements from './pages/InventoryRequirements';
+import MissingInventory from './pages/MissingInventory';
 import ErrorBoundary from './components/ErrorBoundary';
 
 const { Pages, Layout, mainPage } = pagesConfig;
@@ -83,6 +84,7 @@ const AuthenticatedApp = () => {
       <Route path="/BatchInspection" element={<LayoutWrapper currentPageName="BatchInspection"><BatchInspection /></LayoutWrapper>} />
       <Route path="/BinMap" element={<LayoutWrapper currentPageName="BinMap"><BinMap /></LayoutWrapper>} />
       <Route path="/InventoryRequirements" element={<LayoutWrapper currentPageName="InventoryRequirements"><InventoryRequirements /></LayoutWrapper>} />
+      <Route path="/MissingInventory" element={<LayoutWrapper currentPageName="MissingInventory"><MissingInventory /></LayoutWrapper>} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

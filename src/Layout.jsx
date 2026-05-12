@@ -82,6 +82,7 @@ const settingsItems = [
         { name: "Measurement Units", icon: Package, page: "MeasurementSettings" },
         { name: "SKU Dedup", icon: GitMerge, page: "SKUDeduplication" },
         { name: "Master Exclusion List", icon: Ban, page: "MasterExclusionList" },
+        { name: "Missing Inventory", icon: AlertOctagon, page: "MissingInventory" },
         { name: "Audit Log", icon: ClipboardList, page: "AuditLog" },
         { name: "Recipe Versions", icon: History, page: "RecipeVersions" },
         { name: "Sync Log", icon: History, page: "SyncLog" },
