@@ -17,6 +17,8 @@ export default function InventoryRequirementsTable({
   plannerSKUs,
   workspace,
   onViewDetail,
+  forecastMonths,
+  onForecastMonthsChange,
 }) {
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState("All");
@@ -110,6 +112,19 @@ export default function InventoryRequirementsTable({
             <option value="sku">Sort: SKU</option>
             <option value="cover">Sort: Coverage</option>
           </select>
+
+          {onForecastMonthsChange && (
+            <select
+              value={forecastMonths}
+              onChange={e => onForecastMonthsChange(Number(e.target.value))}
+              className="bg-zinc-900 border border-orange-500/40 text-zinc-300 text-sm rounded px-2 py-1.5 focus:border-orange-500 focus:outline-none"
+              title="Forecast horizon"
+            >
+              {[1, 2, 3, 4, 5, 6].map(m => (
+                <option key={m} value={m}>Forecast: {m} mo{m > 1 ? "s" : ""}</option>
+              ))}
+            </select>
+          )}
         </div>
 
         <div className="flex gap-2 items-center">

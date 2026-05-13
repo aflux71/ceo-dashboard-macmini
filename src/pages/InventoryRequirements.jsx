@@ -187,24 +187,14 @@ export default function InventoryRequirements() {
             {plan ? `${plan.summary.totalSKUs} SKUs · ${formatNumber(plan.summary.totalNeed)} units needed` : "Loading plan..."}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-zinc-400 uppercase tracking-wider">Forecast</label>
-          <select
-            value={forecastMonths}
-            onChange={(e) => setForecastMonths(Number(e.target.value))}
-            className="bg-zinc-900 border border-zinc-700 text-zinc-100 text-sm rounded-md px-3 py-1.5 focus:outline-none focus:border-orange-500"
-          >
-            {[1, 2, 3, 4, 5, 6].map((m) => (
-              <option key={m} value={m}>{m} month{m > 1 ? "s" : ""}</option>
-            ))}
-          </select>
-        </div>
       </div>
 
       <InventoryRequirementsTable
         plan={plan}
         plannerSKUs={plannerSKUs}
         workspace={{ ...workspace, forecastMonths }}
+        forecastMonths={forecastMonths}
+        onForecastMonthsChange={setForecastMonths}
       />
     </div>
   );
