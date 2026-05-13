@@ -769,12 +769,43 @@ function BatchCard({ batch, inventory, labels, dragHandleProps, draggableProps, 
     .map((l) => ({ name: l.name, bin: l.bin_location }));
 
   const invalidateAllBatchCaches = () => {
-    ["shopfloor_batches", "planning_wip_inhouse_batches", "planning_schedule_batches", "planning_batches", "batches-traveler"]
+    ["shopfloor_batches", "planning_wip_inhouse_batches", "planning_schedule_batches", "planning_batches", "batches-traveler", "review_queue"]
       .forEach((k) => queryClient.invalidateQueries({ queryKey: [k] }));
   };
 
+  // Keep ReviewQueue records in sync when arrows move a batch in or out of "in_review"
+  const syncReviewQueue = async (batch, newStatus) => {
+    try {
+      if (newStatus === "in_review") {
+        // Moving forward INTO review — create a ReviewQueue record if none exists
+        const existing = await base44.entities.ReviewQueue.filter({ batch_entity_id: batch.id, status: "pending" });
+        if (existing.length === 0) {
+          await base44.entities.ReviewQueue.create({
+            batch_id: batch.batch_id,
+            batch_entity_id: batch.id,
+            sku: batch.sku,
+            product_name: batch.product_name,
+            quantity: batch.actual_yield_units ?? batch.quantity ?? 0,
+            planned_quantity: batch.quantity,
+            status: "pending",
+            submitted_at: new Date().toISOString(),
+          });
+        }
+      } else if (batch.status === "in_review") {
+        // Moving backward OUT of review — clean up any pending ReviewQueue records
+        const existing = await base44.entities.ReviewQueue.filter({ batch_entity_id: batch.id, status: "pending" });
+        await Promise.all(existing.map((r) => base44.entities.ReviewQueue.delete(r.id)));
+      }
+    } catch (err) {
+      console.error("ReviewQueue sync failed", err);
+    }
+  };
+
   const advanceMutation = useMutation({
-    mutationFn: ({ id, newStatus, extra }) => base44.entities.Batch.update(id, { status: newStatus, ...extra }),
+    mutationFn: async ({ id, newStatus, extra }) => {
+      await syncReviewQueue(batch, newStatus);
+      return base44.entities.Batch.update(id, { status: newStatus, ...extra });
+    },
     onSuccess: () => { invalidateAllBatchCaches(); toast.success("Stage updated"); },
     onError: (err) => toast.error(`Failed: ${err?.message}`),
   });
