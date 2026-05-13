@@ -397,6 +397,13 @@ export default function ProductionRequest() {
                   </div>
                 ) : (
                   <>
+                    <button
+                      onClick={() => startEdit(req)}
+                      className="p-1.5 rounded-md text-zinc-500 hover:text-orange-400 hover:bg-orange-500/10 transition-colors shrink-0"
+                      title="Edit quantity"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
                     {req.quantity_needed > 0 && (
                       <span className="text-sm text-zinc-300 shrink-0">Qty: {req.quantity_needed}</span>
                     )}
@@ -406,13 +413,6 @@ export default function ProductionRequest() {
                     <span className="text-[10px] px-2 py-0.5 rounded border bg-amber-500/10 text-amber-400 border-amber-500/20 shrink-0">
                       Pending
                     </span>
-                    <button
-                      onClick={() => startEdit(req)}
-                      className="p-1.5 rounded-md text-zinc-500 hover:text-orange-400 hover:bg-orange-500/10 transition-colors shrink-0"
-                      title="Edit quantity"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
                     <Button
                       size="sm"
                       variant="outline"
