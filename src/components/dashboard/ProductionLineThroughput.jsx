@@ -6,53 +6,66 @@ import { Activity, AlertTriangle, CheckCircle2, Clock, Gauge } from "lucide-reac
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 
+// Days in the rolling window used to compare against line capacity
+const CAPACITY_WINDOW_DAYS = 7;
+const WORKING_DAYS_PER_WEEK = 5;
+
 function computeLineStats(batches, lineCapacities) {
-  const activeStatuses = ["started", "on_hold", "pending_qc", "in_review"];
+  // Active or in-flight batches that are consuming line time
+  const activeStatuses = ["draft", "started", "on_hold", "pending_qc", "in_review", "approved"];
+
+  // Only look at the rolling window (default 7 days back from now)
+  const windowStart = new Date();
+  windowStart.setDate(windowStart.getDate() - CAPACITY_WINDOW_DAYS);
 
   // Group active batches by production line
   const byLine = {};
   for (const batch of batches) {
     if (!activeStatuses.includes(batch.status)) continue;
+    const dateStr = batch.production_date || batch.batch_date || batch.created_date;
+    if (dateStr) {
+      const d = new Date(dateStr);
+      if (!isNaN(d) && d < windowStart) continue;
+    }
     const line = batch.production_line ?? "?";
     if (!byLine[line]) byLine[line] = [];
     byLine[line].push(batch);
   }
 
-  return Object.entries(byLine).map(([line, lineBatches]) => {
+  // Include configured lines even if they have zero batches
+  const allLineKeys = new Set([
+    ...Object.keys(byLine),
+    ...lineCapacities.filter(c => c.active !== false).map(c => String(c.line_number)),
+  ]);
+
+  return Array.from(allLineKeys).map((line) => {
     const lineNum = Number(line);
+    const lineBatches = byLine[line] || [];
     const capacity = lineCapacities.find(c => c.line_number === lineNum);
 
-    // Sum planned quantity for all active batches on this line
+    // Total planned units for the window
     const totalPlanned = lineBatches.reduce((s, b) => s + (b.quantity || 0), 0);
 
-    // Materials consumed: sum actual_qty across all material_usage entries
-    const totalMaterialConsumed = lineBatches.reduce((s, b) => {
-      const used = (b.material_usage || []).reduce((ms, m) => ms + (m.actual_qty || 0), 0);
-      return s + used;
-    }, 0);
+    // Weekly capacity = daily capacity × working days
+    const dailyCap = capacity?.daily_capacity_units || 0;
+    const weeklyCapacity = dailyCap * WORKING_DAYS_PER_WEEK;
 
-    // Materials expected (from recipe): sum expected_qty across all material_usage entries
-    const totalMaterialExpected = lineBatches.reduce((s, b) => {
-      const expected = (b.material_usage || []).reduce((ms, m) => ms + (m.expected_qty || 0), 0);
-      return s + expected;
-    }, 0);
-
-    // Throughput rate: actual / expected (1.0 = on track, <1.0 = behind, >1.0 = ahead)
-    const consumptionRate = totalMaterialExpected > 0
-      ? totalMaterialConsumed / totalMaterialExpected
+    // Utilization rate: planned units / weekly capacity
+    const utilizationRate = weeklyCapacity > 0
+      ? totalPlanned / weeklyCapacity
       : null;
 
-    // Variance percentage (negative = behind)
-    const variancePct = consumptionRate != null
-      ? Math.round((consumptionRate - 1) * 100)
+    const utilPct = utilizationRate != null
+      ? Math.round(utilizationRate * 100)
       : null;
 
-    // Determine status
-    let status = "on_track";
-    if (consumptionRate === null) status = "no_data";
-    else if (consumptionRate < 0.8) status = "behind";
-    else if (consumptionRate < 0.95) status = "slow";
-    else status = "on_track";
+    // Determine status (utilization buckets)
+    let status = "no_data";
+    if (utilizationRate === null) status = "no_data";
+    else if (utilizationRate >= 1.05) status = "over";       // overloaded
+    else if (utilizationRate >= 0.75) status = "on_track";   // healthy use
+    else if (utilizationRate >= 0.4)  status = "slow";       // under-used
+    else status = "behind";                                   // very low
 
     // Count batches by sub-status
     const started = lineBatches.filter(b => b.status === "started").length;
@@ -65,10 +78,10 @@ function computeLineStats(batches, lineCapacities) {
       started,
       onHold,
       totalPlanned,
-      totalMaterialConsumed,
-      totalMaterialExpected,
-      consumptionRate,
-      variancePct,
+      weeklyCapacity,
+      dailyCapacity: dailyCap,
+      utilizationRate,
+      utilPct,
       status,
       batches: lineBatches,
     };
@@ -76,16 +89,18 @@ function computeLineStats(batches, lineCapacities) {
 }
 
 const STATUS_CONFIG = {
-  behind:   { color: "text-red-400",    bg: "bg-red-500/10",    border: "border-red-500/30",    bar: "bg-red-500",    icon: AlertTriangle, label: "Behind" },
-  slow:     { color: "text-amber-400",  bg: "bg-amber-500/10",  border: "border-amber-500/30",  bar: "bg-amber-400",  icon: Clock,          label: "Slow" },
-  on_track: { color: "text-green-400",  bg: "bg-green-500/10",  border: "border-green-500/30",  bar: "bg-green-500",  icon: CheckCircle2,   label: "On Track" },
-  no_data:  { color: "text-zinc-400",   bg: "bg-zinc-800",      border: "border-zinc-700",      bar: "bg-zinc-600",   icon: Gauge,          label: "No Data" },
+  behind:   { color: "text-red-400",    bg: "bg-red-500/10",    border: "border-red-500/30",    bar: "bg-red-500",    icon: AlertTriangle, label: "Under-utilized" },
+  slow:     { color: "text-amber-400",  bg: "bg-amber-500/10",  border: "border-amber-500/30",  bar: "bg-amber-400",  icon: Clock,          label: "Capacity Available" },
+  on_track: { color: "text-green-400",  bg: "bg-green-500/10",  border: "border-green-500/30",  bar: "bg-green-500",  icon: CheckCircle2,   label: "Well Utilized" },
+  over:     { color: "text-orange-400", bg: "bg-orange-500/10", border: "border-orange-500/30", bar: "bg-orange-500", icon: AlertTriangle,  label: "Overloaded" },
+  no_data:  { color: "text-zinc-400",   bg: "bg-zinc-800",      border: "border-zinc-700",      bar: "bg-zinc-600",   icon: Gauge,          label: "No Capacity Set" },
 };
 
 function ThroughputBar({ rate, status }) {
   const cfg = STATUS_CONFIG[status];
+  // Scale bar 0..130% so an overloaded line shows past the 100% marker
   const pct = rate != null ? Math.min(Math.max(rate * 100, 0), 130) : 0;
-  const displayPct = Math.min(pct, 100); // cap bar at 100% visually
+  const displayPct = (pct / 130) * 100;
 
   return (
     <div className="relative mt-2">
@@ -137,7 +152,7 @@ export default function ProductionLineThroughput({ batches = [] }) {
             <Activity className="w-5 h-5 text-orange-400" />
             Production Line Throughput
           </CardTitle>
-          <span className="text-xs text-zinc-500">Material consumption rate vs. plan</span>
+          <span className="text-xs text-zinc-500">Capacity utilization (last 7 days)</span>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -162,38 +177,39 @@ export default function ProductionLineThroughput({ batches = [] }) {
                   </div>
                   <div className="text-right">
                     <span className={`text-sm font-bold ${cfg.color}`}>
-                      {line.consumptionRate != null
-                        ? `${Math.round(line.consumptionRate * 100)}%`
-                        : "—"}
+                      {line.utilPct != null ? `${line.utilPct}%` : "—"}
                     </span>
-                    {line.variancePct != null && line.variancePct !== 0 && (
-                      <span className={`ml-1 text-xs ${line.variancePct < 0 ? "text-red-400" : "text-green-400"}`}>
-                        ({line.variancePct > 0 ? "+" : ""}{line.variancePct}%)
-                      </span>
-                    )}
                   </div>
                 </div>
 
                 {/* Progress Bar */}
-                <ThroughputBar rate={line.consumptionRate} status={line.status} />
+                <ThroughputBar rate={line.utilizationRate} status={line.status} />
 
                 {/* Detail Row */}
                 <div className="flex items-center justify-between mt-2 text-xs text-zinc-500">
                   <span>
-                    {line.totalMaterialConsumed.toFixed(1)} consumed / {line.totalMaterialExpected.toFixed(1)} expected
+                    {line.totalPlanned.toLocaleString()} units planned /{" "}
+                    {line.weeklyCapacity > 0
+                      ? `${line.weeklyCapacity.toLocaleString()} capacity (${line.dailyCapacity}/day × ${WORKING_DAYS_PER_WEEK})`
+                      : "no capacity configured"}
                   </span>
                   <span className={`font-medium ${cfg.color}`}>{cfg.label}</span>
                 </div>
 
-                {/* Behind warning */}
-                {line.status === "behind" && (
-                  <div className="mt-2 text-xs text-red-300 bg-red-900/20 border border-red-700/30 rounded px-2 py-1">
-                    ⚠ This line is significantly behind scheduled material consumption — review active batches
+                {/* Status warnings */}
+                {line.status === "no_data" && (
+                  <div className="mt-2 text-xs text-zinc-400 bg-zinc-800/40 border border-zinc-700/40 rounded px-2 py-1">
+                    No daily capacity configured — set <strong>daily_capacity_units</strong> in Line Capacity settings
                   </div>
                 )}
-                {line.status === "slow" && (
-                  <div className="mt-2 text-xs text-amber-300 bg-amber-900/20 border border-amber-700/30 rounded px-2 py-1">
-                    ↙ Consumption pace is below target — monitor for delays
+                {line.status === "behind" && line.weeklyCapacity > 0 && (
+                  <div className="mt-2 text-xs text-red-300 bg-red-900/20 border border-red-700/30 rounded px-2 py-1">
+                    ⚠ Line is significantly under-utilized — consider scheduling more production
+                  </div>
+                )}
+                {line.status === "over" && (
+                  <div className="mt-2 text-xs text-orange-300 bg-orange-900/20 border border-orange-700/30 rounded px-2 py-1">
+                    ⚠ Planned production exceeds weekly capacity — reschedule or extend lead times
                   </div>
                 )}
               </div>
@@ -203,10 +219,11 @@ export default function ProductionLineThroughput({ batches = [] }) {
 
         {/* Legend */}
         <div className="flex flex-wrap gap-3 pt-1 border-t border-zinc-800 text-xs text-zinc-500">
-          <span>Bar shows actual vs. expected material use.</span>
-          <span className="text-red-400">Red &lt;80%</span>
-          <span className="text-amber-400">Amber 80–95%</span>
-          <span className="text-green-400">Green ≥95%</span>
+          <span>Planned units ÷ weekly capacity:</span>
+          <span className="text-red-400">&lt;40% under-used</span>
+          <span className="text-amber-400">40–75% available</span>
+          <span className="text-green-400">75–105% well utilized</span>
+          <span className="text-orange-400">&gt;105% overloaded</span>
         </div>
       </CardContent>
     </Card>
