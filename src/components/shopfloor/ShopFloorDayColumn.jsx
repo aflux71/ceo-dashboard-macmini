@@ -768,15 +768,20 @@ function BatchCard({ batch, inventory, labels, dragHandleProps, draggableProps, 
     .filter((l) => l.product_sku === batch.sku && l.bin_location)
     .map((l) => ({ name: l.name, bin: l.bin_location }));
 
+  const invalidateAllBatchCaches = () => {
+    ["shopfloor_batches", "planning_wip_inhouse_batches", "planning_schedule_batches", "planning_batches", "batches-traveler"]
+      .forEach((k) => queryClient.invalidateQueries({ queryKey: [k] }));
+  };
+
   const advanceMutation = useMutation({
     mutationFn: ({ id, newStatus, extra }) => base44.entities.Batch.update(id, { status: newStatus, ...extra }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["shopfloor_batches"] }); toast.success("Stage updated"); },
+    onSuccess: () => { invalidateAllBatchCaches(); toast.success("Stage updated"); },
     onError: (err) => toast.error(`Failed: ${err?.message}`),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.Batch.update(id, data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["shopfloor_batches"] }); toast.success("Saved"); },
+    onSuccess: () => { invalidateAllBatchCaches(); toast.success("Saved"); },
     onError: (err) => toast.error(`Failed: ${err?.message}`),
   });
 
