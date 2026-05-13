@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
-import { Search, X, Package, CheckCircle2, ClipboardList, Send, Trash2, Clock } from "lucide-react";
+import { Search, X, Package, CheckCircle2, ClipboardList, Send, Trash2, Clock, Pencil, Check } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
@@ -11,6 +11,8 @@ export default function ProductionRequest() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [editQty, setEditQty] = useState("");
   const queryClient = useQueryClient();
 
   const { data: recipes = [] } = useQuery({
@@ -148,6 +150,25 @@ export default function ProductionRequest() {
 
   const handleAcknowledge = async (id) => {
     await base44.entities.ProductionRequest.update(id, { status: "material_check" });
+    queryClient.invalidateQueries({ queryKey: ["production_requests_pending"] });
+  };
+
+  const startEdit = (req) => {
+    setEditingId(req.id);
+    setEditQty(String(req.quantity_needed ?? ""));
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditQty("");
+  };
+
+  const saveEdit = async (id) => {
+    const qty = Number(editQty);
+    if (!qty || qty <= 0) return;
+    await base44.entities.ProductionRequest.update(id, { quantity_needed: qty });
+    setEditingId(null);
+    setEditQty("");
     queryClient.invalidateQueries({ queryKey: ["production_requests_pending"] });
   };
 
@@ -345,31 +366,71 @@ export default function ProductionRequest() {
                   <p className="text-sm font-medium text-zinc-100 truncate">{req.product_name || req.sku}</p>
                   <p className="text-xs text-zinc-500 font-mono">{req.sku}</p>
                 </div>
-                {req.quantity_needed > 0 && (
-                  <span className="text-sm text-zinc-300 shrink-0">Qty: {req.quantity_needed}</span>
+                {editingId === req.id ? (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Input
+                      type="number"
+                      min="1"
+                      autoFocus
+                      value={editQty}
+                      onChange={(e) => setEditQty(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") saveEdit(req.id);
+                        if (e.key === "Escape") cancelEdit();
+                      }}
+                      className="w-24 h-8 bg-zinc-800 border-zinc-700 text-zinc-100 text-sm"
+                    />
+                    <button
+                      onClick={() => saveEdit(req.id)}
+                      className="p-1.5 rounded-md text-green-400 hover:bg-green-500/10 transition-colors"
+                      title="Save"
+                    >
+                      <Check className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={cancelEdit}
+                      className="p-1.5 rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
+                      title="Cancel"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {req.quantity_needed > 0 && (
+                      <span className="text-sm text-zinc-300 shrink-0">Qty: {req.quantity_needed}</span>
+                    )}
+                    <span className="text-xs text-zinc-500 shrink-0">
+                      {req.created_date ? new Date(req.created_date).toLocaleDateString() : ""}
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 rounded border bg-amber-500/10 text-amber-400 border-amber-500/20 shrink-0">
+                      Pending
+                    </span>
+                    <button
+                      onClick={() => startEdit(req)}
+                      className="p-1.5 rounded-md text-zinc-500 hover:text-orange-400 hover:bg-orange-500/10 transition-colors shrink-0"
+                      title="Edit quantity"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleAcknowledge(req.id)}
+                      className="h-8 bg-zinc-800 border-zinc-700 text-zinc-200 hover:bg-green-500/10 hover:text-green-400 hover:border-green-500/30"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                      Acknowledge
+                    </Button>
+                    <button
+                      onClick={() => handleDeleteRequest(req.id)}
+                      className="p-1.5 rounded-md text-zinc-600 hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0"
+                      title="Delete request"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </>
                 )}
-                <span className="text-xs text-zinc-500 shrink-0">
-                  {req.created_date ? new Date(req.created_date).toLocaleDateString() : ""}
-                </span>
-                <span className="text-[10px] px-2 py-0.5 rounded border bg-amber-500/10 text-amber-400 border-amber-500/20 shrink-0">
-                  Pending
-                </span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleAcknowledge(req.id)}
-                  className="h-8 bg-zinc-800 border-zinc-700 text-zinc-200 hover:bg-green-500/10 hover:text-green-400 hover:border-green-500/30"
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-                  Acknowledge
-                </Button>
-                <button
-                  onClick={() => handleDeleteRequest(req.id)}
-                  className="p-1.5 rounded-md text-zinc-600 hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0"
-                  title="Delete request"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
               </div>
             ))}
           </div>
