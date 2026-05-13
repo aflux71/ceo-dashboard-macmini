@@ -28,10 +28,13 @@ export default function AddToInventory() {
     queryFn: () => base44.entities.Label.list()
   });
 
-  // Mutation to save edited quantity
+  // Helper: reported actual yield (override) takes precedence over planned quantity
+  const getReportedQty = (b) => (b.actual_yield_units ?? b.quantity);
+
+  // Mutation to save edited quantity (writes to actual_yield_units — the reported produced count)
   const updateQtyMutation = useMutation({
     mutationFn: async ({ batchId, quantity }) => {
-      return base44.entities.Batch.update(batchId, { quantity });
+      return base44.entities.Batch.update(batchId, { actual_yield_units: quantity });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["approvedBatches"] });
@@ -48,13 +51,14 @@ export default function AddToInventory() {
   // Mutation to mark batch as added to inventory and deduct labels
   const updateBatchMutation = useMutation({
     mutationFn: async (batch) => {
-      const finalQty = editingQty[batch.id] ?? batch.quantity;
+      const reportedQty = getReportedQty(batch);
+      const finalQty = editingQty[batch.id] ?? reportedQty;
       const today = format(new Date(), "yyyy-MM-dd");
       const addedByName = currentUser?.full_name || currentUser?.email || "";
 
-      // Save quantity if it was edited
-      if (editingQty[batch.id] !== undefined && editingQty[batch.id] !== batch.quantity) {
-        await base44.entities.Batch.update(batch.id, { quantity: finalQty });
+      // Save reported quantity if it was edited
+      if (editingQty[batch.id] !== undefined && editingQty[batch.id] !== reportedQty) {
+        await base44.entities.Batch.update(batch.id, { actual_yield_units: finalQty });
       }
 
       // Find matching label by product SKU
@@ -154,11 +158,11 @@ export default function AddToInventory() {
                       <Input
                         type="number"
                         min={1}
-                        value={editingQty[batch.id] ?? batch.quantity}
+                        value={editingQty[batch.id] ?? getReportedQty(batch)}
                         onChange={(e) => setEditingQty(prev => ({ ...prev, [batch.id]: parseInt(e.target.value) || 0 }))}
                         onBlur={() => {
                           const val = editingQty[batch.id];
-                          if (val !== undefined && val !== batch.quantity && val > 0) {
+                          if (val !== undefined && val !== getReportedQty(batch) && val > 0) {
                             updateQtyMutation.mutate({ batchId: batch.id, quantity: val });
                           }
                         }}
