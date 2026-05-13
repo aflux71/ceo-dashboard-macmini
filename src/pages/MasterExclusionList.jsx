@@ -52,6 +52,12 @@ export default function MasterExclusionList() {
     queryFn: () => base44.entities.DemandSummary.list("-updated_date", 1000),
   });
 
+  // Also pull inventory so SKUs without sales (e.g. service items) are searchable
+  const { data: inventoryItems = [] } = useQuery({
+    queryKey: ["inventory_for_exclusion"],
+    queryFn: () => base44.entities.Inventory.list("-updated_date", 1000),
+  });
+
   const createMutation = useMutation({
     mutationFn: async (data) => {
       const me = await base44.auth.me().catch(() => null);
@@ -107,12 +113,23 @@ export default function MasterExclusionList() {
     };
   }, [exclusions]);
 
-  // SKU autocomplete suggestions
+  // SKU autocomplete suggestions — merge DemandSummary + Inventory so service items show too
   const skuSuggestions = useMemo(() => {
     if (!form.sku || form.sku.length < 2) return [];
     const q = form.sku.toLowerCase();
     const excludedSkus = new Set(exclusions.map((e) => e.sku));
-    return summaries
+
+    const merged = new Map();
+    for (const s of summaries) {
+      if (!s.sku) continue;
+      merged.set(s.sku, { sku: s.sku, product: s.product || "", source: "Demand" });
+    }
+    for (const inv of inventoryItems) {
+      if (!inv.sku || merged.has(inv.sku)) continue;
+      merged.set(inv.sku, { sku: inv.sku, product: inv.name || "", source: "Inventory" });
+    }
+
+    return Array.from(merged.values())
       .filter(
         (s) =>
           (s.sku?.toLowerCase().includes(q) ||
@@ -120,7 +137,7 @@ export default function MasterExclusionList() {
           !excludedSkus.has(s.sku)
       )
       .slice(0, 8);
-  }, [form.sku, summaries, exclusions]);
+  }, [form.sku, summaries, inventoryItems, exclusions]);
 
   const openAdd = () => {
     setEditing(null);
@@ -340,7 +357,8 @@ export default function MasterExclusionList() {
                       className="w-full text-left px-3 py-2 hover:bg-zinc-700 text-xs flex items-center justify-between border-b border-zinc-700/50 last:border-b-0"
                     >
                       <span className="font-mono text-zinc-400">{s.sku}</span>
-                      <span className="text-zinc-300 ml-2 truncate">{s.product}</span>
+                      <span className="text-zinc-300 ml-2 truncate flex-1">{s.product}</span>
+                      <span className="text-[10px] text-zinc-500 ml-2 shrink-0">{s.source}</span>
                     </button>
                   ))}
                 </div>
