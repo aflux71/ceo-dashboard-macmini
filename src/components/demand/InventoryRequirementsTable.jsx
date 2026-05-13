@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Search, ClipboardList, Eye, Send, CheckCircle2 } from "lucide-react";
+import { Search, ClipboardList, Eye, Send, CheckCircle2, AlertCircle } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { URGENCY_COLORS, URGENCY_LABELS, formatNumber, getCategories } from "@/components/demand/demandHelpers";
 import { sortPlanItems } from "@/components/demand/demandEngine";
@@ -31,24 +32,29 @@ export default function InventoryRequirementsTable({
   const [pushQty, setPushQty] = useState("");
   const [pushing, setPushing] = useState(false);
   const [pushSuccess, setPushSuccess] = useState(null);
+  const [pushError, setPushError] = useState(null);
+  const queryClient = useQueryClient();
 
   const openPush = (item) => {
     setPushItem(item);
     setPushQty(String(item.productionNeed > 0 ? item.productionNeed : ""));
+    setPushError(null);
   };
 
   const closePush = () => {
     setPushItem(null);
     setPushQty("");
     setPushing(false);
+    setPushError(null);
   };
 
   const submitPush = async () => {
     const qty = Number(pushQty);
     if (!pushItem || !qty || qty <= 0) return;
     setPushing(true);
+    setPushError(null);
     try {
-      await base44.entities.ProductionRequest.create({
+      const created = await base44.entities.ProductionRequest.create({
         sku: pushItem.sku,
         product_name: pushItem.product || pushItem.sku,
         quantity_needed: qty,
@@ -57,9 +63,14 @@ export default function InventoryRequirementsTable({
         source: "manual",
         requested_by: "Inventory Requirements",
       });
+      console.log("ProductionRequest created:", created);
+      queryClient.invalidateQueries({ queryKey: ["production_requests_pending"] });
       setPushSuccess(pushItem.sku);
       setTimeout(() => setPushSuccess(null), 3000);
       closePush();
+    } catch (err) {
+      console.error("Failed to create ProductionRequest:", err);
+      setPushError(err?.message || "Failed to submit request. Please try again.");
     } finally {
       setPushing(false);
     }
@@ -282,6 +293,12 @@ export default function InventoryRequirementsTable({
                   placeholder="Enter quantity..."
                 />
               </div>
+              {pushError && (
+                <div className="flex items-start gap-2 text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded-md px-3 py-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{pushError}</span>
+                </div>
+              )}
             </div>
           )}
           <DialogFooter>
