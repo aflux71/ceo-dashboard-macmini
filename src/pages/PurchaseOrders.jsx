@@ -26,6 +26,7 @@ import { Textarea } from "@/components/ui/textarea";
 import Badge from "@/components/ui/Badge";
 import PODocument from "@/components/purchase/PODocument";
 import SuggestedReorders from "@/components/purchase/SuggestedReorders";
+import EditableStatusCell from "@/components/purchase/EditableStatusCell";
 import LabelPurchaseOrders from "./LabelPurchaseOrders";
 import ReceiveShipment from "./ReceiveShipment";
 
@@ -459,7 +460,13 @@ export default function PurchaseOrders() {
                         </span>
                       </td>
                       <td className="p-4 text-zinc-200">{po.supplier}</td>
-                      <td className="p-4">{getStatusBadge(po.status)}</td>
+                      <td className="p-4">
+                        <EditableStatusCell
+                          status={po.status}
+                          disabled={updateStatusMutation.isPending}
+                          onChange={(next) => updateStatusMutation.mutate({ id: po.id, status: next })}
+                        />
+                      </td>
                       <td className="p-4 text-center text-zinc-400">{po.items?.length || 0}</td>
                       <td className="p-4 text-right font-semibold text-zinc-200">
                         {po.currency || 'CAD'} {po.total?.toLocaleString(undefined, { minimumFractionDigits: 2 }) || '0.00'}
@@ -495,6 +502,21 @@ export default function PurchaseOrders() {
                               onClick={() => updateStatusMutation.mutate({ id: po.id, status: 'submitted' })}
                               className="text-amber-500 hover:text-amber-400"
                               title="Submit PO"
+                            >
+                              <Send className="w-4 h-4" />
+                            </Button>
+                          )}
+                          {['submitted', 'confirmed', 'shipped', 'received', 'cancelled'].includes(po.status) && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                if (confirm(`Resend ${po.po_number}? Status will be reset to 'submitted'.`)) {
+                                  updateStatusMutation.mutate({ id: po.id, status: 'submitted' });
+                                }
+                              }}
+                              className="text-amber-500 hover:text-amber-400"
+                              title="Resend PO"
                             >
                               <Send className="w-4 h-4" />
                             </Button>
