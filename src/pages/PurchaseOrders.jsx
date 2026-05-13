@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
+import { toast } from "sonner";
 import {
   ShoppingCart,
   Plus,
@@ -146,6 +147,26 @@ export default function PurchaseOrders() {
   const deleteMutation = useMutation({
     mutationFn: (id) => base44.entities.PurchaseOrder.delete(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['purchase_orders'] })
+  });
+
+  const sendEmailMutation = useMutation({
+    mutationFn: async (po_id) => {
+      const res = await base44.functions.invoke('sendPurchaseOrderEmail', { po_id });
+      const data = res?.data;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(`PO email sent to ${data?.sent_to || 'supplier'}`);
+    },
+    onError: (err) => {
+      const msg = err?.message || '';
+      if (msg.includes('outside the app')) {
+        toast.error("Email provider not set up — Base44's built-in email can't reach external suppliers. Set up Resend or similar.");
+      } else {
+        toast.error(msg || 'Failed to send PO email');
+      }
+    },
   });
 
   const updateStatusMutation = useMutation({
@@ -499,9 +520,18 @@ export default function PurchaseOrders() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => updateStatusMutation.mutate({ id: po.id, status: 'submitted' })}
+                              onClick={() => {
+                                if (!po.supplier_contact) {
+                                  toast.error("No supplier email on this PO. Add one before submitting.");
+                                  return;
+                                }
+                                if (confirm(`Submit ${po.po_number} and email it to ${po.supplier_contact}?`)) {
+                                  updateStatusMutation.mutate({ id: po.id, status: 'submitted' });
+                                  sendEmailMutation.mutate(po.id);
+                                }
+                              }}
                               className="text-amber-500 hover:text-amber-400"
-                              title="Submit PO"
+                              title="Submit & Email PO"
                             >
                               <Send className="w-4 h-4" />
                             </Button>
@@ -511,12 +541,18 @@ export default function PurchaseOrders() {
                               size="sm"
                               variant="ghost"
                               onClick={() => {
-                                if (confirm(`Resend ${po.po_number}? Status will be reset to 'submitted'.`)) {
+                                if (!po.supplier_contact) {
+                                  toast.error("No supplier email on this PO. Add one before resending.");
+                                  return;
+                                }
+                                if (confirm(`Resend ${po.po_number} to ${po.supplier_contact}? Status will be set to 'submitted'.`)) {
                                   updateStatusMutation.mutate({ id: po.id, status: 'submitted' });
+                                  sendEmailMutation.mutate(po.id);
                                 }
                               }}
+                              disabled={sendEmailMutation.isPending}
                               className="text-amber-500 hover:text-amber-400"
-                              title="Resend PO"
+                              title="Resend PO Email"
                             >
                               <Send className="w-4 h-4" />
                             </Button>
