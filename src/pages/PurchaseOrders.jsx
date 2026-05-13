@@ -28,6 +28,7 @@ import Badge from "@/components/ui/Badge";
 import PODocument from "@/components/purchase/PODocument";
 import SuggestedReorders from "@/components/purchase/SuggestedReorders";
 import EditableStatusCell from "@/components/purchase/EditableStatusCell";
+import QuickCreateProductDialog from "@/components/purchase/QuickCreateProductDialog";
 import LabelPurchaseOrders from "./LabelPurchaseOrders";
 import ReceiveShipment from "./ReceiveShipment";
 
@@ -41,6 +42,7 @@ export default function PurchaseOrders() {
   const [showViewModal, setShowViewModal] = useState(false);
   const [selectedPO, setSelectedPO] = useState(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [quickCreateIdx, setQuickCreateIdx] = useState(null);
   const [formData, setFormData] = useState({
     supplier: "",
     supplier_contact: "",
@@ -735,6 +737,17 @@ export default function PurchaseOrders() {
                                 onClick={(e) => e.stopPropagation()}
                               />
                             </div>
+                            <button
+                              type="button"
+                              className="w-full text-left px-3 py-2 text-sm bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 border-b border-zinc-700 flex items-center gap-2"
+                              onClick={() => {
+                                setQuickCreateIdx(idx);
+                                setOpenItemDropdown(null);
+                              }}
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              Create new product{itemSearches[idx] ? ` "${itemSearches[idx]}"` : ""}
+                            </button>
                             <div className="max-h-52 overflow-y-auto">
                               {filteredInv.length === 0 && (
                                 <p className="text-xs text-zinc-500 text-center py-3">No items found</p>
@@ -913,6 +926,32 @@ export default function PurchaseOrders() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Quick Create Product Dialog */}
+      <QuickCreateProductDialog
+        open={quickCreateIdx !== null}
+        onOpenChange={(open) => { if (!open) setQuickCreateIdx(null); }}
+        defaultSupplier={formData.supplier}
+        defaultName={quickCreateIdx !== null ? (itemSearches[quickCreateIdx] || "") : ""}
+        onCreated={(created) => {
+          queryClient.invalidateQueries({ queryKey: ['inventory'] });
+          if (quickCreateIdx !== null) {
+            const newItems = [...formData.items];
+            newItems[quickCreateIdx] = {
+              inventory_id: created.id,
+              sku: created.sku,
+              name: created.name,
+              quantity: 1,
+              unit: created.unit || "",
+              unit_cost: created.cost_per_unit || 0,
+              total_cost: (created.cost_per_unit || 0) * 1,
+            };
+            setFormData({ ...formData, items: newItems });
+            setItemSearches(prev => ({ ...prev, [quickCreateIdx]: "" }));
+          }
+          setQuickCreateIdx(null);
+        }}
+      />
 
       {/* Suggested Reorders Modal */}
       <Dialog open={showSuggestions} onOpenChange={setShowSuggestions}>
