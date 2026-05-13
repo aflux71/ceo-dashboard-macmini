@@ -2,7 +2,10 @@ import React, { useState, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Search, ClipboardList, Eye } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Search, ClipboardList, Eye, Send, CheckCircle2 } from "lucide-react";
+import { base44 } from "@/api/base44Client";
 import { URGENCY_COLORS, URGENCY_LABELS, formatNumber, getCategories } from "@/components/demand/demandHelpers";
 import { sortPlanItems } from "@/components/demand/demandEngine";
 
@@ -24,6 +27,43 @@ export default function InventoryRequirementsTable({
   const [catFilter, setCatFilter] = useState("All");
   const [urgencyFilter, setUrgencyFilter] = useState("All");
   const [sortBy, setSortBy] = useState("urgency");
+  const [pushItem, setPushItem] = useState(null);
+  const [pushQty, setPushQty] = useState("");
+  const [pushing, setPushing] = useState(false);
+  const [pushSuccess, setPushSuccess] = useState(null);
+
+  const openPush = (item) => {
+    setPushItem(item);
+    setPushQty(String(item.productionNeed > 0 ? item.productionNeed : ""));
+  };
+
+  const closePush = () => {
+    setPushItem(null);
+    setPushQty("");
+    setPushing(false);
+  };
+
+  const submitPush = async () => {
+    const qty = Number(pushQty);
+    if (!pushItem || !qty || qty <= 0) return;
+    setPushing(true);
+    try {
+      await base44.entities.ProductionRequest.create({
+        sku: pushItem.sku,
+        product_name: pushItem.product || pushItem.sku,
+        quantity_needed: qty,
+        status: "pending",
+        urgency: "medium",
+        source: "manual",
+        requested_by: "Inventory Requirements",
+      });
+      setPushSuccess(pushItem.sku);
+      setTimeout(() => setPushSuccess(null), 3000);
+      closePush();
+    } finally {
+      setPushing(false);
+    }
+  };
 
   const categories = useMemo(() => plan ? getCategories(plan.items) : [], [plan]);
 
@@ -147,6 +187,7 @@ export default function InventoryRequirementsTable({
               ))}
               <th className="px-3 py-2 text-right text-zinc-500 font-medium text-xs uppercase w-20">Need</th>
               <th className="px-3 py-2 text-right text-zinc-500 font-medium text-xs uppercase w-20">Cover</th>
+              <th className="px-3 py-2 text-right text-zinc-500 font-medium text-xs uppercase w-28">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -188,12 +229,76 @@ export default function InventoryRequirementsTable({
                   <td className={`px-3 py-2 text-right tabular-nums ${uc.text}`}>
                     {item.monthsCover === 99 ? "99+" : `${item.monthsCover} mo`}
                   </td>
+                  <td className="px-3 py-2 text-right">
+                    <Button
+                      size="sm"
+                      onClick={(e) => { e.stopPropagation(); openPush(item); }}
+                      className="h-7 px-2 text-xs bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 border border-orange-500/30"
+                    >
+                      {pushSuccess === item.sku ? (
+                        <><CheckCircle2 className="w-3 h-3 mr-1" />Pushed</>
+                      ) : (
+                        <><Send className="w-3 h-3 mr-1" />Push</>
+                      )}
+                    </Button>
+                  </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
+
+      {/* Push to Production Request dialog */}
+      <Dialog open={!!pushItem} onOpenChange={(open) => !open && closePush()}>
+        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-zinc-100">
+              <Send className="w-4 h-4 text-orange-400" />
+              Push to Production Request
+            </DialogTitle>
+          </DialogHeader>
+          {pushItem && (
+            <div className="space-y-4">
+              <div className="bg-zinc-800/50 border border-zinc-700 rounded-lg p-3">
+                <p className="text-sm font-medium text-zinc-100">{pushItem.product}</p>
+                <p className="text-xs text-zinc-500 font-mono mt-0.5">{pushItem.sku}</p>
+                <div className="flex gap-4 mt-2 text-xs text-zinc-400">
+                  <span>On hand: <span className="text-zinc-200">{formatNumber(pushItem.onHand)}</span></span>
+                  <span>Avg/Mo: <span className="text-zinc-200">{formatNumber(Math.round(pushItem.avgMonthly))}</span></span>
+                  <span>Suggested Need: <span className="text-orange-400 font-semibold">{formatNumber(pushItem.productionNeed)}</span></span>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-zinc-400 uppercase tracking-wider">Quantity to Request</label>
+                <Input
+                  type="number"
+                  min="1"
+                  autoFocus
+                  value={pushQty}
+                  onChange={(e) => setPushQty(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") submitPush(); }}
+                  className="mt-1 bg-zinc-800 border-zinc-700 text-zinc-100"
+                  placeholder="Enter quantity..."
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={closePush} className="bg-zinc-800 border-zinc-700 text-zinc-200 hover:bg-zinc-700">
+              Cancel
+            </Button>
+            <Button
+              onClick={submitPush}
+              disabled={!pushQty || Number(pushQty) <= 0 || pushing}
+              className="bg-orange-500 hover:bg-orange-600 text-white"
+            >
+              <Send className="w-4 h-4 mr-2" />
+              {pushing ? "Submitting..." : "Submit Request"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
