@@ -19,18 +19,30 @@ function computeLineStats(batches, lineCapacities) {
   const windowStart = new Date();
   windowStart.setDate(windowStart.getDate() - WINDOW_CALENDAR_DAYS);
 
-  // Group batches by line, filtered by window + status
+  // Group batches by line, filtered by window + status; track active dates per line
   const byLine = {};
+  const datesByLine = {};
   for (const batch of batches) {
     if (!countedStatuses.includes(batch.status)) continue;
     const dateStr = batch.production_date || batch.batch_date || batch.created_date;
+    let dayKey = null;
     if (dateStr) {
       const d = new Date(dateStr);
       if (!isNaN(d) && d < windowStart) continue;
+      if (!isNaN(d)) {
+        const dow = d.getDay(); // 0 Sun ... 6 Sat — only count weekdays
+        if (dow >= 1 && dow <= 5) {
+          dayKey = d.toISOString().slice(0, 10);
+        }
+      }
     }
     const line = batch.production_line ?? "?";
     if (!byLine[line]) byLine[line] = [];
     byLine[line].push(batch);
+    if (dayKey) {
+      if (!datesByLine[line]) datesByLine[line] = new Set();
+      datesByLine[line].add(dayKey);
+    }
   }
 
   // Show every active configured line, even with zero batches
@@ -67,6 +79,15 @@ function computeLineStats(batches, lineCapacities) {
     const started = lineBatches.filter(b => b.status === "started").length;
     const onHold = lineBatches.filter(b => b.status === "on_hold").length;
 
+    // Days utilized: how many of the last 5 working days had production activity
+    const daysUsed = Math.min(5, (datesByLine[line]?.size) || 0);
+    const daysRate = daysUsed / 5;
+    let daysStatus = "behind";
+    if (daysRate >= 1) daysStatus = "on_track";
+    else if (daysRate >= 0.6) daysStatus = "slow";
+    else if (daysRate > 0) daysStatus = "behind";
+    else daysStatus = "no_plan";
+
     return {
       line: lineNum,
       lineName: capacity?.line_name || `Line ${line}`,
@@ -78,6 +99,9 @@ function computeLineStats(batches, lineCapacities) {
       utilizationRate,
       utilPct,
       status,
+      daysUsed,
+      daysRate,
+      daysStatus,
       batches: lineBatches,
     };
   }).sort((a, b) => a.line - b.line);
@@ -178,7 +202,7 @@ export default function ProductionLineThroughput({ batches = [] }) {
                   </div>
                 </div>
 
-                {/* Progress Bar */}
+                {/* Progress Bar — Produced vs Planned */}
                 <ThroughputBar rate={line.utilizationRate} status={line.status} />
 
                 {/* Detail Row */}
@@ -187,6 +211,22 @@ export default function ProductionLineThroughput({ batches = [] }) {
                     {line.totalProduced.toLocaleString()} produced / {line.totalPlanned.toLocaleString()} planned
                   </span>
                   <span className={`font-medium ${cfg.color}`}>{cfg.label}</span>
+                </div>
+
+                {/* Days Utilized Bar */}
+                <div className="mt-3">
+                  <div className="flex items-center justify-between mb-1 text-xs">
+                    <span className="text-zinc-500">Days utilized</span>
+                    <span className={`font-semibold ${STATUS_CONFIG[line.daysStatus].color}`}>
+                      {line.daysUsed} / 5 days
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-700 ${STATUS_CONFIG[line.daysStatus].bar}`}
+                      style={{ width: `${(line.daysUsed / 5) * 100}%` }}
+                    />
+                  </div>
                 </div>
 
                 {/* Status warnings */}
