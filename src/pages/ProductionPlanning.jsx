@@ -1176,8 +1176,8 @@ function MaterialCheckTab() {
                     </div>
                   )}
 
-                  {/* Action buttons when no recipe but still want to approve manually */}
-                  {!materialResult && !hasRecipe && (
+                  {/* Action buttons — always available so user can approve without running material check */}
+                  {!materialResult && (
                     <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-zinc-800">
                       <Button
                         size="sm"
