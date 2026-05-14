@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
@@ -75,9 +75,30 @@ export default function WipInHouseTab() {
 
   const { data: batches = [], isLoading } = useQuery({ queryKey: ["planning_wip_inhouse_batches"], queryFn: () => base44.entities.Batch.list("-created_date", 500) });
 
+  const { data: reviewQueueRecords = [] } = useQuery({
+    queryKey: ["planning_wip_inhouse_review_queue"],
+    queryFn: () => base44.entities.ReviewQueue.filter({ status: "pending" }),
+  });
+
+  // Map of batch_entity_id → ReviewQueue record (for batches already submitted for review)
+  const reviewQueueByBatchId = useMemo(() => {
+    const map = {};
+    reviewQueueRecords.forEach((r) => {
+      if (r.batch_entity_id) map[r.batch_entity_id] = r;
+    });
+    return map;
+  }, [reviewQueueRecords]);
+
   const inHouseBatches = useMemo(() => batches.filter((b) => { const pt = b.production_type; return !pt || pt === "make"; }), [batches]);
 
-  const enriched = useMemo(() => inHouseBatches.map((b) => ({ ...b, stage: batchStage(b), dates: parseBatchDates(b), lineLabel: parseBatchLine(b) })), [inHouseBatches]);
+  // Heal batches stuck in "approved" but already in the ReviewQueue: treat them as in_review for display.
+  const enriched = useMemo(() => inHouseBatches.map((b) => {
+    const inReviewQueue = !!reviewQueueByBatchId[b.id];
+    // If the batch has a pending ReviewQueue record but its status reverted to "approved",
+    // override the stage so it appears in the Review Queue column (single source of truth: ReviewQueue).
+    const effectiveStatus = inReviewQueue && b.status === "approved" ? "in_review" : b.status;
+    return { ...b, stage: batchStage({ ...b, status: effectiveStatus }), dates: parseBatchDates(b), lineLabel: parseBatchLine(b) };
+  }), [inHouseBatches, reviewQueueByBatchId]);
 
   const today = new Date().toISOString().split("T")[0];
   const thisWeekEnd = addDays(getMonday(today), 7);
@@ -103,9 +124,22 @@ export default function WipInHouseTab() {
 
   const advanceMutation = useMutation({
     mutationFn: ({ id, newStatus, extraFields }) => base44.entities.Batch.update(id, { status: newStatus, ...extraFields }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["planning_wip_inhouse_batches"] }); queryClient.invalidateQueries({ queryKey: ["planning_schedule_batches"] }); queryClient.invalidateQueries({ queryKey: ["planning_batches"] }); toast.success("Stage updated"); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["planning_wip_inhouse_batches"] }); queryClient.invalidateQueries({ queryKey: ["planning_wip_inhouse_review_queue"] }); queryClient.invalidateQueries({ queryKey: ["planning_schedule_batches"] }); queryClient.invalidateQueries({ queryKey: ["planning_batches"] }); toast.success("Stage updated"); },
     onError: (err) => toast.error(`Failed to update: ${err?.message || String(err)}`),
   });
+
+  // Auto-heal: batches stuck in "approved" but with a pending ReviewQueue record → update status to "in_review" once.
+  const healedRef = useRef(new Set());
+  useEffect(() => {
+    inHouseBatches.forEach((b) => {
+      if (b.status === "approved" && reviewQueueByBatchId[b.id] && !healedRef.current.has(b.id)) {
+        healedRef.current.add(b.id);
+        base44.entities.Batch.update(b.id, { status: "in_review" }).then(() => {
+          queryClient.invalidateQueries({ queryKey: ["planning_wip_inhouse_batches"] });
+        }).catch(() => { healedRef.current.delete(b.id); });
+      }
+    });
+  }, [inHouseBatches, reviewQueueByBatchId, queryClient]);
 
   const deleteMutation = useMutation({
     mutationFn: (id) => base44.entities.Batch.delete(id),
