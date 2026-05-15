@@ -1,0 +1,36 @@
+{
+  "name": "PortalAccount",
+  "type": "object",
+  "properties": {
+    "store_name": {
+      "type": "string",
+      "description": "Store name (used as login identifier)"
+    },
+    "access_code": {
+      "type": "string",
+      "description": "6-digit alphanumeric access code"
+    },
+    "contact_name": {
+      "type": "string"
+    },
+    "contact_email": {
+      "type": "string"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    },
+    "account_type": {
+      "type": "string",
+      "enum": [
+        "store",
+        "wholesale"
+      ],
+      "default": "store"
+    }
+  },
+  "required": [
+    "store_name",
+    "access_code"
+  ]
+}

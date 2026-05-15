@@ -40,8 +40,14 @@ import {
   BarChart2,
   Eye,
   Ban,
-  Briefcase
+  Briefcase,
+  Store
 } from "lucide-react";
+
+const portalAdminItems = [
+  { name: "Portal Products", icon: Package, page: "portal-admin/products", path: "/portal-admin/products" },
+  { name: "Portal Orders", icon: ClipboardList, page: "portal-admin/orders", path: "/portal-admin/orders" },
+];
 
 const navItems = [
         { name: "Dashboard", icon: BarChart3, page: "Dashboard" },
@@ -91,6 +97,7 @@ const settingsItems = [
 export default function Layout({ children, currentPageName }) {
     const [sidebarOpen, setSidebarOpen] = useState(false);
       const [settingsOpen, setSettingsOpen] = useState(false);
+      const [portalOpen, setPortalOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(true);
       const [user, setUser] = useState(null);
       const [isFullScreen, setIsFullScreen] = useState(currentPageName === "Kiosk");
@@ -480,6 +487,47 @@ export default function Layout({ children, currentPageName }) {
                 );
               })}
             </div>}
+
+            {/* Store Portal Section (admin only) */}
+            {user?.role === 'admin' && (
+              <div className="mt-6 pt-4 border-t border-zinc-800">
+                <button
+                  onClick={() => setPortalOpen(!portalOpen)}
+                  className="w-full px-3 py-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider flex items-center justify-between hover:text-zinc-400 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <Store className="w-4 h-4" />
+                    Store Portal
+                  </div>
+                  <ChevronDown className={`w-4 h-4 transition-transform ${portalOpen ? 'rotate-0' : '-rotate-90'}`} />
+                </button>
+                {portalOpen && (
+                  <div className="space-y-1 mt-1">
+                    {portalAdminItems.map((item) => {
+                      const isActive = typeof window !== 'undefined' && window.location.pathname === item.path;
+                      return (
+                        <Link
+                          key={item.path}
+                          to={item.path}
+                          onClick={() => setSidebarOpen(false)}
+                          className={`
+                            flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm font-medium
+                            transition-colors duration-200
+                            ${isActive
+                              ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
+                              : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
+                            }
+                          `}
+                        >
+                          <item.icon className="w-5 h-5" />
+                          {item.name}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Settings Section */}
                                       <div className="mt-6 pt-4 border-t border-zinc-800">

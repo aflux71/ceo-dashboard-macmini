@@ -1,0 +1,53 @@
+{
+  "name": "PortalProduct",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Product name shown to portal users"
+    },
+    "sku": {
+      "type": "string",
+      "description": "Unique SKU"
+    },
+    "description": {
+      "type": "string",
+      "description": "Short product description"
+    },
+    "category": {
+      "type": "string",
+      "description": "Product category for filtering"
+    },
+    "image_url": {
+      "type": "string",
+      "description": "Product image URL"
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "inventory_linked",
+        "misc_only"
+      ],
+      "default": "misc_only",
+      "description": "Whether this comes from Inventory or is portal-only"
+    },
+    "inventory_item_id": {
+      "type": "string",
+      "description": "Reference to Inventory entity ID if source = inventory_linked"
+    },
+    "portal_hidden": {
+      "type": "boolean",
+      "default": false,
+      "description": "Hide from portal ordering view (still visible in admin)"
+    },
+    "display_order": {
+      "type": "number",
+      "description": "Sort order for display"
+    }
+  },
+  "required": [
+    "name",
+    "sku",
+    "source"
+  ]
+}

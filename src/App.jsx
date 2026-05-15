@@ -20,6 +20,11 @@ import BatchInspection from './pages/BatchInspection';
 import BinMap from './pages/BinMap';
 import InventoryRequirements from './pages/InventoryRequirements';
 import MissingInventory from './pages/MissingInventory';
+import PortalLogin from './pages/PortalLogin';
+import PortalOrder from './pages/PortalOrder';
+import PortalAdminProducts from './pages/PortalAdminProducts';
+import PortalAdminOrders from './pages/PortalAdminOrders';
+import PortalRouteGuard from './components/portal/PortalRouteGuard';
 import ErrorBoundary from './components/ErrorBoundary';
 
 const { Pages, Layout, mainPage } = pagesConfig;
@@ -85,11 +90,31 @@ const AuthenticatedApp = () => {
       <Route path="/BinMap" element={<LayoutWrapper currentPageName="BinMap"><BinMap /></LayoutWrapper>} />
       <Route path="/InventoryRequirements" element={<LayoutWrapper currentPageName="InventoryRequirements"><InventoryRequirements /></LayoutWrapper>} />
       <Route path="/MissingInventory" element={<LayoutWrapper currentPageName="MissingInventory"><MissingInventory /></LayoutWrapper>} />
+      <Route path="/portal-admin/products" element={<LayoutWrapper currentPageName="PortalAdminProducts"><PortalAdminProducts /></LayoutWrapper>} />
+      <Route path="/portal-admin/orders" element={<LayoutWrapper currentPageName="PortalAdminOrders"><PortalAdminOrders /></LayoutWrapper>} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
 };
 
+
+function PortalRoutes() {
+  return (
+    <Routes>
+      <Route path="/portal/login" element={<PortalLogin />} />
+      <Route path="/portal/order" element={<PortalRouteGuard><PortalOrder /></PortalRouteGuard>} />
+      <Route path="/portal/*" element={<PortalLogin />} />
+    </Routes>
+  );
+}
+
+function AppRoutes() {
+  const isPortalRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/portal/');
+  if (isPortalRoute) {
+    return <PortalRoutes />;
+  }
+  return <AuthenticatedApp />;
+}
 
 function App() {
 
@@ -99,7 +124,7 @@ function App() {
       <QueryClientProvider client={queryClientInstance}>
         <Router>
           <NavigationTracker />
-          <AuthenticatedApp />
+          <AppRoutes />
         </Router>
         <Toaster />
       </QueryClientProvider>
