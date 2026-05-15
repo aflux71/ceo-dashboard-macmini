@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Link2, Search, Trash2, Pencil, Eye, EyeOff, RefreshCw } from "lucide-react";
+import { Plus, Link2, Search, Trash2, Pencil, Eye, EyeOff, RefreshCw, Lock } from "lucide-react";
 import AddMiscProductDialog from "@/components/portal-admin/AddMiscProductDialog";
 import LinkInventoryDialog from "@/components/portal-admin/LinkInventoryDialog";
 
@@ -18,6 +18,7 @@ export default function PortalAdminProducts() {
   const [selected, setSelected] = useState(new Set());
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState("");
+  const [currentUser, setCurrentUser] = useState(undefined);
 
   const load = async () => {
     setLoading(true);
@@ -26,7 +27,10 @@ export default function PortalAdminProducts() {
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    base44.auth.me().then(setCurrentUser).catch(() => setCurrentUser(null));
+    load();
+  }, []);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -103,6 +107,21 @@ export default function PortalAdminProducts() {
     () => products.filter((p) => p.inventory_item_id).map((p) => p.inventory_item_id),
     [products]
   );
+
+  if (currentUser === undefined) return null;
+  if (currentUser?.role !== 'admin') {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center max-w-md">
+          <Lock className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-white mb-2">Admin Access Required</h2>
+          <p className="text-zinc-400 text-sm">
+            Portal Products management is restricted to administrators.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const handleSyncShopify = async () => {
     setSyncing(true);

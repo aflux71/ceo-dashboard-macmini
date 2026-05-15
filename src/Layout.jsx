@@ -506,7 +506,13 @@ export default function Layout({ children, currentPageName }) {
                 </button>
                 {portalOpen && (
                   <div className="space-y-1 mt-1">
-                    {portalAdminItems.map((item) => {
+                    {portalAdminItems
+                      .filter((item) => {
+                        const adminOnly = ["portal-admin/products", "portal-admin/accounts"];
+                        if (adminOnly.includes(item.page) && user?.role !== 'admin') return false;
+                        return true;
+                      })
+                      .map((item) => {
                       const isActive = typeof window !== 'undefined' && window.location.pathname === item.path;
                       return (
                         <Link

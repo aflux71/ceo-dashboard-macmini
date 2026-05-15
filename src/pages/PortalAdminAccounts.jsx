@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Search, Trash2, Pencil, RefreshCw, Copy, Check } from "lucide-react";
+import { Plus, Search, Trash2, Pencil, RefreshCw, Copy, Check, Lock } from "lucide-react";
 import PortalAccountDialog from "@/components/portal-admin/PortalAccountDialog";
 
 const generateAccessCode = () => {
@@ -21,6 +21,7 @@ export default function PortalAdminAccounts() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
+  const [currentUser, setCurrentUser] = useState(undefined);
 
   const load = async () => {
     setLoading(true);
@@ -29,7 +30,10 @@ export default function PortalAdminAccounts() {
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    base44.auth.me().then(setCurrentUser).catch(() => setCurrentUser(null));
+    load();
+  }, []);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -79,6 +83,21 @@ export default function PortalAdminAccounts() {
       setTimeout(() => setCopiedId(null), 1500);
     } catch {}
   };
+
+  if (currentUser === undefined) return null;
+  if (currentUser?.role !== 'admin') {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center max-w-md">
+          <Lock className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-white mb-2">Admin Access Required</h2>
+          <p className="text-zinc-400 text-sm">
+            Portal Accounts management is restricted to administrators.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
