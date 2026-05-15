@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { createPageUrl } from "./utils";
 import { base44 } from "@/api/base44Client";
 import { FloorPinProvider } from "@/components/auth/FloorPinContext";
+import DashboardPinGate from "@/components/auth/DashboardPinGate";
 import { ForecastProvider } from "@/components/forecast/ForecastContext";
 import {
   Factory,
@@ -605,7 +606,7 @@ export default function Layout({ children, currentPageName }) {
       {/* Main Content */}
               <main className={`min-h-screen pt-16 lg:pt-0 transition-all duration-300 ${isFullScreen ? 'lg:ml-0' : 'lg:ml-64'}`}>
         <div className="p-4 lg:p-6">
-          {children}
+          <DashboardPinGate>{children}</DashboardPinGate>
         </div>
       </main>
     </div>

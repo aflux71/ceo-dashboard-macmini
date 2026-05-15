@@ -48,15 +48,32 @@ export function FloorPinProvider({ children }) {
         const stored = safeGetItem(STORAGE_KEY);
         if (stored) {
           const session = JSON.parse(stored);
-          // Verify user still exists and is active
-          const users = await base44.entities.FloorUser.filter({ id: session.userId });
-          if (users.length > 0 && users[0].active) {
-            setFloorUser(users[0]);
-            const ts = session.lastActivity || Date.now();
-            setLastActivity(ts);
-            lastActivityRef.current = ts;
-          } else {
+
+          // Enforce nightly logout epoch — if session was created before the latest epoch, force re-login
+          let epochInvalidated = false;
+          try {
+            const epochSettings = await base44.entities.AppSettings.filter({ key: "logout_epoch" });
+            if (epochSettings.length > 0 && session.loginAt) {
+              const epochMs = new Date(epochSettings[0].value).getTime();
+              if (epochMs && session.loginAt < epochMs) {
+                epochInvalidated = true;
+              }
+            }
+          } catch { /* ignore */ }
+
+          if (epochInvalidated) {
             safeRemoveItem(STORAGE_KEY);
+          } else {
+            // Verify user still exists and is active
+            const users = await base44.entities.FloorUser.filter({ id: session.userId });
+            if (users.length > 0 && users[0].active) {
+              setFloorUser(users[0]);
+              const ts = session.lastActivity || Date.now();
+              setLastActivity(ts);
+              lastActivityRef.current = ts;
+            } else {
+              safeRemoveItem(STORAGE_KEY);
+            }
           }
         }
         
@@ -145,9 +162,11 @@ export function FloorPinProvider({ children }) {
       });
       
       // Save session
+      const nowTs = Date.now();
       const session = {
         userId: user.id,
-        lastActivity: Date.now()
+        lastActivity: nowTs,
+        loginAt: nowTs
       };
       safeSetItem(STORAGE_KEY, JSON.stringify(session));
       
