@@ -51,16 +51,37 @@ const DEFAULT_ROLE_PERMISSIONS = {
   inventory: ["inventory", "add_to_inventory", "requisitions", "batch_history", "labels", "label_usage", "unlabeled_products"]
 };
 
-const ALL_PERMISSIONS = [
-  "production", "planning", "shop_floor", "inventory", "add_to_inventory",
-  "requisitions", "recipes", "recipe_templates", "forecasting",
-  "batch_history", "batch_travellers", "review_queue",
-  "labels", "label_usage", "unlabeled_products",
-  "purchase_orders", "analytics", "equipment_repairs", "low_consumables",
-  "reports", "view_costs", "ai_assistant", "bug_reports",
-  "store_portal",
-  "user_management", "settings"
+// Permissions grouped by sidebar category for easier role configuration
+const PERMISSION_GROUPS = [
+  {
+    label: "Navigation",
+    permissions: [
+      "dashboard", "analytics", "issue_alerts", "equipment_repairs", "low_consumables",
+      "labels", "label_usage", "review_queue", "add_to_inventory", "unlabeled_products",
+      "batch_travellers", "inventory", "bin_map", "production_request",
+      "inventory_requirements", "recipes", "purchase_orders", "requisitions",
+      "planning", "shop_floor", "batch_inspection", "ai_assistant", "bug_reports",
+      "production", "batch_history", "forecasting", "reports", "view_costs"
+    ]
+  },
+  {
+    label: "Store Portal",
+    permissions: [
+      "store_portal", "portal_products", "portal_orders", "portal_accounts", "create_new_order"
+    ]
+  },
+  {
+    label: "Settings",
+    permissions: [
+      "user_management", "line_capacity", "recipe_templates", "suppliers", "copackers",
+      "bulk_upload", "product_categories", "measurement_units", "sku_dedup",
+      "master_exclusion_list", "missing_inventory", "audit_log", "recipe_versions",
+      "sync_log", "settings"
+    ]
+  }
 ];
+
+const ALL_PERMISSIONS = PERMISSION_GROUPS.flatMap((g) => g.permissions);
 
 export default function UserManagement() {
   const { floorUser, hasPermission } = useFloorPin();
@@ -1134,28 +1155,52 @@ export default function UserManagement() {
 
       {/* Edit Permissions Dialog */}
       <Dialog open={showPermissionsDialog} onOpenChange={setShowPermissionsDialog}>
-        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 max-w-md">
+        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Settings className="w-5 h-5" />
               Edit {editingRole} Permissions
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 max-h-[400px] overflow-y-auto">
-            {ALL_PERMISSIONS.map((permission) => (
-              <div
-                key={permission}
-                className="flex items-center justify-between p-3 bg-zinc-800/50 rounded-lg border border-zinc-700"
-              >
-                <span className="text-sm text-zinc-300 capitalize">
-                  {permission.replace(/_/g, " ")}
-                </span>
-                <Checkbox
-                  checked={editingPermissions.includes(permission)}
-                  onCheckedChange={() => togglePermission(permission)}
-                />
-              </div>
-            ))}
+          <div className="space-y-4 max-h-[500px] overflow-y-auto pr-1">
+            {PERMISSION_GROUPS.map((group) => {
+              const allSelected = group.permissions.every((p) => editingPermissions.includes(p));
+              const someSelected = group.permissions.some((p) => editingPermissions.includes(p));
+              const toggleGroup = () => {
+                if (allSelected) {
+                  setEditingPermissions((prev) => prev.filter((p) => !group.permissions.includes(p)));
+                } else {
+                  setEditingPermissions((prev) => Array.from(new Set([...prev, ...group.permissions])));
+                }
+              };
+              return (
+                <div key={group.label} className="border border-zinc-700 rounded-lg overflow-hidden">
+                  <div className="flex items-center justify-between bg-zinc-800/80 px-3 py-2 border-b border-zinc-700">
+                    <span className="text-sm font-semibold text-zinc-200">{group.label}</span>
+                    <label className="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer">
+                      <span>{allSelected ? "Deselect all" : someSelected ? "Select all" : "Select all"}</span>
+                      <Checkbox checked={allSelected} onCheckedChange={toggleGroup} />
+                    </label>
+                  </div>
+                  <div className="divide-y divide-zinc-800">
+                    {group.permissions.map((permission) => (
+                      <div
+                        key={permission}
+                        className="flex items-center justify-between px-3 py-2 bg-zinc-800/30 hover:bg-zinc-800/60"
+                      >
+                        <span className="text-sm text-zinc-300 capitalize">
+                          {permission.replace(/_/g, " ")}
+                        </span>
+                        <Checkbox
+                          checked={editingPermissions.includes(permission)}
+                          onCheckedChange={() => togglePermission(permission)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowPermissionsDialog(false)}>
