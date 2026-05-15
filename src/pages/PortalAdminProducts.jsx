@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Link2, Search, Trash2, Pencil, Eye, EyeOff } from "lucide-react";
+import { Plus, Link2, Search, Trash2, Pencil, Eye, EyeOff, RefreshCw } from "lucide-react";
 import AddMiscProductDialog from "@/components/portal-admin/AddMiscProductDialog";
 import LinkInventoryDialog from "@/components/portal-admin/LinkInventoryDialog";
 
@@ -16,6 +16,8 @@ export default function PortalAdminProducts() {
   const [linkOpen, setLinkOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [selected, setSelected] = useState(new Set());
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -102,6 +104,51 @@ export default function PortalAdminProducts() {
     [products]
   );
 
+  const handleSyncShopify = async () => {
+    setSyncing(true);
+    setSyncMsg("");
+    try {
+      // Pull all finished_product inventory items that originated from Shopify
+      const finished = await base44.entities.Inventory.filter(
+        { type: "finished_product", active: true },
+        "name",
+        2000
+      );
+      const fromShopify = (finished || []).filter((i) => !!i.last_shopify_sync);
+
+      const existingSet = new Set(existingInventoryIds);
+      const existingSkuSet = new Set(products.map((p) => (p.sku || "").toLowerCase()));
+
+      const toCreate = fromShopify.filter(
+        (i) => !existingSet.has(i.id) && !existingSkuSet.has((i.sku || "").toLowerCase())
+      );
+
+      if (toCreate.length === 0) {
+        setSyncMsg("All Shopify finished goods are already in the portal catalog.");
+      } else {
+        await Promise.all(
+          toCreate.map((item) =>
+            base44.entities.PortalProduct.create({
+              name: item.name,
+              sku: item.sku,
+              category: item.material_type || "",
+              image_url: item.component_photo || "",
+              source: "inventory_linked",
+              inventory_item_id: item.id,
+              portal_hidden: false,
+            })
+          )
+        );
+        setSyncMsg(`Added ${toCreate.length} product${toCreate.length === 1 ? "" : "s"} from Shopify inventory.`);
+      }
+      await load();
+    } catch (err) {
+      setSyncMsg(`Sync failed: ${err.message || "Unknown error"}`);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -109,8 +156,12 @@ export default function PortalAdminProducts() {
           <h1 className="text-2xl font-bold text-white">Portal Product Catalog</h1>
           <p className="text-zinc-400 text-sm mt-1">Manage products visible to store ordering portal</p>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={() => { setEditing(null); setMiscOpen(true); }} className="bg-orange-500 hover:bg-orange-600 text-white">
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={handleSyncShopify} disabled={syncing} className="bg-orange-500 hover:bg-orange-600 text-white">
+            <RefreshCw className={`w-4 h-4 mr-2 ${syncing ? "animate-spin" : ""}`} />
+            {syncing ? "Syncing..." : "Sync from Shopify Inventory"}
+          </Button>
+          <Button onClick={() => { setEditing(null); setMiscOpen(true); }} variant="outline" className="border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800">
             <Plus className="w-4 h-4 mr-2" /> Add Misc Product
           </Button>
           <Button onClick={() => setLinkOpen(true)} variant="outline" className="border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800">
@@ -118,6 +169,12 @@ export default function PortalAdminProducts() {
           </Button>
         </div>
       </div>
+
+      {syncMsg && (
+        <div className="bg-zinc-900 border border-zinc-800 text-zinc-300 text-sm rounded-lg px-4 py-2">
+          {syncMsg}
+        </div>
+      )}
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
