@@ -3,8 +3,9 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, Download, Eye, Lock } from "lucide-react";
+import { Search, Download, Eye, Lock, Plus } from "lucide-react";
 import AdjustmentDetailDialog from "@/components/portal-admin/AdjustmentDetailDialog";
+import AdminCreateAdjustmentDialog from "@/components/portal-admin/AdminCreateAdjustmentDialog";
 
 const STATUS_FILTERS = ["All", "submitted", "acknowledged", "reviewed", "applied", "rejected"];
 
@@ -38,6 +39,7 @@ export default function PortalAdminAdjustments() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [selected, setSelected] = useState(null);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -121,9 +123,14 @@ export default function PortalAdminAdjustments() {
           <h1 className="text-2xl font-bold text-white">Inventory Adjustment Requests</h1>
           <p className="text-zinc-400 text-sm mt-1">Review and manage adjustment requests submitted by stores</p>
         </div>
-        <Button onClick={exportCsv} variant="outline" className="border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800">
-          <Download className="w-4 h-4 mr-2" /> Export CSV
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={exportCsv} variant="outline" className="border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800">
+            <Download className="w-4 h-4 mr-2" /> Export CSV
+          </Button>
+          <Button onClick={() => setCreateOpen(true)} className="bg-orange-500 hover:bg-orange-600 text-white">
+            <Plus className="w-4 h-4 mr-2" /> New Request
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -220,6 +227,13 @@ export default function PortalAdminAdjustments() {
         adjustment={selected}
         currentUserName={currentUser?.full_name || currentUser?.email || "ERP Admin"}
         onSave={handleSave}
+      />
+
+      <AdminCreateAdjustmentDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        currentUserName={currentUser?.full_name || currentUser?.email || "ERP Admin"}
+        onCreated={() => load()}
       />
     </div>
   );
