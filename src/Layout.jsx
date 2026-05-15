@@ -51,6 +51,7 @@ const portalAdminItems = [
   { name: "Portal Products", icon: Package, page: "portal-admin/products", path: "/portal-admin/products" },
   { name: "Portal Orders", icon: ClipboardList, page: "portal-admin/orders", path: "/portal-admin/orders" },
   { name: "Adjustment Requests", icon: ClipboardEdit, page: "portal-admin/adjustments", path: "/portal-admin/adjustments", adminOnly: true },
+  { name: "Adjustment Reasons", icon: Settings, page: "portal-admin/reasons", path: "/portal-admin/reasons", adminOnly: true },
   { name: "Portal Accounts", icon: Users, page: "portal-admin/accounts", path: "/portal-admin/accounts" },
   { name: "Create New Order", icon: Plus, page: "portal-admin/sales-rep-order", path: "/portal-admin/sales-rep-order" },
 ];
@@ -511,7 +512,7 @@ export default function Layout({ children, currentPageName }) {
                   <div className="space-y-1 mt-1">
                     {portalAdminItems
                       .filter((item) => {
-                        const adminOnly = ["portal-admin/products", "portal-admin/accounts", "portal-admin/adjustments"];
+                        const adminOnly = ["portal-admin/products", "portal-admin/accounts", "portal-admin/adjustments", "portal-admin/reasons"];
                         if ((item.adminOnly || adminOnly.includes(item.page)) && user?.role !== 'admin') return false;
                         return true;
                       })

@@ -31,6 +31,7 @@ import PortalAdminOrders from './pages/PortalAdminOrders';
 import SalesRepOrder from './pages/SalesRepOrder';
 import PortalAdminAccounts from './pages/PortalAdminAccounts';
 import PortalAdminAdjustments from './pages/PortalAdminAdjustments';
+import PortalAdminReasons from './pages/PortalAdminReasons';
 import PortalRouteGuard from './components/portal/PortalRouteGuard';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -121,6 +122,7 @@ const AuthenticatedApp = () => {
       <Route path="/portal-admin/sales-rep-order" element={<LayoutWrapper currentPageName="SalesRepOrder"><SalesRepOrder /></LayoutWrapper>} />
       <Route path="/portal-admin/accounts" element={<LayoutWrapper currentPageName="PortalAdminAccounts"><PortalAdminAccounts /></LayoutWrapper>} />
       <Route path="/portal-admin/adjustments" element={<LayoutWrapper currentPageName="PortalAdminAdjustments"><PortalAdminAdjustments /></LayoutWrapper>} />
+      <Route path="/portal-admin/reasons" element={<LayoutWrapper currentPageName="PortalAdminReasons"><PortalAdminReasons /></LayoutWrapper>} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
