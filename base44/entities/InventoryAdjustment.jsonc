@@ -1,0 +1,89 @@
+{
+  "name": "InventoryAdjustment",
+  "type": "object",
+  "properties": {
+    "adjustment_number": {
+      "type": "string",
+      "description": "Auto-generated ADJ-YYYY-NNNN"
+    },
+    "store_name": {
+      "type": "string",
+      "description": "Name of the store the adjustment applies to"
+    },
+    "portal_account_id": {
+      "type": "string",
+      "description": "Reference to PortalAccount"
+    },
+    "contact_name": {
+      "type": "string",
+      "description": "Contact person at the store, auto-populated from portal session"
+    },
+    "product_id": {
+      "type": "string",
+      "description": "Reference to PortalProduct"
+    },
+    "product_name": {
+      "type": "string",
+      "description": "Denormalized product name for display"
+    },
+    "sku": {
+      "type": "string",
+      "description": "Denormalized SKU for display"
+    },
+    "quantity": {
+      "type": "number",
+      "description": "Adjustment quantity (positive or negative)"
+    },
+    "adjustment_reason_id": {
+      "type": "string",
+      "description": "Reference to InventoryAdjustmentReason"
+    },
+    "adjustment_reason_label": {
+      "type": "string",
+      "description": "Denormalized reason label for display/export"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Notes from the portal user"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "submitted",
+        "acknowledged",
+        "reviewed",
+        "applied",
+        "rejected"
+      ],
+      "default": "submitted",
+      "description": "Current status of the adjustment"
+    },
+    "submitted_by": {
+      "type": "string",
+      "description": "Portal user display name"
+    },
+    "acknowledged_by": {
+      "type": "string",
+      "description": "ERP admin name who acknowledged"
+    },
+    "acknowledged_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the adjustment was acknowledged"
+    },
+    "internal_notes": {
+      "type": "string",
+      "description": "Admin-only notes, never shown to portal user"
+    }
+  },
+  "required": [
+    "store_name",
+    "portal_account_id",
+    "contact_name",
+    "product_id",
+    "product_name",
+    "sku",
+    "quantity",
+    "adjustment_reason_id"
+  ]
+}

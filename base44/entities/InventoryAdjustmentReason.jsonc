@@ -1,0 +1,26 @@
+{
+  "name": "InventoryAdjustmentReason",
+  "type": "object",
+  "properties": {
+    "label": {
+      "type": "string",
+      "description": "Reason label shown to users (e.g. Tester, Damaged, Missing, Other)"
+    },
+    "description": {
+      "type": "string",
+      "description": "Optional description of the reason"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether this reason is currently selectable"
+    },
+    "display_order": {
+      "type": "number",
+      "description": "Sort order for display"
+    }
+  },
+  "required": [
+    "label"
+  ]
+}
