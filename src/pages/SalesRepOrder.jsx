@@ -401,7 +401,7 @@ export default function SalesRepOrder() {
                   <th className="px-3 py-2 text-left">SKU</th>
                   <th className="px-3 py-2 text-left">Category</th>
                   <th className="px-3 py-2 text-right w-28">neōb HQ Stock</th>
-                  <th className="px-3 py-2 text-right w-32">Quantity</th>
+                  <th className="px-3 py-2 text-right w-44">Quantity</th>
                 </tr>
               </thead>
               <tbody>
