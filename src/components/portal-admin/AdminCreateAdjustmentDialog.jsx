@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Search, X, Plus, Trash2 } from "lucide-react";
 
-export default function AdminCreateAdjustmentDialog({ open, onOpenChange, currentUserName, onCreated }) {
+export default function AdminCreateAdjustmentDialog({ open, onOpenChange, currentUserName, onCreated, allowedStores = null }) {
   const [accounts, setAccounts] = useState([]);
   const [products, setProducts] = useState([]);
   const [reasons, setReasons] = useState([]);
@@ -46,14 +46,22 @@ export default function AdminCreateAdjustmentDialog({ open, onOpenChange, curren
           base44.entities.PortalProduct.filter({ portal_hidden: false }, "display_order", 500),
           base44.entities.InventoryAdjustmentReason.filter({ is_active: true }, "display_order", 100)
         ]);
-        setAccounts(accs || []);
+        let filteredAccs = accs || [];
+        if (Array.isArray(allowedStores)) {
+          const set = new Set(allowedStores);
+          filteredAccs = filteredAccs.filter((a) => {
+            const stores = a.assigned_stores && a.assigned_stores.length ? a.assigned_stores : [a.store_name];
+            return stores.some((s) => set.has(s));
+          });
+        }
+        setAccounts(filteredAccs);
         setProducts(prods || []);
         setReasons(rs || []);
       } finally {
         setLoading(false);
       }
     })();
-  }, [open]);
+  }, [open, allowedStores]);
 
   const selectedAccount = useMemo(
     () => accounts.find((a) => a.id === accountId),

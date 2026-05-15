@@ -264,7 +264,8 @@ export default function PortalAdminAdjustments() {
         open={createOpen}
         onOpenChange={setCreateOpen}
         currentUserName={currentUser?.full_name || currentUser?.email || "ERP Admin"}
-        onCreated={() => load()}
+        allowedStores={allowedStores}
+        onCreated={() => load(allowedStores)}
       />
     </div>
   );
