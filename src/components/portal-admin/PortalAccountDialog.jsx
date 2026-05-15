@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { RefreshCw, Plus, X } from "lucide-react";
+import LinkedUsersPicker from "@/components/portal-admin/LinkedUsersPicker";
 
 const blank = {
   store_name: "",
@@ -15,6 +16,7 @@ const blank = {
   access_code: "",
   is_active: true,
   assigned_stores: [],
+  linked_user_emails: [],
 };
 
 export default function PortalAccountDialog({ open, onOpenChange, onSave, editing, generateCode }) {
@@ -26,6 +28,7 @@ export default function PortalAccountDialog({ open, onOpenChange, onSave, editin
     if (open) {
       const base = editing ? { ...blank, ...editing } : { ...blank, access_code: generateCode() };
       if (!Array.isArray(base.assigned_stores)) base.assigned_stores = [];
+      if (!Array.isArray(base.linked_user_emails)) base.linked_user_emails = [];
       setForm(base);
       setNewStore("");
     }
@@ -173,6 +176,13 @@ export default function PortalAccountDialog({ open, onOpenChange, onSave, editin
                 <Plus className="w-4 h-4 mr-1" /> Add
               </Button>
             </div>
+          </div>
+
+          <div className="pt-2 border-t border-zinc-800">
+            <LinkedUsersPicker
+              value={form.linked_user_emails}
+              onChange={(v) => set("linked_user_emails", v)}
+            />
           </div>
 
           <div className="flex items-center justify-between pt-2">

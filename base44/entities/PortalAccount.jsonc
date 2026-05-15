@@ -34,6 +34,13 @@
       "items": {
         "type": "string"
       }
+    },
+    "linked_user_emails": {
+      "type": "array",
+      "description": "Emails of dashboard users linked to this store account",
+      "items": {
+        "type": "string"
+      }
     }
   },
   "required": [
