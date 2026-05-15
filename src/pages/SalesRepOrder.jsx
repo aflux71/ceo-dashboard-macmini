@@ -236,7 +236,7 @@ export default function SalesRepOrder() {
             <ShoppingCart className="w-3.5 h-3.5" /> {draftOrder ? `Editing Draft · ${draftOrder.order_number}` : 'Create New Order'}
           </div>
           <h1 className="text-2xl font-bold text-white">Order Page</h1>
-          <p className="text-white text-sm mt-1">Walk the customer through the same catalog they see online.</p>
+          <p className="text-white text-sm mt-1">Issues Contact The Support Team 905-682-0171</p>
         </div>
       </div>
 
