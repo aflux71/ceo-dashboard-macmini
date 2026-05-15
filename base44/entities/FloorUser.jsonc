@@ -12,15 +12,8 @@
     },
     "role": {
       "type": "string",
-      "enum": [
-        "owner",
-        "admin",
-        "production_lead",
-        "production_labor",
-        "qc"
-      ],
       "default": "production_labor",
-      "description": "User role determining permissions"
+      "description": "User role determining permissions (matches keys in role_permissions settings)"
     },
     "active": {
       "type": "boolean",
