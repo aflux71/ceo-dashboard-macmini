@@ -30,6 +30,7 @@ import PhotoCaptureMode from "@/components/inventory/PhotoCaptureMode";
 import PhotoViewerDialog from "@/components/inventory/PhotoViewerDialog";
 import BinLocationPicker from "@/components/inventory/BinLocationPicker";
 import ScanInventoryDialog from "@/components/inventory/ScanInventoryDialog";
+import MergeDuplicateDialog from "@/components/inventory/MergeDuplicateDialog";
 import InventoryActNot from "@/pages/InventoryActNot";
 import { Camera, Boxes, ScanLine, Eye } from "lucide-react";
 
@@ -102,6 +103,7 @@ export default function Inventory() {
   const [pushNotes, setPushNotes] = useState("");
   const [isPushing, setIsPushing] = useState(false);
   const [manualSkuOverride, setManualSkuOverride] = useState(false);
+  const [mergePair, setMergePair] = useState(null); // { itemA, itemB }
 
   const CURRENCIES = ["CAD", "USD", "EUR", "GBP"];
 
@@ -664,6 +666,13 @@ export default function Inventory() {
                 </button>
                 <span className="text-zinc-500">({dup.items[1].name})</span>
                 <Badge variant="amber" className="ml-auto">{dup.reason}</Badge>
+                <Button
+                  size="sm"
+                  onClick={() => setMergePair({ itemA: dup.items[0], itemB: dup.items[1] })}
+                  className="bg-amber-500/80 hover:bg-amber-500 text-black text-xs h-6 px-2"
+                >
+                  Merge
+                </Button>
                 <Button
                   size="sm"
                   variant="ghost"
@@ -1360,6 +1369,19 @@ export default function Inventory() {
         open={!!barcodeItem}
         item={barcodeItem}
         onClose={() => setBarcodeItem(null)}
+      />
+
+      {/* Merge Duplicate Dialog */}
+      <MergeDuplicateDialog
+        open={!!mergePair}
+        onOpenChange={(o) => { if (!o) setMergePair(null); }}
+        itemA={mergePair?.itemA}
+        itemB={mergePair?.itemB}
+        onMerged={(result) => {
+          setMergeResult(result);
+          setMergePair(null);
+          queryClient.invalidateQueries({ queryKey: ['inventory'] });
+        }}
       />
 
       {/* Scan Inventory Dialog */}
