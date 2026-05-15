@@ -87,6 +87,9 @@ export default function UserManagement() {
   const [editingPermissions, setEditingPermissions] = useState([]);
   const [showNewRoleDialog, setShowNewRoleDialog] = useState(false);
   const [newRoleName, setNewRoleName] = useState("");
+  const [selectedUserIds, setSelectedUserIds] = useState([]);
+  const [bulkRole, setBulkRole] = useState("");
+  const [bulkAssigning, setBulkAssigning] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -487,6 +490,55 @@ export default function UserManagement() {
     }
   };
 
+  const toggleSelectUser = (userId) => {
+    setSelectedUserIds((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
+    );
+  };
+
+  const toggleSelectAllRegistered = () => {
+    const registeredIds = dashboardUsers
+      .filter((u) => !u._isPending && u.id !== appUser?.id)
+      .map((u) => u.id);
+    const allSelected = registeredIds.length > 0 && registeredIds.every((id) => selectedUserIds.includes(id));
+    setSelectedUserIds(allSelected ? [] : registeredIds);
+  };
+
+  const handleBulkAssignRole = async () => {
+    if (!bulkRole || selectedUserIds.length === 0) {
+      toast.error("Pick a role and select at least one user");
+      return;
+    }
+    setBulkAssigning(true);
+    let success = 0;
+    let failed = 0;
+    for (const userId of selectedUserIds) {
+      try {
+        const userObj = dashboardUsers.find((u) => u.id === userId);
+        await base44.entities.User.update(userId, { role: bulkRole });
+        success++;
+        logAuditAction({
+          action: "dashboard_user_updated",
+          category: "user_management",
+          description: `Bulk role change: "${userObj?.email}" → ${bulkRole}`,
+          entityType: "User",
+          entityId: userId,
+          oldValue: { role: userObj?.role },
+          newValue: { role: bulkRole },
+          user: appUser
+        });
+      } catch (e) {
+        failed++;
+      }
+    }
+    setBulkAssigning(false);
+    if (success > 0) toast.success(`Updated ${success} user(s) to "${bulkRole}"`);
+    if (failed > 0) toast.error(`${failed} update(s) failed`);
+    setSelectedUserIds([]);
+    setBulkRole("");
+    refetchDashboardUsers();
+  };
+
   const handleInviteDashboardUser = async () => {
     if (!inviteForm.email || !inviteForm.email.includes("@")) {
       toast.error("Valid email address required");
@@ -691,6 +743,52 @@ export default function UserManagement() {
             <p className="text-zinc-500 text-sm mb-4">
               Dashboard users log in with email/password for higher-level access. All logins are recorded in the audit log.
             </p>
+
+            {/* Bulk action bar */}
+            {(() => {
+              const selectableUsers = dashboardUsers.filter((u) => !u._isPending && u.id !== appUser?.id);
+              if (selectableUsers.length === 0) return null;
+              const allSelected = selectableUsers.every((u) => selectedUserIds.includes(u.id));
+              return (
+                <div className="flex flex-wrap items-center gap-3 p-3 mb-4 bg-zinc-800/40 border border-zinc-700 rounded-lg">
+                  <label className="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer">
+                    <Checkbox checked={allSelected} onCheckedChange={toggleSelectAllRegistered} />
+                    Select all ({selectableUsers.length})
+                  </label>
+                  <div className="text-xs text-zinc-500">
+                    {selectedUserIds.length} selected
+                  </div>
+                  <div className="flex items-center gap-2 ml-auto">
+                    <Select value={bulkRole} onValueChange={setBulkRole}>
+                      <SelectTrigger className="bg-zinc-800 border-zinc-700 w-48">
+                        <SelectValue placeholder="Choose role..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="user">User</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="portal">Portal</SelectItem>
+                        {Object.keys(rolePermissions)
+                          .filter((r) => r !== "admin" && r !== "user" && r !== "portal")
+                          .map((role) => (
+                            <SelectItem key={role} value={role}>
+                              {role.charAt(0).toUpperCase() + role.slice(1).replace(/_/g, ' ')}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      size="sm"
+                      onClick={handleBulkAssignRole}
+                      disabled={bulkAssigning || selectedUserIds.length === 0 || !bulkRole}
+                      className="bg-orange-500 hover:bg-orange-600"
+                    >
+                      {bulkAssigning ? "Updating..." : "Set role for selected"}
+                    </Button>
+                  </div>
+                </div>
+              );
+            })()}
+
             {dashboardUsers.length === 0 ? (
               <p className="text-zinc-500 text-center py-4">No dashboard users yet.</p>
             ) : (
@@ -706,6 +804,12 @@ export default function UserManagement() {
                     }`}
                   >
                     <div className="flex items-center gap-4">
+                      {!isPending && user.id !== appUser?.id && (
+                        <Checkbox
+                          checked={selectedUserIds.includes(user.id)}
+                          onCheckedChange={() => toggleSelectUser(user.id)}
+                        />
+                      )}
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
                         isPending ? "bg-amber-500/20" : "bg-blue-500/20"
                       }`}>
