@@ -67,7 +67,8 @@ const PERMISSION_GROUPS = [
   {
     label: "Store Portal",
     permissions: [
-      "store_portal", "portal_products", "portal_orders", "portal_accounts", "create_new_order"
+      "store_portal", "portal_products", "portal_orders", "adjustment_requests",
+      "adjustment_reasons", "portal_accounts", "create_new_order"
     ]
   },
   {
