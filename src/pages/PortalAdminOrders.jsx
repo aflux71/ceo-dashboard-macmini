@@ -3,7 +3,8 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, Download, Eye } from "lucide-react";
+import { Search, Download, Eye, Pencil } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import OrderDetailDialog from "@/components/portal-admin/OrderDetailDialog";
 
 const STATUS_FILTERS = ["All", "draft", "submitted", "acknowledged", "in_progress", "fulfilled", "cancelled"];
@@ -23,6 +24,7 @@ export default function PortalAdminOrders() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const navigate = useNavigate();
 
   const load = async () => {
     setLoading(true);
@@ -140,9 +142,15 @@ export default function PortalAdminOrders() {
                   </Badge>
                 </td>
                 <td className="px-3 py-2 text-right">
-                  <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); setSelectedOrder(o); }} className="text-zinc-400 hover:text-white">
-                    <Eye className="w-3.5 h-3.5 mr-1" /> View
-                  </Button>
+                  {o.status === 'draft' ? (
+                    <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); navigate(`/portal-admin/sales-rep-order?draftId=${o.id}`); }} className="text-orange-400 hover:text-orange-300">
+                      <Pencil className="w-3.5 h-3.5 mr-1" /> Reopen to Edit
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); setSelectedOrder(o); }} className="text-zinc-400 hover:text-white">
+                      <Eye className="w-3.5 h-3.5 mr-1" /> View
+                    </Button>
+                  )}
                 </td>
               </tr>
             ))}

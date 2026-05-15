@@ -21,6 +21,7 @@ export default function SalesRepOrder() {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [confirmation, setConfirmation] = useState(null);
+  const [draftOrder, setDraftOrder] = useState(null);
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => setUser(null));
@@ -38,6 +39,39 @@ export default function SalesRepOrder() {
       }
     })();
   }, []);
+
+  // Load draft from ?draftId= query param
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const draftId = params.get("draftId");
+    if (!draftId || products.length === 0) return;
+    (async () => {
+      try {
+        const order = await base44.entities.PortalOrder.get(draftId);
+        if (!order || order.status !== 'draft') return;
+        setDraftOrder(order);
+        setStore({
+          store_name: order.store_name,
+          contact_name: order.contact_name,
+          contact_email: order.contact_email
+        });
+        setPickerOpen(false);
+        const qtyMap = {};
+        (order.items || []).forEach((it) => {
+          let pid = it.portal_product_id;
+          // Fallback: match by SKU if product id changed
+          if (!products.find((p) => p.id === pid)) {
+            const bySku = products.find((p) => p.sku === it.sku);
+            if (bySku) pid = bySku.id;
+          }
+          if (pid) qtyMap[pid] = Number(it.qty_ordered) || 0;
+        });
+        setQuantities(qtyMap);
+      } catch {
+        // ignore
+      }
+    })();
+  }, [products]);
 
   const categories = useMemo(() => {
     const set = new Set();
@@ -83,6 +117,36 @@ export default function SalesRepOrder() {
     setSubmitting(true);
     try {
       const repName = user?.full_name || user?.email || "Sales Rep";
+      const finalStatus = status || 'submitted';
+
+      // Update existing draft instead of creating a new order
+      if (draftOrder) {
+        const repNote = notes ? `[Phone order placed by ${repName}]\n${notes}` : (draftOrder.notes || "");
+        const updated = await base44.entities.PortalOrder.update(draftOrder.id, {
+          status: finalStatus,
+          requested_delivery_date: requested_delivery_date || null,
+          notes: repNote,
+          items: cartItems.map((i) => ({
+            portal_product_id: i.portal_product_id,
+            product_name: i.product_name,
+            sku: i.sku,
+            qty_ordered: Number(i.qty_ordered) || 0,
+            qty_fulfilled: 0,
+            notes: i.notes || ""
+          }))
+        });
+        setConfirmation({
+          order_number: updated.order_number || draftOrder.order_number,
+          items: cartItems,
+          store_name: store.store_name,
+          status: finalStatus
+        });
+        setQuantities({});
+        setReviewOpen(false);
+        setDraftOrder(null);
+        return;
+      }
+
       const repNote = `[Phone order placed by ${repName}]${notes ? `\n${notes}` : ""}`;
       const res = await base44.functions.invoke("createPortalOrder", {
         store_name: store.store_name,
@@ -92,14 +156,14 @@ export default function SalesRepOrder() {
         requested_delivery_date,
         notes: repNote,
         items: cartItems,
-        status: status || 'submitted'
+        status: finalStatus
       });
       if (res?.data?.success) {
         setConfirmation({
           order_number: res.data.order.order_number,
           items: cartItems,
           store_name: store.store_name,
-          status: status || 'submitted'
+          status: finalStatus
         });
         setQuantities({});
         setReviewOpen(false);
@@ -117,6 +181,10 @@ export default function SalesRepOrder() {
     setConfirmation(null);
     setStore(null);
     setPickerOpen(true);
+    setDraftOrder(null);
+    if (window.location.search.includes("draftId")) {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
   };
 
   if (confirmation) {
@@ -156,7 +224,7 @@ export default function SalesRepOrder() {
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 text-orange-400 text-xs font-semibold uppercase tracking-wider mb-1">
-            <ShoppingCart className="w-3.5 h-3.5" /> Create New Order
+            <ShoppingCart className="w-3.5 h-3.5" /> {draftOrder ? `Editing Draft · ${draftOrder.order_number}` : 'Create New Order'}
           </div>
           <h1 className="text-2xl font-bold text-white">Order Page</h1>
           <p className="text-white text-sm mt-1">Walk the customer through the same catalog they see online.</p>
