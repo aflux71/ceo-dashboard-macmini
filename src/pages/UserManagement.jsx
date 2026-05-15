@@ -501,8 +501,12 @@ export default function UserManagement() {
 
     setInviting(true);
     try {
-      await base44.users.inviteUser(inviteForm.email, inviteForm.role);
-      // Track the pending invite
+      // base44.users.inviteUser only accepts "user" or "admin".
+      // For any other role (portal, custom roles), invite as "user" and
+      // store the intended role in the PendingInvite for later application.
+      const baseRole = inviteForm.role === "admin" ? "admin" : "user";
+      await base44.users.inviteUser(inviteForm.email, baseRole);
+      // Track the pending invite with the actual selected role
       await base44.entities.PendingInvite.create({
         email: inviteForm.email,
         role: inviteForm.role,
