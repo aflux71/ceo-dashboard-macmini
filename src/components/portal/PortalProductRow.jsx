@@ -2,7 +2,16 @@ import React from "react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 
-export default function PortalProductRow({ product, quantity, onChange }) {
+export default function PortalProductRow({ product, quantity, onChange, stock }) {
+  const hasStock = typeof stock === "number";
+  const stockColor = !hasStock
+    ? "text-zinc-600"
+    : stock <= 0
+      ? "text-red-400"
+      : stock < 10
+        ? "text-amber-400"
+        : "text-green-400";
+
   return (
     <tr className="border-t border-zinc-800 hover:bg-zinc-800/30">
       <td className="px-3 py-2 text-white">
@@ -18,6 +27,9 @@ export default function PortalProductRow({ product, quantity, onChange }) {
         ) : (
           <span className="text-zinc-600">—</span>
         )}
+      </td>
+      <td className={`px-3 py-2 text-right text-sm font-semibold ${stockColor}`}>
+        {hasStock ? stock : "—"}
       </td>
       <td className="px-3 py-2 text-right">
         <Input

@@ -14,6 +14,7 @@ export default function SalesRepOrder() {
   const [pickerOpen, setPickerOpen] = useState(true);
 
   const [products, setProducts] = useState([]);
+  const [stockBySku, setStockBySku] = useState({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
@@ -30,8 +31,16 @@ export default function SalesRepOrder() {
   useEffect(() => {
     (async () => {
       try {
-        const all = await base44.entities.PortalProduct.filter({ portal_hidden: false }, "display_order", 500);
+        const [all, inv] = await Promise.all([
+          base44.entities.PortalProduct.filter({ portal_hidden: false }, "display_order", 500),
+          base44.entities.Inventory.filter({ type: "finished_product" }, "name", 5000)
+        ]);
         setProducts(all || []);
+        const map = {};
+        (inv || []).forEach((i) => {
+          if (i.sku) map[String(i.sku).toLowerCase()] = Number(i.quantity) || 0;
+        });
+        setStockBySku(map);
       } catch {
         setProducts([]);
       } finally {
@@ -311,6 +320,7 @@ export default function SalesRepOrder() {
                   <th className="px-3 py-2 text-left">Name</th>
                   <th className="px-3 py-2 text-left">SKU</th>
                   <th className="px-3 py-2 text-left">Category</th>
+                  <th className="px-3 py-2 text-right w-28">neōb HQ Stock</th>
                   <th className="px-3 py-2 text-right w-32">Quantity</th>
                 </tr>
               </thead>
@@ -321,6 +331,7 @@ export default function SalesRepOrder() {
                     product={p}
                     quantity={quantities[p.id]}
                     onChange={handleQtyChange}
+                    stock={stockBySku[String(p.sku || "").toLowerCase()]}
                   />
                 ))}
               </tbody>
