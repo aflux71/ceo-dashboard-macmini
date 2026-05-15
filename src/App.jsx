@@ -3,7 +3,9 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import NavigationTracker from '@/lib/NavigationTracker'
 import { pagesConfig } from './pages.config'
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { base44 } from '@/api/base44Client';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
@@ -39,6 +41,19 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
   <Layout currentPageName={currentPageName}>{children}</Layout>
   : <>{children}</>;
 
+// Redirect portal-only users away from the dashboard to portal orders
+const DashboardGate = ({ children, currentPageName }) => {
+  const [user, setUser] = useState(undefined);
+  useEffect(() => {
+    base44.auth.me().then(setUser).catch(() => setUser(null));
+  }, []);
+  if (user === undefined) return null;
+  if (user && (user.role === 'portal' || user.role === 'store_portal_access')) {
+    return <Navigate to="/portal-admin/orders" replace />;
+  }
+  return <LayoutWrapper currentPageName={currentPageName}>{children}</LayoutWrapper>;
+};
+
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
 
@@ -66,18 +81,24 @@ const AuthenticatedApp = () => {
   return (
     <Routes>
       <Route path="/" element={
-        <LayoutWrapper currentPageName={mainPageKey}>
+        <DashboardGate currentPageName={mainPageKey}>
           <MainPage />
-        </LayoutWrapper>
+        </DashboardGate>
       } />
       {Object.entries(Pages).map(([path, Page]) => (
         <Route
           key={path}
           path={`/${path}`}
           element={
-            <LayoutWrapper currentPageName={path}>
-              <Page />
-            </LayoutWrapper>
+            path === 'Dashboard' ? (
+              <DashboardGate currentPageName={path}>
+                <Page />
+              </DashboardGate>
+            ) : (
+              <LayoutWrapper currentPageName={path}>
+                <Page />
+              </LayoutWrapper>
+            )
           }
         />
       ))}
