@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, ShoppingCart, CheckCircle2, Store, UserCircle2, Phone, Mail, ArrowLeftRight } from "lucide-react";
+import { Search, ShoppingCart, CheckCircle2, Store, UserCircle2, Phone, Mail, ArrowLeftRight, Loader2, Check } from "lucide-react";
 import PortalProductRow from "@/components/portal/PortalProductRow";
 import OrderReviewDialog from "@/components/portal/OrderReviewDialog";
 import StorePickerDialog from "@/components/portal-admin/StorePickerDialog";
@@ -23,6 +24,10 @@ export default function SalesRepOrder() {
   const [submitting, setSubmitting] = useState(false);
   const [confirmation, setConfirmation] = useState(null);
   const [draftOrder, setDraftOrder] = useState(null);
+  const [orderNote, setOrderNote] = useState("");
+  const [autoSaveState, setAutoSaveState] = useState("idle"); // idle | saving | saved
+  const autoSaveTimer = useRef(null);
+  const hasHydratedDraft = useRef(false);
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => setUser(null));
@@ -76,6 +81,11 @@ export default function SalesRepOrder() {
           if (pid) qtyMap[pid] = Number(it.qty_ordered) || 0;
         });
         setQuantities(qtyMap);
+        // Strip the "[Phone order placed by ...]" prefix when loading note for editing
+        const rawNote = order.notes || "";
+        const cleanNote = rawNote.replace(/^\[Phone order placed by [^\]]*\]\n?/, "");
+        setOrderNote(cleanNote);
+        hasHydratedDraft.current = true;
       } catch {
         // ignore
       }
@@ -120,6 +130,74 @@ export default function SalesRepOrder() {
   }, [quantities, products]);
 
   const totalUnits = cartItems.reduce((sum, it) => sum + (it.qty_ordered || 0), 0);
+
+  // Auto-save as draft whenever quantities or note change (debounced)
+  const autoSaveDraft = async () => {
+    if (!store) return;
+    setAutoSaveState("saving");
+    try {
+      const repName = user?.full_name || user?.email || "Sales Rep";
+      const itemsPayload = cartItems.map((i) => ({
+        portal_product_id: i.portal_product_id,
+        product_name: i.product_name,
+        sku: i.sku,
+        qty_ordered: Number(i.qty_ordered) || 0,
+        qty_fulfilled: 0,
+        notes: i.notes || ""
+      }));
+      const noteWithPrefix = orderNote
+        ? `[Phone order placed by ${repName}]\n${orderNote}`
+        : `[Phone order placed by ${repName}]`;
+
+      if (draftOrder) {
+        await base44.entities.PortalOrder.update(draftOrder.id, {
+          notes: noteWithPrefix,
+          items: itemsPayload
+        });
+      } else {
+        // Create a new draft via backend function (handles SO numbering)
+        const res = await base44.functions.invoke("createPortalOrder", {
+          store_name: store.store_name,
+          contact_name: store.contact_name || store.store_name,
+          contact_email: store.contact_email || "",
+          submitted_by: repName,
+          notes: noteWithPrefix,
+          items: itemsPayload,
+          status: "draft"
+        });
+        if (res?.data?.success && res.data.order) {
+          setDraftOrder(res.data.order);
+          // Reflect draft id in URL so reloads keep editing the same draft
+          const url = new URL(window.location.href);
+          url.searchParams.set("draftId", res.data.order.id);
+          window.history.replaceState({}, "", url.toString());
+        }
+      }
+      setAutoSaveState("saved");
+    } catch {
+      setAutoSaveState("idle");
+    }
+  };
+
+  useEffect(() => {
+    if (!store) return;
+    // Avoid saving immediately on initial draft hydration
+    if (hasHydratedDraft.current) {
+      hasHydratedDraft.current = false;
+      return;
+    }
+    // Don't auto-save an empty new order (no draft, no items)
+    if (!draftOrder && cartItems.length === 0 && !orderNote) return;
+
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(() => {
+      autoSaveDraft();
+    }, 800);
+    return () => {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quantities, orderNote, store]);
 
   const handleSubmitOrder = async ({ requested_delivery_date, notes, status }) => {
     if (!store) return;
@@ -191,6 +269,8 @@ export default function SalesRepOrder() {
     setStore(null);
     setPickerOpen(true);
     setDraftOrder(null);
+    setOrderNote("");
+    setAutoSaveState("idle");
     if (window.location.search.includes("draftId")) {
       window.history.replaceState({}, "", window.location.pathname);
     }
@@ -340,14 +420,45 @@ export default function SalesRepOrder() {
         )}
       </div>
 
+      {store && (
+        <div className="mt-6 bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+          <label className="block text-sm font-semibold text-white mb-2">
+            Order Notes
+          </label>
+          <p className="text-xs text-zinc-500 mb-2">
+            Add any special instructions, delivery preferences, or other notes for this order. Saves automatically as a draft.
+          </p>
+          <Textarea
+            value={orderNote}
+            onChange={(e) => setOrderNote(e.target.value)}
+            placeholder="e.g. Please deliver before noon, leave at back door..."
+            rows={4}
+            className="bg-zinc-800 border-zinc-700 text-white"
+          />
+        </div>
+      )}
+
       {store && cartItems.length > 0 && (
         <div className="fixed bottom-0 left-0 right-0 lg:left-64 bg-zinc-900 border-t border-zinc-800 z-40">
           <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
             <div className="text-sm">
-              <div className="text-white font-semibold">
+              <div className="text-white font-semibold flex items-center gap-2">
                 {cartItems.length} {cartItems.length === 1 ? "product" : "products"} · {store.store_name}
+                {autoSaveState === "saving" && (
+                  <span className="flex items-center gap-1 text-xs text-zinc-400 font-normal">
+                    <Loader2 className="w-3 h-3 animate-spin" /> Saving draft...
+                  </span>
+                )}
+                {autoSaveState === "saved" && (
+                  <span className="flex items-center gap-1 text-xs text-green-400 font-normal">
+                    <Check className="w-3 h-3" /> Draft saved
+                  </span>
+                )}
               </div>
-              <div className="text-zinc-400 text-xs">{totalUnits} units total</div>
+              <div className="text-zinc-400 text-xs">
+                {totalUnits} units total
+                {draftOrder && <span className="ml-2">· {draftOrder.order_number}</span>}
+              </div>
             </div>
             <Button onClick={() => setReviewOpen(true)} className="bg-orange-500 hover:bg-orange-600 text-white">
               <ShoppingCart className="w-4 h-4 mr-2" />
@@ -361,7 +472,7 @@ export default function SalesRepOrder() {
         open={reviewOpen}
         onOpenChange={setReviewOpen}
         items={cartItems}
-        onSubmit={handleSubmitOrder}
+        onSubmit={(payload) => handleSubmitOrder({ ...payload, notes: payload.notes || orderNote })}
         submitting={submitting}
         showSaveDraft={true}
       />
