@@ -579,7 +579,7 @@ export default function UserManagement() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Users className="w-5 h-5" />
-            Floor Users ({users.length})
+            Role Access ({users.length})
           </CardTitle>
         </CardHeader>
         <CardContent>
