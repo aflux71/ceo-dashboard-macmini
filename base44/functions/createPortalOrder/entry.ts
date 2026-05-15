@@ -4,7 +4,8 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const body = await req.json();
-    const { store_name, contact_name, contact_email, contact_phone, requested_delivery_date, notes, items, submitted_by } = body;
+    const { store_name, contact_name, contact_email, contact_phone, requested_delivery_date, notes, items, submitted_by, status } = body;
+    const orderStatus = status === 'draft' ? 'draft' : 'submitted';
 
     if (!store_name || !contact_name || !Array.isArray(items) || items.length === 0) {
       return Response.json({ error: 'Missing required fields' }, { status: 400 });
@@ -30,7 +31,7 @@ Deno.serve(async (req) => {
       contact_phone: contact_phone || '',
       order_date: new Date().toISOString().split('T')[0],
       requested_delivery_date: requested_delivery_date || null,
-      status: 'submitted',
+      status: orderStatus,
       notes: notes || '',
       items: items.map(i => ({
         portal_product_id: i.portal_product_id,

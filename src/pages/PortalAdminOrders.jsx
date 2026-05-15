@@ -6,9 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { Search, Download, Eye } from "lucide-react";
 import OrderDetailDialog from "@/components/portal-admin/OrderDetailDialog";
 
-const STATUS_FILTERS = ["All", "submitted", "acknowledged", "in_progress", "fulfilled", "cancelled"];
+const STATUS_FILTERS = ["All", "draft", "submitted", "acknowledged", "in_progress", "fulfilled", "cancelled"];
 
 const statusVariant = (s) => ({
+  draft: "default",
   submitted: "blue",
   acknowledged: "purple",
   in_progress: "orange",

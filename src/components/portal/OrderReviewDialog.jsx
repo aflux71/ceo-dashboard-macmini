@@ -5,12 +5,16 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 
-export default function OrderReviewDialog({ open, onOpenChange, items, onSubmit, submitting }) {
+export default function OrderReviewDialog({ open, onOpenChange, items, onSubmit, submitting, showSaveDraft = false }) {
   const [deliveryDate, setDeliveryDate] = useState("");
   const [notes, setNotes] = useState("");
 
   const handleSubmit = () => {
-    onSubmit({ requested_delivery_date: deliveryDate || null, notes });
+    onSubmit({ requested_delivery_date: deliveryDate || null, notes, status: 'submitted' });
+  };
+
+  const handleSaveDraft = () => {
+    onSubmit({ requested_delivery_date: deliveryDate || null, notes, status: 'draft' });
   };
 
   return (
@@ -65,7 +69,7 @@ export default function OrderReviewDialog({ open, onOpenChange, items, onSubmit,
           </div>
         </div>
 
-        <DialogFooter className="gap-2">
+        <DialogFooter className="gap-2 flex-wrap">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
@@ -74,6 +78,16 @@ export default function OrderReviewDialog({ open, onOpenChange, items, onSubmit,
           >
             Back to Edit
           </Button>
+          {showSaveDraft && (
+            <Button
+              onClick={handleSaveDraft}
+              disabled={submitting}
+              variant="outline"
+              className="border-zinc-600 bg-zinc-700 text-white hover:bg-zinc-600"
+            >
+              {submitting ? "Saving..." : "Save as Draft"}
+            </Button>
+          )}
           <Button
             onClick={handleSubmit}
             disabled={submitting}

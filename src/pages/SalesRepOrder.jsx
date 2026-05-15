@@ -78,7 +78,7 @@ export default function SalesRepOrder() {
 
   const totalUnits = cartItems.reduce((sum, it) => sum + (it.qty_ordered || 0), 0);
 
-  const handleSubmitOrder = async ({ requested_delivery_date, notes }) => {
+  const handleSubmitOrder = async ({ requested_delivery_date, notes, status }) => {
     if (!store) return;
     setSubmitting(true);
     try {
@@ -91,13 +91,15 @@ export default function SalesRepOrder() {
         submitted_by: repName,
         requested_delivery_date,
         notes: repNote,
-        items: cartItems
+        items: cartItems,
+        status: status || 'submitted'
       });
       if (res?.data?.success) {
         setConfirmation({
           order_number: res.data.order.order_number,
           items: cartItems,
-          store_name: store.store_name
+          store_name: store.store_name,
+          status: status || 'submitted'
         });
         setQuantities({});
         setReviewOpen(false);
@@ -123,7 +125,7 @@ export default function SalesRepOrder() {
         <div className="w-20 h-20 rounded-full bg-green-500/10 border border-green-500/30 flex items-center justify-center mx-auto mb-6">
           <CheckCircle2 className="w-10 h-10 text-green-400" />
         </div>
-        <h1 className="text-3xl font-bold text-white mb-2">Order Submitted!</h1>
+        <h1 className="text-3xl font-bold text-white mb-2">{confirmation.status === 'draft' ? 'Draft Saved!' : 'Order Submitted!'}</h1>
         <p className="text-zinc-400 mb-1">Order placed for <span className="text-white font-medium">{confirmation.store_name}</span></p>
         <p className="text-2xl font-bold text-orange-400 mb-8">{confirmation.order_number}</p>
 
@@ -282,6 +284,7 @@ export default function SalesRepOrder() {
         items={cartItems}
         onSubmit={handleSubmitOrder}
         submitting={submitting}
+        showSaveDraft={true}
       />
 
       <StorePickerDialog
