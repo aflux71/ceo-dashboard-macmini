@@ -375,7 +375,7 @@ export default function Layout({ children, currentPageName }) {
               </div>
               <ChevronDown className={`w-4 h-4 transition-transform ${navOpen ? 'rotate-0' : '-rotate-90'}`} />
             </button>
-            {navOpen && user?.role !== 'portal' && <div className="space-y-1">
+            {navOpen && user?.role !== 'portal' && user?.role !== 'store_portal_access' && <div className="space-y-1">
               {navItems.map((item) => {
                 const isActive = currentPageName === item.page;
                 const showAlertStyle = item.alertStyle && issueCount > 0;
@@ -492,7 +492,7 @@ export default function Layout({ children, currentPageName }) {
             </div>}
 
             {/* Store Portal Section (admin + portal roles) */}
-            {(user?.role === 'admin' || user?.role === 'portal') && (
+            {(user?.role === 'admin' || user?.role === 'portal' || user?.role === 'store_portal_access') && (
               <div className="mt-6 pt-4 border-t border-zinc-800">
                 <button
                   onClick={() => setPortalOpen(!portalOpen)}
@@ -533,7 +533,7 @@ export default function Layout({ children, currentPageName }) {
             )}
 
             {/* Settings Section (hidden for portal-only users) */}
-                                      {user?.role !== 'portal' && <div className="mt-6 pt-4 border-t border-zinc-800">
+                                      {user?.role !== 'portal' && user?.role !== 'store_portal_access' && <div className="mt-6 pt-4 border-t border-zinc-800">
                                         <button
                                           onClick={() => setSettingsOpen(!settingsOpen)}
                                           className="w-full px-3 py-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider flex items-center justify-between hover:text-zinc-400 transition-colors"
