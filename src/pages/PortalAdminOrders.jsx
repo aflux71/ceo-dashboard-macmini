@@ -24,16 +24,49 @@ export default function PortalAdminOrders() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [allowedStores, setAllowedStores] = useState(null); // null = no restriction (admin)
   const navigate = useNavigate();
 
-  const load = async () => {
+  const load = async (storesFilter) => {
     setLoading(true);
     const list = await base44.entities.PortalOrder.list("-created_date", 1000);
-    setOrders(list || []);
+    let result = list || [];
+    if (storesFilter && Array.isArray(storesFilter)) {
+      const set = new Set(storesFilter);
+      result = result.filter((o) => set.has(o.store_name));
+    }
+    setOrders(result);
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    (async () => {
+      try {
+        const me = await base44.auth.me();
+        setCurrentUser(me);
+        if (me && me.role !== "admin") {
+          // Restrict to stores this user is linked to
+          const accounts = await base44.entities.PortalAccount.filter({ is_active: true });
+          const myAccounts = (accounts || []).filter((a) =>
+            (a.linked_user_emails || []).map((e) => (e || "").toLowerCase()).includes((me.email || "").toLowerCase())
+          );
+          const stores = Array.from(
+            new Set(
+              myAccounts.flatMap((a) => (a.assigned_stores && a.assigned_stores.length ? a.assigned_stores : [a.store_name]))
+            )
+          ).filter(Boolean);
+          setAllowedStores(stores);
+          await load(stores);
+        } else {
+          setAllowedStores(null);
+          await load(null);
+        }
+      } catch {
+        await load(null);
+      }
+    })();
+  }, []);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -49,7 +82,7 @@ export default function PortalAdminOrders() {
     if (!selectedOrder) return;
     await base44.entities.PortalOrder.update(selectedOrder.id, updates);
     setSelectedOrder(null);
-    load();
+    load(allowedStores);
   };
 
   const exportCsv = () => {

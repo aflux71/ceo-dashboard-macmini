@@ -41,16 +41,46 @@ export default function PortalAdminAdjustments() {
   const [selected, setSelected] = useState(null);
   const [createOpen, setCreateOpen] = useState(false);
 
-  const load = async () => {
+  const [allowedStores, setAllowedStores] = useState(null); // null = no restriction (admin)
+
+  const load = async (storesFilter) => {
     setLoading(true);
     const list = await base44.entities.InventoryAdjustment.list("-created_date", 1000);
-    setAdjustments(list || []);
+    let result = list || [];
+    if (storesFilter && Array.isArray(storesFilter)) {
+      const set = new Set(storesFilter);
+      result = result.filter((a) => set.has(a.store_name));
+    }
+    setAdjustments(result);
     setLoading(false);
   };
 
   useEffect(() => {
-    base44.auth.me().then(setCurrentUser).catch(() => setCurrentUser(null));
-    load();
+    (async () => {
+      try {
+        const me = await base44.auth.me();
+        setCurrentUser(me);
+        if (me && me.role !== "admin") {
+          const accounts = await base44.entities.PortalAccount.filter({ is_active: true });
+          const myAccounts = (accounts || []).filter((a) =>
+            (a.linked_user_emails || []).map((e) => (e || "").toLowerCase()).includes((me.email || "").toLowerCase())
+          );
+          const stores = Array.from(
+            new Set(
+              myAccounts.flatMap((a) => (a.assigned_stores && a.assigned_stores.length ? a.assigned_stores : [a.store_name]))
+            )
+          ).filter(Boolean);
+          setAllowedStores(stores);
+          await load(stores);
+        } else {
+          setAllowedStores(null);
+          await load(null);
+        }
+      } catch {
+        setCurrentUser(null);
+        await load(null);
+      }
+    })();
   }, []);
 
   const filtered = useMemo(() => {
@@ -69,7 +99,7 @@ export default function PortalAdminAdjustments() {
 
   const handleSave = async (id, updates) => {
     await base44.entities.InventoryAdjustment.update(id, updates);
-    await load();
+    await load(allowedStores);
   };
 
   const exportCsv = () => {
@@ -102,14 +132,15 @@ export default function PortalAdminAdjustments() {
   };
 
   if (currentUser === undefined) return null;
-  if (currentUser?.role !== "admin") {
+  const isAdmin = currentUser?.role === "admin";
+  if (!isAdmin && !(currentUser && allowedStores && allowedStores.length > 0)) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center max-w-md">
           <Lock className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-white mb-2">Admin Access Required</h2>
+          <h2 className="text-xl font-semibold text-white mb-2">Access Restricted</h2>
           <p className="text-zinc-400 text-sm">
-            Inventory adjustment requests are restricted to ERP administrators.
+            You do not have access to inventory adjustment requests.
           </p>
         </div>
       </div>

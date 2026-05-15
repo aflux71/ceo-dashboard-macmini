@@ -48,12 +48,12 @@ import {
 } from "lucide-react";
 
 const portalAdminItems = [
-  { name: "Portal Products", icon: Package, page: "portal-admin/products", path: "/portal-admin/products" },
-  { name: "Portal Orders", icon: ClipboardList, page: "portal-admin/orders", path: "/portal-admin/orders", countKey: "portalOrders" },
-  { name: "Adjustment Requests", icon: ClipboardEdit, page: "portal-admin/adjustments", path: "/portal-admin/adjustments", adminOnly: true, countKey: "adjustments" },
-  { name: "Adjustment Reasons", icon: Settings, page: "portal-admin/reasons", path: "/portal-admin/reasons", adminOnly: true },
-  { name: "Portal Accounts", icon: Users, page: "portal-admin/accounts", path: "/portal-admin/accounts" },
-  { name: "Create New Order", icon: Plus, page: "portal-admin/sales-rep-order", path: "/portal-admin/sales-rep-order" },
+  { name: "Portal Products", icon: Package, page: "portal-admin/products", path: "/portal-admin/products", permission: "portal_products" },
+  { name: "Portal Orders", icon: ClipboardList, page: "portal-admin/orders", path: "/portal-admin/orders", countKey: "portalOrders", permission: "portal_orders" },
+  { name: "Adjustment Requests", icon: ClipboardEdit, page: "portal-admin/adjustments", path: "/portal-admin/adjustments", adminOnly: true, countKey: "adjustments", permission: "adjustment_requests" },
+  { name: "Adjustment Reasons", icon: Settings, page: "portal-admin/reasons", path: "/portal-admin/reasons", adminOnly: true, permission: "adjustment_reasons" },
+  { name: "Portal Accounts", icon: Users, page: "portal-admin/accounts", path: "/portal-admin/accounts", permission: "portal_accounts" },
+  { name: "Create New Order", icon: Plus, page: "portal-admin/sales-rep-order", path: "/portal-admin/sales-rep-order", permission: "create_new_order" },
 ];
 
 const navItems = [
@@ -116,6 +116,29 @@ export default function Layout({ children, currentPageName }) {
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => setUser(null));
   }, []);
+
+  // Fetch role permissions for custom roles (e.g. store_portal_access)
+  const [rolePermissions, setRolePermissions] = useState(null);
+  useEffect(() => {
+    const fetchRolePerms = async () => {
+      try {
+        const settings = await base44.entities.AppSettings.filter({ key: "role_permissions" });
+        if (settings && settings[0]) {
+          setRolePermissions(JSON.parse(settings[0].value));
+        } else {
+          setRolePermissions({});
+        }
+      } catch {
+        setRolePermissions({});
+      }
+    };
+    fetchRolePerms();
+  }, []);
+
+  const userPermissions = React.useMemo(() => {
+    if (!user || !rolePermissions) return null;
+    return rolePermissions[user.role] || [];
+  }, [user, rolePermissions]);
 
   const [pendingQcCount, setPendingQcCount] = useState(0);
 
@@ -544,9 +567,18 @@ export default function Layout({ children, currentPageName }) {
                   <div className="space-y-1 mt-1">
                     {portalAdminItems
                       .filter((item) => {
-                        const adminOnly = ["portal-admin/products", "portal-admin/accounts", "portal-admin/adjustments", "portal-admin/reasons"];
-                        if ((item.adminOnly || adminOnly.includes(item.page)) && user?.role !== 'admin') return false;
-                        return true;
+                        // Admin sees everything
+                        if (user?.role === 'admin') return true;
+                        // Legacy "portal" role: hide admin-only management screens
+                        if (user?.role === 'portal') {
+                          const adminOnly = ["portal-admin/products", "portal-admin/accounts", "portal-admin/adjustments", "portal-admin/reasons"];
+                          return !item.adminOnly && !adminOnly.includes(item.page);
+                        }
+                        // Custom roles (e.g. store_portal_access): show only items in their permissions
+                        if (userPermissions && item.permission) {
+                          return userPermissions.includes(item.permission);
+                        }
+                        return false;
                       })
                       .map((item) => {
                       const isActive = typeof window !== 'undefined' && window.location.pathname === item.path;
