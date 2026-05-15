@@ -49,8 +49,8 @@ import {
 
 const portalAdminItems = [
   { name: "Portal Products", icon: Package, page: "portal-admin/products", path: "/portal-admin/products" },
-  { name: "Portal Orders", icon: ClipboardList, page: "portal-admin/orders", path: "/portal-admin/orders" },
-  { name: "Adjustment Requests", icon: ClipboardEdit, page: "portal-admin/adjustments", path: "/portal-admin/adjustments", adminOnly: true },
+  { name: "Portal Orders", icon: ClipboardList, page: "portal-admin/orders", path: "/portal-admin/orders", countKey: "portalOrders" },
+  { name: "Adjustment Requests", icon: ClipboardEdit, page: "portal-admin/adjustments", path: "/portal-admin/adjustments", adminOnly: true, countKey: "adjustments" },
   { name: "Adjustment Reasons", icon: Settings, page: "portal-admin/reasons", path: "/portal-admin/reasons", adminOnly: true },
   { name: "Portal Accounts", icon: Users, page: "portal-admin/accounts", path: "/portal-admin/accounts" },
   { name: "Create New Order", icon: Plus, page: "portal-admin/sales-rep-order", path: "/portal-admin/sales-rep-order" },
@@ -191,6 +191,38 @@ export default function Layout({ children, currentPageName }) {
   // Fetch approved batch count for Add to Inventory
   const [approvedBatchCount, setApprovedBatchCount] = useState(0);
   const [reviewQueueCount, setReviewQueueCount] = useState(0);
+  const [pendingPortalOrdersCount, setPendingPortalOrdersCount] = useState(0);
+  const [pendingAdjustmentsCount, setPendingAdjustmentsCount] = useState(0);
+
+  // Fetch pending portal orders count (staggered)
+  useEffect(() => {
+    const fetchPortalOrders = async () => {
+      try {
+        const orders = await base44.entities.PortalOrder.filter({ status: { $in: ['submitted', 'acknowledged', 'in_progress'] } });
+        setPendingPortalOrdersCount(orders.length);
+      } catch {
+        setPendingPortalOrdersCount(0);
+      }
+    };
+    const timeout = setTimeout(fetchPortalOrders, 6000);
+    const interval = setInterval(fetchPortalOrders, 60000);
+    return () => { clearTimeout(timeout); clearInterval(interval); };
+  }, []);
+
+  // Fetch pending adjustment requests count (staggered)
+  useEffect(() => {
+    const fetchAdjustments = async () => {
+      try {
+        const adjustments = await base44.entities.InventoryAdjustment.filter({ status: { $in: ['submitted', 'acknowledged', 'reviewed'] } });
+        setPendingAdjustmentsCount(adjustments.length);
+      } catch {
+        setPendingAdjustmentsCount(0);
+      }
+    };
+    const timeout = setTimeout(fetchAdjustments, 6500);
+    const interval = setInterval(fetchAdjustments, 60000);
+    return () => { clearTimeout(timeout); clearInterval(interval); };
+  }, []);
 
   // Fetch review queue count (staggered)
   useEffect(() => {
@@ -518,22 +550,36 @@ export default function Layout({ children, currentPageName }) {
                       })
                       .map((item) => {
                       const isActive = typeof window !== 'undefined' && window.location.pathname === item.path;
+                      const count = item.countKey === 'portalOrders' ? pendingPortalOrdersCount
+                                  : item.countKey === 'adjustments' ? pendingAdjustmentsCount
+                                  : 0;
+                      const hasPending = count > 0;
                       return (
                         <Link
                           key={item.path}
                           to={item.path}
                           onClick={() => setSidebarOpen(false)}
                           className={`
-                            flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm font-medium
+                            flex items-center justify-between px-3 py-1.5 rounded-lg text-sm font-medium
                             transition-colors duration-200
                             ${isActive
                               ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
-                              : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
+                              : hasPending
+                                ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
+                                : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
                             }
                           `}
                         >
-                          <item.icon className="w-5 h-5" />
-                          {item.name}
+                          <div className="flex items-center gap-3">
+                            <item.icon className={`w-5 h-5 ${hasPending ? 'text-amber-400' : ''}`} />
+                            {item.name}
+                          </div>
+                          {hasPending && (
+                            <span className="flex items-center gap-1 text-xs text-amber-400">
+                              <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse"></span>
+                              {count}
+                            </span>
+                          )}
                         </Link>
                       );
                     })}
