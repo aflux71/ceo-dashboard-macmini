@@ -38,7 +38,7 @@ export default function SalesRepOrder() {
         setProducts(all || []);
         const map = {};
         (inv || []).forEach((i) => {
-          if (i.sku) map[String(i.sku).toLowerCase()] = Number(i.quantity) || 0;
+          if (i.sku) map[String(i.sku).toLowerCase()] = Math.max(0, Number(i.quantity) || 0);
         });
         setStockBySku(map);
       } catch {
