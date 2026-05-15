@@ -142,10 +142,12 @@ export default function UserManagement() {
   useEffect(() => {
     // Merge registered users with pending invites (that haven't registered yet)
     const registeredEmails = new Set(fetchedDashboardUsers.map(u => u.email?.toLowerCase()));
-    
-    // Mark any pending invites as registered if the user now exists
+
+    // Mark any pending invites as registered if the user now exists.
+    // IMPORTANT: only update invites that are still "pending" to avoid an
+    // infinite loop where every refetch re-fires updates on the same records.
     pendingInvites.forEach(async (invite) => {
-      if (registeredEmails.has(invite.email?.toLowerCase())) {
+      if (invite.status === "pending" && registeredEmails.has(invite.email?.toLowerCase())) {
         await base44.entities.PendingInvite.update(invite.id, { status: "registered" });
       }
     });
