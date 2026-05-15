@@ -339,7 +339,7 @@ export default function Layout({ children, currentPageName }) {
             <div className="flex items-center gap-2">
                                 <span className="text-2xl font-bold text-white">neōb</span>
                                 <span className="text-xs px-2 py-0.5 bg-orange-500/20 text-orange-400 rounded-full font-medium">
-                                  260515.1
+                                  260515.2
                                 </span>
                               </div>
                               <button
