@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Search, ShoppingCart, CheckCircle2, Store, UserCircle2, Phone, Mail, ArrowLeftRight } from "lucide-react";
-import PortalProductCard from "@/components/portal/PortalProductCard";
+import PortalProductRow from "@/components/portal/PortalProductRow";
 import OrderReviewDialog from "@/components/portal/OrderReviewDialog";
 import StorePickerDialog from "@/components/portal-admin/StorePickerDialog";
 
@@ -234,15 +234,27 @@ export default function SalesRepOrder() {
             {products.length === 0 ? "No products available yet." : "No products match your search."}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map((p) => (
-              <PortalProductCard
-                key={p.id}
-                product={p}
-                quantity={quantities[p.id]}
-                onChange={handleQtyChange}
-              />
-            ))}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-zinc-800/60 text-zinc-400">
+                <tr>
+                  <th className="px-3 py-2 text-left">Name</th>
+                  <th className="px-3 py-2 text-left">SKU</th>
+                  <th className="px-3 py-2 text-left">Category</th>
+                  <th className="px-3 py-2 text-right w-32">Quantity</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((p) => (
+                  <PortalProductRow
+                    key={p.id}
+                    product={p}
+                    quantity={quantities[p.id]}
+                    onChange={handleQtyChange}
+                  />
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
