@@ -42,14 +42,15 @@ import {
   Eye,
   Ban,
   Briefcase,
-  Store
+  Store,
+  Plus
 } from "lucide-react";
 
 const portalAdminItems = [
   { name: "Portal Products", icon: Package, page: "portal-admin/products", path: "/portal-admin/products" },
   { name: "Portal Orders", icon: ClipboardList, page: "portal-admin/orders", path: "/portal-admin/orders" },
   { name: "Portal Accounts", icon: Users, page: "portal-admin/accounts", path: "/portal-admin/accounts" },
-  { name: "Phone Order (Sales Rep)", icon: Phone, page: "portal-admin/sales-rep-order", path: "/portal-admin/sales-rep-order" },
+  { name: "Create New Order", icon: Plus, page: "portal-admin/sales-rep-order", path: "/portal-admin/sales-rep-order" },
 ];
 
 const navItems = [
