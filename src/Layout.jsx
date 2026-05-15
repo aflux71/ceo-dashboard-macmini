@@ -47,6 +47,7 @@ import {
 const portalAdminItems = [
   { name: "Portal Products", icon: Package, page: "portal-admin/products", path: "/portal-admin/products" },
   { name: "Portal Orders", icon: ClipboardList, page: "portal-admin/orders", path: "/portal-admin/orders" },
+  { name: "Phone Order (Sales Rep)", icon: Phone, page: "portal-admin/sales-rep-order", path: "/portal-admin/sales-rep-order" },
 ];
 
 const navItems = [

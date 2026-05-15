@@ -24,6 +24,7 @@ import PortalLogin from './pages/PortalLogin';
 import PortalOrder from './pages/PortalOrder';
 import PortalAdminProducts from './pages/PortalAdminProducts';
 import PortalAdminOrders from './pages/PortalAdminOrders';
+import SalesRepOrder from './pages/SalesRepOrder';
 import PortalRouteGuard from './components/portal/PortalRouteGuard';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -92,6 +93,7 @@ const AuthenticatedApp = () => {
       <Route path="/MissingInventory" element={<LayoutWrapper currentPageName="MissingInventory"><MissingInventory /></LayoutWrapper>} />
       <Route path="/portal-admin/products" element={<LayoutWrapper currentPageName="PortalAdminProducts"><PortalAdminProducts /></LayoutWrapper>} />
       <Route path="/portal-admin/orders" element={<LayoutWrapper currentPageName="PortalAdminOrders"><PortalAdminOrders /></LayoutWrapper>} />
+      <Route path="/portal-admin/sales-rep-order" element={<LayoutWrapper currentPageName="SalesRepOrder"><SalesRepOrder /></LayoutWrapper>} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
