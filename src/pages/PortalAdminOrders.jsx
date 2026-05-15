@@ -28,13 +28,17 @@ export default function PortalAdminOrders() {
   const [allowedStores, setAllowedStores] = useState(null); // null = no restriction (admin)
   const navigate = useNavigate();
 
-  const load = async (storesFilter) => {
+  const load = async (storesFilter, userEmail) => {
     setLoading(true);
     const list = await base44.entities.PortalOrder.list("-created_date", 1000);
     let result = list || [];
     if (storesFilter && Array.isArray(storesFilter)) {
       const set = new Set(storesFilter);
-      result = result.filter((o) => set.has(o.store_name));
+      const email = (userEmail || "").toLowerCase();
+      result = result.filter((o) =>
+        set.has(o.store_name) ||
+        (email && (o.created_by || "").toLowerCase() === email)
+      );
     }
     setOrders(result);
     setLoading(false);
@@ -57,7 +61,7 @@ export default function PortalAdminOrders() {
             )
           ).filter(Boolean);
           setAllowedStores(stores);
-          await load(stores);
+          await load(stores, me.email);
         } else {
           setAllowedStores(null);
           await load(null);
@@ -82,7 +86,7 @@ export default function PortalAdminOrders() {
     if (!selectedOrder) return;
     await base44.entities.PortalOrder.update(selectedOrder.id, updates);
     setSelectedOrder(null);
-    load(allowedStores);
+    load(allowedStores, currentUser?.email);
   };
 
   const exportCsv = () => {

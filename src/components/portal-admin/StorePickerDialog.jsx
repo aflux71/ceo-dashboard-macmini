@@ -15,8 +15,18 @@ export default function StorePickerDialog({ open, onOpenChange, onSelect }) {
     (async () => {
       setLoading(true);
       try {
-        const list = await base44.entities.PortalAccount.filter({ is_active: true }, "store_name", 500);
-        setAccounts(list || []);
+        const [list, me] = await Promise.all([
+          base44.entities.PortalAccount.filter({ is_active: true }, "store_name", 500),
+          base44.auth.me().catch(() => null)
+        ]);
+        let result = list || [];
+        if (me && me.role !== "admin") {
+          const email = (me.email || "").toLowerCase();
+          result = result.filter((a) =>
+            (a.linked_user_emails || []).map((e) => (e || "").toLowerCase()).includes(email)
+          );
+        }
+        setAccounts(result);
       } catch {
         setAccounts([]);
       } finally {
