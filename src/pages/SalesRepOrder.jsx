@@ -154,10 +154,10 @@ export default function SalesRepOrder() {
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 text-orange-400 text-xs font-semibold uppercase tracking-wider mb-1">
-            <Phone className="w-3.5 h-3.5" /> Sales Rep · Phone Order
+            <ShoppingCart className="w-3.5 h-3.5" /> Create New Order
           </div>
-          <h1 className="text-2xl font-bold text-white">Place Order on Behalf of Store</h1>
-          <p className="text-zinc-400 text-sm mt-1">Walk the customer through the same catalog they see online.</p>
+          <h1 className="text-2xl font-bold text-white">Order Page</h1>
+          <p className="text-white text-sm mt-1">Walk the customer through the same catalog they see online.</p>
         </div>
       </div>
 
