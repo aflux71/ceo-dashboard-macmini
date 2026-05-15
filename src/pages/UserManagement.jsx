@@ -58,6 +58,7 @@ const ALL_PERMISSIONS = [
   "labels", "label_usage", "unlabeled_products",
   "purchase_orders", "analytics", "equipment_repairs", "low_consumables",
   "reports", "view_costs", "ai_assistant", "bug_reports",
+  "store_portal",
   "user_management", "settings"
 ];
 
