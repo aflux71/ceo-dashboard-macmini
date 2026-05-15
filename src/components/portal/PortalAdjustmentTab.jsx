@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Search, ClipboardEdit, CheckCircle2, Plus } from "lucide-react";
 import AdjustmentItemCard from "./AdjustmentItemCard";
 import AdjustmentReviewDialog from "./AdjustmentReviewDialog";
+import AdjustmentHistorySection from "./AdjustmentHistorySection";
 
 export default function PortalAdjustmentTab({ session, activeStore }) {
   const [products, setProducts] = useState([]);
@@ -16,6 +17,7 @@ export default function PortalAdjustmentTab({ session, activeStore }) {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [confirmation, setConfirmation] = useState(null);
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
 
   useEffect(() => {
     (async () => {
@@ -120,6 +122,7 @@ export default function PortalAdjustmentTab({ session, activeStore }) {
         });
         setAdjustmentItems([]);
         setReviewOpen(false);
+        setHistoryRefreshKey((k) => k + 1);
       } else {
         alert(res?.data?.error || "Failed to submit adjustment");
       }
@@ -277,6 +280,11 @@ export default function PortalAdjustmentTab({ session, activeStore }) {
           </div>
         </div>
       )}
+
+      <AdjustmentHistorySection
+        storeName={activeStore || session.store_name}
+        refreshKey={historyRefreshKey}
+      />
 
       <AdjustmentReviewDialog
         open={reviewOpen}
