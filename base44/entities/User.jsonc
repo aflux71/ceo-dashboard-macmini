@@ -1,0 +1,16 @@
+{
+  "name": "User",
+  "type": "object",
+  "properties": {
+    "role": {
+      "type": "string",
+      "enum": [
+        "admin",
+        "user",
+        "portal"
+      ],
+      "default": "user",
+      "description": "User role - 'portal' is limited to portal admin pages only"
+    }
+  }
+}

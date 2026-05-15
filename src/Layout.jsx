@@ -47,6 +47,7 @@ import {
 const portalAdminItems = [
   { name: "Portal Products", icon: Package, page: "portal-admin/products", path: "/portal-admin/products" },
   { name: "Portal Orders", icon: ClipboardList, page: "portal-admin/orders", path: "/portal-admin/orders" },
+  { name: "Portal Accounts", icon: Users, page: "portal-admin/accounts", path: "/portal-admin/accounts" },
   { name: "Phone Order (Sales Rep)", icon: Phone, page: "portal-admin/sales-rep-order", path: "/portal-admin/sales-rep-order" },
 ];
 
@@ -373,7 +374,7 @@ export default function Layout({ children, currentPageName }) {
               </div>
               <ChevronDown className={`w-4 h-4 transition-transform ${navOpen ? 'rotate-0' : '-rotate-90'}`} />
             </button>
-            {navOpen && <div className="space-y-1">
+            {navOpen && user?.role !== 'portal' && <div className="space-y-1">
               {navItems.map((item) => {
                 const isActive = currentPageName === item.page;
                 const showAlertStyle = item.alertStyle && issueCount > 0;
@@ -489,8 +490,8 @@ export default function Layout({ children, currentPageName }) {
               })}
             </div>}
 
-            {/* Store Portal Section (admin only) */}
-            {user?.role === 'admin' && (
+            {/* Store Portal Section (admin + portal roles) */}
+            {(user?.role === 'admin' || user?.role === 'portal') && (
               <div className="mt-6 pt-4 border-t border-zinc-800">
                 <button
                   onClick={() => setPortalOpen(!portalOpen)}
@@ -530,8 +531,8 @@ export default function Layout({ children, currentPageName }) {
               </div>
             )}
 
-            {/* Settings Section */}
-                                      <div className="mt-6 pt-4 border-t border-zinc-800">
+            {/* Settings Section (hidden for portal-only users) */}
+                                      {user?.role !== 'portal' && <div className="mt-6 pt-4 border-t border-zinc-800">
                                         <button
                                           onClick={() => setSettingsOpen(!settingsOpen)}
                                           className="w-full px-3 py-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider flex items-center justify-between hover:text-zinc-400 transition-colors"
@@ -543,31 +544,31 @@ export default function Layout({ children, currentPageName }) {
                                           <ChevronDown className={`w-4 h-4 transition-transform ${settingsOpen ? 'rotate-0' : '-rotate-90'}`} />
                                         </button>
                                         {settingsOpen && (
-                                          <div className="space-y-1 mt-1">
-                                            {settingsItems.map((item) => {
-                                              const isActive = currentPageName === item.page;
-                                              return (
-                                                <Link
-                                                  key={item.page}
-                                                  to={createPageUrl(item.page)}
-                                                  onClick={() => setSidebarOpen(false)}
-                                                  className={`
-                                                    flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm font-medium
-                                                    transition-colors duration-200
-                                                    ${isActive
-                                                      ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
-                                                      : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
-                                                    }
-                                                  `}
-                                                >
-                                                  <item.icon className="w-5 h-5" />
-                                                  {item.name}
-                                                </Link>
-                                              );
-                                            })}
-                                          </div>
+                                        <div className="space-y-1 mt-1">
+                                        {settingsItems.map((item) => {
+                                          const isActive = currentPageName === item.page;
+                                          return (
+                                            <Link
+                                              key={item.page}
+                                              to={createPageUrl(item.page)}
+                                              onClick={() => setSidebarOpen(false)}
+                                              className={`
+                                                flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm font-medium
+                                                transition-colors duration-200
+                                                ${isActive
+                                                  ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
+                                                  : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
+                                                }
+                                              `}
+                                            >
+                                              <item.icon className="w-5 h-5" />
+                                              {item.name}
+                                            </Link>
+                                          );
+                                        })}
+                                        </div>
                                         )}
-                                      </div>
+                                        </div>}
                       </nav>
 
           {/* User Section */}
