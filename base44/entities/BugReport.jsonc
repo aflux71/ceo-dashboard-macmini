@@ -47,6 +47,13 @@
     "resolution_notes": {
       "type": "string",
       "description": "Notes on how the bug was resolved"
+    },
+    "screenshots": {
+      "type": "array",
+      "description": "Screenshot/image URLs attached to this bug report",
+      "items": {
+        "type": "string"
+      }
     }
   },
   "required": [

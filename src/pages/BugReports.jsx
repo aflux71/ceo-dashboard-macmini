@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Search, Bug, AlertTriangle, CheckCircle, Clock } from "lucide-react";
+import { Plus, Search, Bug, AlertTriangle, CheckCircle, Clock, Paperclip } from "lucide-react";
+import ScreenshotUploader from "@/components/bug-reports/ScreenshotUploader";
 
 const priorityConfig = {
   low: { bg: "bg-blue-500/20 text-blue-400", label: "Low" },
@@ -33,6 +34,7 @@ const defaultForm = {
   submitted_by: "",
   assigned_to: "",
   resolution_notes: "",
+  screenshots: [],
 };
 
 export default function BugReports() {
@@ -180,6 +182,27 @@ export default function BugReports() {
                         {bug.category && <span className="text-xs text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded">{bug.category}</span>}
                       </div>
                       {bug.description && <p className="text-sm text-zinc-400 line-clamp-2">{bug.description}</p>}
+                      {bug.screenshots?.length > 0 && (
+                        <div className="flex items-center gap-2 mt-2">
+                          {bug.screenshots.slice(0, 4).map((url, idx) => (
+                            <a
+                              key={idx}
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="block w-12 h-12 rounded border border-zinc-700 overflow-hidden bg-zinc-800"
+                            >
+                              <img src={url} alt={`Screenshot ${idx + 1}`} className="w-full h-full object-cover" />
+                            </a>
+                          ))}
+                          {bug.screenshots.length > 4 && (
+                            <span className="text-xs text-zinc-500 flex items-center gap-1">
+                              <Paperclip className="w-3 h-3" />+{bug.screenshots.length - 4}
+                            </span>
+                          )}
+                        </div>
+                      )}
                       <div className="flex items-center gap-4 text-xs text-zinc-500 mt-2">
                         {bug.submitted_by && <span>By: {bug.submitted_by}</span>}
                         {bug.assigned_to && <span>Assigned: {bug.assigned_to}</span>}
@@ -247,6 +270,13 @@ export default function BugReports() {
                 <Label>Assigned To</Label>
                 <Input value={form.assigned_to} onChange={(e) => setForm({ ...form, assigned_to: e.target.value })} className="bg-zinc-800 border-zinc-700" />
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Screenshots</Label>
+              <ScreenshotUploader
+                screenshots={form.screenshots || []}
+                onChange={(urls) => setForm({ ...form, screenshots: urls })}
+              />
             </div>
             {(form.status === "resolved" || form.status === "closed") && (
               <div className="space-y-2">
