@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from "react";
+import { base44 } from "@/api/base44Client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const STATUSES = ["submitted", "acknowledged", "in_progress", "fulfilled", "cancelled"];
@@ -13,6 +15,7 @@ export default function OrderDetailDialog({ open, onOpenChange, order, onSave })
   const [internalNotes, setInternalNotes] = useState("");
   const [items, setItems] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [stockBySku, setStockBySku] = useState({});
 
   useEffect(() => {
     if (order) {
@@ -21,6 +24,22 @@ export default function OrderDetailDialog({ open, onOpenChange, order, onSave })
       setItems((order.items || []).map((i) => ({ ...i })));
     }
   }, [order]);
+
+  useEffect(() => {
+    if (!open) return;
+    (async () => {
+      try {
+        const inv = await base44.entities.Inventory.filter({ type: "finished_product" }, "name", 5000);
+        const map = {};
+        (inv || []).forEach((i) => {
+          if (i.sku) map[String(i.sku).toLowerCase()] = Math.max(0, Number(i.quantity) || 0);
+        });
+        setStockBySku(map);
+      } catch {
+        setStockBySku({});
+      }
+    })();
+  }, [open]);
 
   if (!order) return null;
 
@@ -88,11 +107,24 @@ export default function OrderDetailDialog({ open, onOpenChange, order, onSave })
                 </tr>
               </thead>
               <tbody>
-                {items.map((it, idx) => (
+                {items.map((it, idx) => {
+                  const stock = stockBySku[String(it.sku || "").toLowerCase()];
+                  const ordered = Number(it.qty_ordered) || 0;
+                  const backorder = typeof stock === "number" && ordered > stock ? ordered - stock : 0;
+                  return (
                   <tr key={idx} className="border-t border-zinc-800">
                     <td className="px-3 py-2 text-white">{it.product_name}</td>
                     <td className="px-3 py-2 text-zinc-400">{it.sku}</td>
-                    <td className="px-3 py-2 text-right text-white">{it.qty_ordered}</td>
+                    <td className="px-3 py-2 text-right text-white">
+                      <div className="flex items-center justify-end gap-2">
+                        <span>{it.qty_ordered}</span>
+                        {backorder > 0 && (
+                          <Badge variant="destructive" className="text-[10px] whitespace-nowrap">
+                            Back-ordered: {backorder}
+                          </Badge>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-3 py-2">
                       <Input
                         type="number"
@@ -110,7 +142,8 @@ export default function OrderDetailDialog({ open, onOpenChange, order, onSave })
                       />
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
