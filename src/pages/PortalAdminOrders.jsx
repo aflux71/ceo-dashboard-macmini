@@ -28,21 +28,13 @@ export default function PortalAdminOrders() {
   const [allowedStores, setAllowedStores] = useState(null); // null = no restriction (admin)
   const navigate = useNavigate();
 
-  const load = async (storesFilter, user) => {
+  const load = async (storesFilter) => {
     setLoading(true);
     const list = await base44.entities.PortalOrder.list("-created_date", 1000);
     let result = list || [];
     if (storesFilter && Array.isArray(storesFilter)) {
       const set = new Set(storesFilter);
-      const email = (user?.email || "").toLowerCase();
-      const fullName = (user?.full_name || "").toLowerCase();
-      result = result.filter((o) => {
-        if (set.has(o.store_name)) return true;
-        if (email && (o.created_by || "").toLowerCase() === email) return true;
-        const submittedBy = (o.submitted_by || "").toLowerCase();
-        if (submittedBy && (submittedBy === fullName || submittedBy === email)) return true;
-        return false;
-      });
+      result = result.filter((o) => set.has(o.store_name));
     }
     setOrders(result);
     setLoading(false);
@@ -65,7 +57,7 @@ export default function PortalAdminOrders() {
             )
           ).filter(Boolean);
           setAllowedStores(stores);
-          await load(stores, me);
+          await load(stores);
         } else {
           setAllowedStores(null);
           await load(null);
@@ -90,7 +82,7 @@ export default function PortalAdminOrders() {
     if (!selectedOrder) return;
     await base44.entities.PortalOrder.update(selectedOrder.id, updates);
     setSelectedOrder(null);
-    load(allowedStores, currentUser);
+    load(allowedStores);
   };
 
   const exportCsv = () => {
