@@ -914,8 +914,9 @@ export default function UserManagement() {
                 <SelectContent>
                   <SelectItem value="user">User</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="portal">Portal (Store Portal Only)</SelectItem>
                   {Object.keys(rolePermissions)
-                    .filter((r) => r !== "admin" && r !== "user")
+                    .filter((r) => r !== "admin" && r !== "user" && r !== "portal")
                     .map((role) => (
                       <SelectItem key={role} value={role}>
                         {role.charAt(0).toUpperCase() + role.slice(1).replace(/_/g, ' ')}
@@ -972,10 +973,11 @@ export default function UserManagement() {
                 <SelectContent>
                   <SelectItem value="user">User</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="portal">Portal (Store Portal Only)</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-zinc-500">
-                Admins can manage all settings and invite other users. Users have limited access.
+                Admins can manage all settings and invite other users. Users have limited access. Portal users only see the Store Portal section.
               </p>
             </div>
           </div>
