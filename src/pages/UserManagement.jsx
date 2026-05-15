@@ -659,14 +659,33 @@ export default function UserManagement() {
                 <Badge variant="amber">{dashboardUsers.filter(u => u._isPending || !u.full_name).length} pending</Badge>
               )}
             </CardTitle>
-            <Button 
-              onClick={() => setShowInviteDialog(true)} 
-              size="sm"
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              <UserPlus className="w-4 h-4 mr-2" />
-              Invite User
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    const res = await base44.functions.invoke("applyPendingInviteRole", {});
+                    const d = res?.data || {};
+                    toast.success(`Synced: ${d.applied || 0} role(s) applied, ${d.alreadyCorrect || 0} already correct, ${d.stillPending || 0} still pending`);
+                    refetchDashboardUsers();
+                    refetchPendingInvites();
+                  } catch (e) {
+                    toast.error(e.message || "Sync failed");
+                  }
+                }}
+              >
+                Sync Roles
+              </Button>
+              <Button
+                onClick={() => setShowInviteDialog(true)}
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                <UserPlus className="w-4 h-4 mr-2" />
+                Invite User
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <p className="text-zinc-500 text-sm mb-4">
