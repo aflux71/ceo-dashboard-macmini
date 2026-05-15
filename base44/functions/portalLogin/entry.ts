@@ -20,6 +20,10 @@ Deno.serve(async (req) => {
     }
 
     const account = accounts[0];
+    const assigned = Array.isArray(account.assigned_stores) && account.assigned_stores.length > 0
+      ? account.assigned_stores
+      : [account.store_name];
+
     return Response.json({
       success: true,
       account: {
@@ -27,7 +31,8 @@ Deno.serve(async (req) => {
         store_name: account.store_name,
         contact_name: account.contact_name || '',
         contact_email: account.contact_email || '',
-        account_type: account.account_type || 'store'
+        account_type: account.account_type || 'store',
+        assigned_stores: assigned
       }
     });
   } catch (error) {

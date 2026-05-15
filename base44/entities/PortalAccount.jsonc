@@ -4,7 +4,7 @@
   "properties": {
     "store_name": {
       "type": "string",
-      "description": "Store name (used as login identifier)"
+      "description": "Primary store name (used as login identifier and default when only one store is assigned)"
     },
     "access_code": {
       "type": "string",
@@ -27,6 +27,13 @@
         "wholesale"
       ],
       "default": "store"
+    },
+    "assigned_stores": {
+      "type": "array",
+      "description": "List of store names this account can place orders for. If empty, defaults to store_name only.",
+      "items": {
+        "type": "string"
+      }
     }
   },
   "required": [

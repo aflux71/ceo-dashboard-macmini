@@ -31,7 +31,12 @@ export default function PortalLogin() {
       });
       if (res?.data?.success) {
         setPortalSession(res.data.account);
-        navigate("/portal/order", { replace: true });
+        const stores = res.data.account.assigned_stores || [res.data.account.store_name];
+        if (stores.length > 1) {
+          navigate("/portal/select-store", { replace: true });
+        } else {
+          navigate("/portal/order", { replace: true });
+        }
       } else {
         setError(res?.data?.error || "Invalid store name or access code");
       }

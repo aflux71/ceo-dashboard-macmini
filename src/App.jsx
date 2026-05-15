@@ -22,6 +22,8 @@ import InventoryRequirements from './pages/InventoryRequirements';
 import MissingInventory from './pages/MissingInventory';
 import PortalLogin from './pages/PortalLogin';
 import PortalOrder from './pages/PortalOrder';
+import PortalSelectStore from './pages/PortalSelectStore';
+import PortalOrderHistory from './pages/PortalOrderHistory';
 import PortalAdminProducts from './pages/PortalAdminProducts';
 import PortalAdminOrders from './pages/PortalAdminOrders';
 import SalesRepOrder from './pages/SalesRepOrder';
@@ -106,7 +108,9 @@ function PortalRoutes() {
   return (
     <Routes>
       <Route path="/portal/login" element={<PortalLogin />} />
+      <Route path="/portal/select-store" element={<PortalRouteGuard><PortalSelectStore /></PortalRouteGuard>} />
       <Route path="/portal/order" element={<PortalRouteGuard><PortalOrder /></PortalRouteGuard>} />
+      <Route path="/portal/orders" element={<PortalRouteGuard><PortalOrderHistory /></PortalRouteGuard>} />
       <Route path="/portal/*" element={<PortalLogin />} />
     </Routes>
   );

@@ -110,6 +110,7 @@ export default function PortalAdminAccounts() {
           <thead className="bg-zinc-800/60 text-zinc-400">
             <tr>
               <th className="px-3 py-2 text-left">Store Name</th>
+              <th className="px-3 py-2 text-left">Assigned Stores</th>
               <th className="px-3 py-2 text-left">Contact</th>
               <th className="px-3 py-2 text-left">Email</th>
               <th className="px-3 py-2 text-left">Type</th>
@@ -120,12 +121,25 @@ export default function PortalAdminAccounts() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="7" className="px-3 py-8 text-center text-zinc-500">Loading...</td></tr>
+              <tr><td colSpan="8" className="px-3 py-8 text-center text-zinc-500">Loading...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan="7" className="px-3 py-8 text-center text-zinc-500">No accounts yet. Click "New Store Account" to add one.</td></tr>
+              <tr><td colSpan="8" className="px-3 py-8 text-center text-zinc-500">No accounts yet. Click "New Store Account" to add one.</td></tr>
             ) : filtered.map((a) => (
               <tr key={a.id} className="border-t border-zinc-800 hover:bg-zinc-800/30">
                 <td className="px-3 py-2 text-white font-medium">{a.store_name}</td>
+                <td className="px-3 py-2 text-zinc-400">
+                  {Array.isArray(a.assigned_stores) && a.assigned_stores.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {a.assigned_stores.map((s) => (
+                        <span key={s} className="text-[10px] bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-1.5 py-0.5">
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-zinc-600 text-xs">— (primary only)</span>
+                  )}
+                </td>
                 <td className="px-3 py-2 text-zinc-400">{a.contact_name || "—"}</td>
                 <td className="px-3 py-2 text-zinc-400">{a.contact_email || "—"}</td>
                 <td className="px-3 py-2">

@@ -4,14 +4,18 @@ import { base44 } from "@/api/base44Client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, ShoppingCart, CheckCircle2 } from "lucide-react";
-import { getPortalSession, clearPortalSession } from "@/components/portal/portalSession";
+import { getPortalSession, clearPortalSession, getActiveStore, setActiveStore } from "@/components/portal/portalSession";
 import PortalTopBar from "@/components/portal/PortalTopBar";
 import PortalProductRow from "@/components/portal/PortalProductRow";
 import OrderReviewDialog from "@/components/portal/OrderReviewDialog";
+import { History, Repeat } from "lucide-react";
 
 export default function PortalOrder() {
   const navigate = useNavigate();
   const session = getPortalSession();
+  const activeStore = getActiveStore();
+  const assignedStores = session?.assigned_stores || (session ? [session.store_name] : []);
+  const isMultiStore = assignedStores.length > 1;
 
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -26,6 +30,15 @@ export default function PortalOrder() {
     if (!session) {
       navigate("/portal/login", { replace: true });
       return;
+    }
+    if (!activeStore) {
+      // Need to pick a store first (multi-store account) or default to single
+      if (assignedStores.length === 1) {
+        setActiveStore(assignedStores[0]);
+      } else {
+        navigate("/portal/select-store", { replace: true });
+        return;
+      }
     }
     (async () => {
       try {
@@ -90,11 +103,12 @@ export default function PortalOrder() {
   const handleSubmitOrder = async ({ requested_delivery_date, notes }) => {
     setSubmitting(true);
     try {
+      const orderStore = getActiveStore() || session.store_name;
       const res = await base44.functions.invoke("createPortalOrder", {
-        store_name: session.store_name,
-        contact_name: session.contact_name || session.store_name,
+        store_name: orderStore,
+        contact_name: session.contact_name || orderStore,
         contact_email: session.contact_email || "",
-        submitted_by: session.contact_name || session.store_name,
+        submitted_by: session.contact_name || orderStore,
         requested_delivery_date,
         notes,
         items: cartItems
@@ -117,11 +131,12 @@ export default function PortalOrder() {
   };
 
   if (!session) return null;
+  const displayStore = activeStore || session.store_name;
 
   if (confirmation) {
     return (
       <div className="min-h-screen bg-zinc-950">
-        <PortalTopBar storeName={session.store_name} onLogout={handleLogout} />
+        <PortalTopBar storeName={displayStore} onLogout={handleLogout} />
         <div className="max-w-2xl mx-auto px-4 py-16 text-center">
           <div className="w-20 h-20 rounded-full bg-green-500/10 border border-green-500/30 flex items-center justify-center mx-auto mb-6">
             <CheckCircle2 className="w-10 h-10 text-green-400" />
@@ -160,12 +175,34 @@ export default function PortalOrder() {
 
   return (
     <div className="min-h-screen bg-zinc-950 pb-24">
-      <PortalTopBar storeName={session.store_name} onLogout={handleLogout} />
+      <PortalTopBar storeName={displayStore} onLogout={handleLogout} />
 
       <div className="max-w-7xl mx-auto px-4 py-6">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-white mb-1">Place Your Order</h1>
-          <p className="text-zinc-400 text-sm">Browse available products and add quantities</p>
+        <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-white mb-1">Place Your Order</h1>
+            <p className="text-zinc-400 text-sm">Browse available products and add quantities</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {isMultiStore && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate("/portal/select-store")}
+                className="border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
+              >
+                <Repeat className="w-4 h-4 mr-2" /> Switch Store
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/portal/orders")}
+              className="border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
+            >
+              <History className="w-4 h-4 mr-2" /> Order History
+            </Button>
+          </div>
         </div>
 
         <div className="relative mb-4">
