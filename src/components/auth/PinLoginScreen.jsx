@@ -1,64 +1,28 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useFloorPin } from "./FloorPinContext";
 import { Button } from "@/components/ui/button";
-import { Loader2, Delete } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Loader2, Lock } from "lucide-react";
 
 export default function PinLoginScreen() {
-  const { login } = useFloorPin();
+  const { login, dashboardUser } = useFloorPin();
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const pinRef = useRef(pin);
-  const loadingRef = useRef(loading);
-  useEffect(() => { pinRef.current = pin; }, [pin]);
-  useEffect(() => { loadingRef.current = loading; }, [loading]);
+  const inputRef = useRef(null);
 
   useEffect(() => {
-    const onKeyDown = (e) => {
-      if (loadingRef.current) return;
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (/^[0-9]$/.test(e.key)) {
-        e.preventDefault();
-        handleDigit(e.key);
-      } else if (e.key === "Backspace") {
-        e.preventDefault();
-        setPin(pinRef.current.slice(0, -1));
-        setError("");
-      } else if (e.key === "Escape" || e.key === "Delete") {
-        e.preventDefault();
-        setPin("");
-        setError("");
-      } else if (e.key === "Enter") {
-        e.preventDefault();
-        if (pinRef.current.length === 4) handleSubmit(pinRef.current);
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    inputRef.current?.focus();
   }, []);
 
-  const handleDigit = (digit) => {
-    if (pin.length < 4) {
-      const newPin = pin + digit;
-      setPin(newPin);
-      setError("");
-      
-      // Auto-submit when 4 digits entered
-      if (newPin.length === 4) {
-        handleSubmit(newPin);
-      }
+  const handleChange = (e) => {
+    const v = e.target.value.replace(/\D/g, "").slice(0, 4);
+    setPin(v);
+    setError("");
+    if (v.length === 4) {
+      handleSubmit(v);
     }
-  };
-
-  const handleDelete = () => {
-    setPin(pin.slice(0, -1));
-    setError("");
-  };
-
-  const handleClear = () => {
-    setPin("");
-    setError("");
   };
 
   const handleSubmit = async (pinToSubmit) => {
@@ -75,86 +39,78 @@ export default function PinLoginScreen() {
     if (!result.success) {
       setError(result.error);
       setPin("");
+      inputRef.current?.focus();
     }
   };
 
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
+
+  const displayName = dashboardUser?.full_name || dashboardUser?.email?.split("@")[0] || "";
+
   return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        {/* Logo */}
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8">
+        {/* Lock Icon */}
+        <div className="flex justify-center mb-6">
+          <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center">
+            <Lock className="w-7 h-7 text-slate-700" strokeWidth={2.5} />
+          </div>
+        </div>
+
+        {/* Headings */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white">neōb</h1>
-          <p className="text-zinc-500 mt-2">Production Tracker</p>
-        </div>
-
-        {/* PIN Display */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 mb-4">
-          <p className="text-center text-zinc-400 text-sm mb-4">Enter your 4-digit PIN</p>
-          
-          <div className="flex justify-center gap-3 mb-6">
-            {[0, 1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className={`w-12 h-12 rounded-lg border-2 flex items-center justify-center text-2xl font-bold transition-all ${
-                  pin.length > i
-                    ? "bg-orange-500/20 border-orange-500 text-orange-400"
-                    : "bg-zinc-800 border-zinc-700 text-zinc-600"
-                }`}
-              >
-                {pin.length > i ? "•" : ""}
-              </div>
-            ))}
-          </div>
-
-          {error && (
-            <p className="text-center text-red-400 text-sm mb-4">{error}</p>
+          <h1 className="text-2xl font-bold text-slate-900 mb-2">Screen Locked</h1>
+          {displayName && (
+            <p className="text-slate-600 font-medium">Welcome back, {displayName}</p>
           )}
+          <p className="text-slate-400 text-sm mt-1">Enter your PIN to unlock</p>
+        </div>
 
-          {loading && (
-            <div className="flex justify-center mb-4">
-              <Loader2 className="w-6 h-6 text-orange-500 animate-spin" />
-            </div>
+        {/* PIN Input */}
+        <div className="space-y-2 mb-4">
+          <Label htmlFor="pin-input" className="text-slate-900 font-semibold">
+            4-Digit PIN
+          </Label>
+          <Input
+            id="pin-input"
+            ref={inputRef}
+            type="password"
+            inputMode="numeric"
+            autoComplete="off"
+            pattern="[0-9]*"
+            maxLength={4}
+            value={pin}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            disabled={loading}
+            placeholder="••••"
+            className="h-12 text-center text-2xl tracking-[0.5em] text-slate-900 placeholder:text-slate-300 bg-white border-slate-300 focus-visible:ring-slate-900"
+          />
+        </div>
+
+        {error && (
+          <p className="text-center text-red-500 text-sm mb-3">{error}</p>
+        )}
+
+        {/* Unlock Button */}
+        <Button
+          onClick={() => handleSubmit()}
+          disabled={loading || pin.length !== 4}
+          className="w-full h-12 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-base rounded-lg"
+        >
+          {loading ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : (
+            "Unlock"
           )}
-        </div>
+        </Button>
 
-        {/* Number Pad */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-          <div className="grid grid-cols-3 gap-3">
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((digit) => (
-              <button
-                key={digit}
-                onClick={() => handleDigit(String(digit))}
-                disabled={loading}
-                className="h-16 rounded-lg bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 text-white text-2xl font-semibold transition-colors disabled:opacity-50"
-              >
-                {digit}
-              </button>
-            ))}
-            <button
-              onClick={handleClear}
-              disabled={loading}
-              className="h-16 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-sm font-medium transition-colors disabled:opacity-50"
-            >
-              Clear
-            </button>
-            <button
-              onClick={() => handleDigit("0")}
-              disabled={loading}
-              className="h-16 rounded-lg bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 text-white text-2xl font-semibold transition-colors disabled:opacity-50"
-            >
-              0
-            </button>
-            <button
-              onClick={handleDelete}
-              disabled={loading}
-              className="h-16 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 transition-colors disabled:opacity-50 flex items-center justify-center"
-            >
-              <Delete className="w-6 h-6" />
-            </button>
-          </div>
-        </div>
-
-        <p className="text-center text-zinc-600 text-xs mt-6">
+        <p className="text-center text-slate-400 text-xs mt-6">
           Contact your supervisor if you forgot your PIN
         </p>
       </div>
