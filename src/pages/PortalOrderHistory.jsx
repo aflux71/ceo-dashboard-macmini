@@ -37,12 +37,16 @@ export default function PortalOrderHistory() {
     }
     (async () => {
       try {
-        const list = await base44.entities.PortalOrder.filter(
-          { store_name: activeStore },
-          "-created_date",
-          200
-        );
-        setOrders(list || []);
+        const res = await base44.functions.invoke("listPortalOrders", {
+          store_name: activeStore,
+          access_code: session.access_code,
+          account_id: session.id,
+        });
+        if (res?.data?.success) {
+          setOrders(res.data.orders || []);
+        } else {
+          setOrders([]);
+        }
       } catch {
         setOrders([]);
       } finally {

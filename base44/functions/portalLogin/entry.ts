@@ -32,7 +32,8 @@ Deno.serve(async (req) => {
         contact_name: account.contact_name || '',
         contact_email: account.contact_email || '',
         account_type: account.account_type || 'store',
-        assigned_stores: assigned
+        assigned_stores: assigned,
+        access_code: account.access_code
       }
     });
   } catch (error) {
