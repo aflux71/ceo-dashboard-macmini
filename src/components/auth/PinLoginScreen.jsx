@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useFloorPin } from "./FloorPinContext";
 import { Button } from "@/components/ui/button";
 import { Loader2, Delete } from "lucide-react";
@@ -8,6 +8,35 @@ export default function PinLoginScreen() {
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const pinRef = useRef(pin);
+  const loadingRef = useRef(loading);
+  useEffect(() => { pinRef.current = pin; }, [pin]);
+  useEffect(() => { loadingRef.current = loading; }, [loading]);
+
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (loadingRef.current) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (/^[0-9]$/.test(e.key)) {
+        e.preventDefault();
+        handleDigit(e.key);
+      } else if (e.key === "Backspace") {
+        e.preventDefault();
+        setPin(pinRef.current.slice(0, -1));
+        setError("");
+      } else if (e.key === "Escape" || e.key === "Delete") {
+        e.preventDefault();
+        setPin("");
+        setError("");
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        if (pinRef.current.length === 4) handleSubmit(pinRef.current);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleDigit = (digit) => {
     if (pin.length < 4) {
