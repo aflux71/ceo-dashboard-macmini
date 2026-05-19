@@ -57,48 +57,48 @@ const portalAdminItems = [
 ];
 
 const navItems = [
-        { name: "Dashboard", icon: BarChart3, page: "Dashboard" },
-        { name: "Analytics", icon: TrendingUp, page: "Analytics" },
-        { name: "Issue Alerts", icon: AlertOctagon, page: "IssueAlerts", alertStyle: true },
-        { name: "Equipment Repairs", icon: Wrench, page: "EquipmentRepairs", isRepairLink: true },
-        { name: "Low Consumables", icon: PackageOpen, page: "LowConsumables", isConsumablesLink: true },
-        { name: "Labels", icon: Tag, page: "Labels", isLabelsLink: true },
-        { name: "Review Queue", icon: ClipboardList, page: "ReviewQueue", badge: true },
+        { name: "Dashboard", icon: BarChart3, page: "Dashboard", permission: "dashboard" },
+        { name: "Analytics", icon: TrendingUp, page: "Analytics", permission: "analytics" },
+        { name: "Issue Alerts", icon: AlertOctagon, page: "IssueAlerts", alertStyle: true, permission: "issue_alerts" },
+        { name: "Equipment Repairs", icon: Wrench, page: "EquipmentRepairs", isRepairLink: true, permission: "equipment_repairs" },
+        { name: "Low Consumables", icon: PackageOpen, page: "LowConsumables", isConsumablesLink: true, permission: "low_consumables" },
+        { name: "Labels", icon: Tag, page: "Labels", isLabelsLink: true, permission: "labels" },
+        { name: "Review Queue", icon: ClipboardList, page: "ReviewQueue", badge: true, permission: "review_queue" },
 
-        { name: "Add to Inventory", icon: ShoppingCart, page: "AddToInventory", badge: true, isAddToInventoryLink: true },
-        { name: "Unlabeled Products", icon: Tag, page: "UnlabeledProducts", isUnlabeledLink: true },
-        { name: "Batch Travellers", icon: FileText, page: "BatchTraveler" },
-        { name: "Inventory", icon: Package, page: "Inventory" },
-        { name: "Bin Map", icon: MapPin, page: "BinMap" },
-        { name: "Production Request", icon: ClipboardList, page: "ProductionRequest" },
-        { name: "Inventory Requirements", icon: Eye, page: "InventoryRequirements" },
-        { name: "Recipes", icon: Beaker, page: "Recipes" },
+        { name: "Add to Inventory", icon: ShoppingCart, page: "AddToInventory", badge: true, isAddToInventoryLink: true, permission: "add_to_inventory" },
+        { name: "Unlabeled Products", icon: Tag, page: "UnlabeledProducts", isUnlabeledLink: true, permission: "unlabeled_products" },
+        { name: "Batch Travellers", icon: FileText, page: "BatchTraveler", permission: "batch_travellers" },
+        { name: "Inventory", icon: Package, page: "Inventory", permission: "inventory" },
+        { name: "Bin Map", icon: MapPin, page: "BinMap", permission: "bin_map" },
+        { name: "Production Request", icon: ClipboardList, page: "ProductionRequest", permission: "production_request" },
+        { name: "Inventory Requirements", icon: Eye, page: "InventoryRequirements", permission: "inventory_requirements" },
+        { name: "Recipes", icon: Beaker, page: "Recipes", permission: "recipes" },
 
-        { name: "Purchase Orders", icon: ShoppingCart, page: "PurchaseOrders" },
-        { name: "Requisitions", icon: FileText, page: "PurchaseRequisitions", badge: true },
-        { name: "Planning", icon: Factory, page: "ProductionPlanning" },
+        { name: "Purchase Orders", icon: ShoppingCart, page: "PurchaseOrders", permission: "purchase_orders" },
+        { name: "Requisitions", icon: FileText, page: "PurchaseRequisitions", badge: true, permission: "requisitions" },
+        { name: "Planning", icon: Factory, page: "ProductionPlanning", permission: "planning" },
 
-        { name: "Shop Floor", icon: Factory, page: "ShopFloorView" },
-        { name: "Batch Inspection", icon: Phone, page: "BatchInspection" },
-        { name: "AI Assistant", icon: BrainCircuit, page: "AIAssistant" },
-        { name: "Bug Reports", icon: AlertOctagon, page: "BugReports" },
+        { name: "Shop Floor", icon: Factory, page: "ShopFloorView", permission: "shop_floor" },
+        { name: "Batch Inspection", icon: Phone, page: "BatchInspection", permission: "batch_inspection" },
+        { name: "AI Assistant", icon: BrainCircuit, page: "AIAssistant", permission: "ai_assistant" },
+        { name: "Bug Reports", icon: AlertOctagon, page: "BugReports", permission: "bug_reports" },
       ];
 
 const settingsItems = [
-        { name: "User Management", icon: Users, page: "UserManagement" },
-        { name: "Line Capacity", icon: Factory, page: "LineCapacity" },
-        { name: "Recipe Templates", icon: FileInput, page: "RecipeTemplates" },
-        { name: "Suppliers", icon: Truck, page: "Suppliers" },
-        { name: "Co-packers", icon: Building2, page: "Copackers" },
-        { name: "Bulk Upload", icon: FileText, page: "BulkUpload" },
-        { name: "Product Categories", icon: Tag, page: "CategorySettings" },
-        { name: "Measurement Units", icon: Package, page: "MeasurementSettings" },
-        { name: "SKU Dedup", icon: GitMerge, page: "SKUDeduplication" },
-        { name: "Master Exclusion List", icon: Ban, page: "MasterExclusionList" },
-        { name: "Missing Inventory", icon: AlertOctagon, page: "MissingInventory" },
-        { name: "Audit Log", icon: ClipboardList, page: "AuditLog" },
-        { name: "Recipe Versions", icon: History, page: "RecipeVersions" },
-        { name: "Sync Log", icon: History, page: "SyncLog" },
+        { name: "User Management", icon: Users, page: "UserManagement", permission: "user_management" },
+        { name: "Line Capacity", icon: Factory, page: "LineCapacity", permission: "line_capacity" },
+        { name: "Recipe Templates", icon: FileInput, page: "RecipeTemplates", permission: "recipe_templates" },
+        { name: "Suppliers", icon: Truck, page: "Suppliers", permission: "suppliers" },
+        { name: "Co-packers", icon: Building2, page: "Copackers", permission: "copackers" },
+        { name: "Bulk Upload", icon: FileText, page: "BulkUpload", permission: "bulk_upload" },
+        { name: "Product Categories", icon: Tag, page: "CategorySettings", permission: "product_categories" },
+        { name: "Measurement Units", icon: Package, page: "MeasurementSettings", permission: "measurement_units" },
+        { name: "SKU Dedup", icon: GitMerge, page: "SKUDeduplication", permission: "sku_dedup" },
+        { name: "Master Exclusion List", icon: Ban, page: "MasterExclusionList", permission: "master_exclusion_list" },
+        { name: "Missing Inventory", icon: AlertOctagon, page: "MissingInventory", permission: "missing_inventory" },
+        { name: "Audit Log", icon: ClipboardList, page: "AuditLog", permission: "audit_log" },
+        { name: "Recipe Versions", icon: History, page: "RecipeVersions", permission: "recipe_versions" },
+        { name: "Sync Log", icon: History, page: "SyncLog", permission: "sync_log" },
       ];
 
 export default function Layout({ children, currentPageName }) {
@@ -139,6 +139,25 @@ export default function Layout({ children, currentPageName }) {
     if (!user || !rolePermissions) return null;
     return rolePermissions[user.role] || [];
   }, [user, rolePermissions]);
+
+  // Determine if user can see a nav/settings item based on their permissions.
+  // Admins always see everything. Legacy "portal" / "store_portal_access" handled separately.
+  const canSeeItem = React.useCallback((item) => {
+    if (!user) return false;
+    if (user.role === 'admin') return true;
+    if (!item.permission) return true; // unrestricted item
+    if (!userPermissions) return false; // still loading
+    return userPermissions.includes(item.permission);
+  }, [user, userPermissions]);
+
+  const visibleNavItems = React.useMemo(
+    () => navItems.filter(canSeeItem),
+    [canSeeItem]
+  );
+  const visibleSettingsItems = React.useMemo(
+    () => settingsItems.filter(canSeeItem),
+    [canSeeItem]
+  );
 
   const [pendingQcCount, setPendingQcCount] = useState(0);
 
@@ -435,7 +454,7 @@ export default function Layout({ children, currentPageName }) {
               <ChevronDown className={`w-4 h-4 transition-transform ${navOpen ? 'rotate-0' : '-rotate-90'}`} />
             </button>
             {navOpen && user?.role !== 'portal' && user?.role !== 'store_portal_access' && <div className="space-y-1">
-              {navItems.map((item) => {
+              {visibleNavItems.map((item) => {
                 const isActive = currentPageName === item.page;
                 const showAlertStyle = item.alertStyle && issueCount > 0;
                 const isRepairItem = item.isRepairLink;
@@ -620,8 +639,8 @@ export default function Layout({ children, currentPageName }) {
               </div>
             )}
 
-            {/* Settings Section (hidden for portal-only users) */}
-                                      {user?.role !== 'portal' && user?.role !== 'store_portal_access' && <div className="mt-6 pt-4 border-t border-zinc-800">
+            {/* Settings Section (hidden for portal-only users and users without any settings permission) */}
+                                      {user?.role !== 'portal' && user?.role !== 'store_portal_access' && visibleSettingsItems.length > 0 && <div className="mt-6 pt-4 border-t border-zinc-800">
                                         <button
                                           onClick={() => setSettingsOpen(!settingsOpen)}
                                           className="w-full px-3 py-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider flex items-center justify-between hover:text-zinc-400 transition-colors"
@@ -634,7 +653,7 @@ export default function Layout({ children, currentPageName }) {
                                         </button>
                                         {settingsOpen && (
                                         <div className="space-y-1 mt-1">
-                                        {settingsItems.map((item) => {
+                                        {visibleSettingsItems.map((item) => {
                                           const isActive = currentPageName === item.page;
                                           return (
                                             <Link
