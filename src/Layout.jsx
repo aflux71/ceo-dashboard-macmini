@@ -135,20 +135,47 @@ export default function Layout({ children, currentPageName }) {
     fetchRolePerms();
   }, []);
 
+  // Track the active floor user (PIN-based session) by reading from localStorage.
+  // We can't use useFloorPin() here because Layout itself renders the FloorPinProvider.
+  // The active floor user's role determines what menu items are visible.
+  const [floorUserRole, setFloorUserRole] = useState(null);
+  useEffect(() => {
+    const readFloorRole = async () => {
+      try {
+        const raw = localStorage.getItem("neob_floor_session");
+        if (!raw) { setFloorUserRole(null); return; }
+        const session = JSON.parse(raw);
+        if (!session?.userId) { setFloorUserRole(null); return; }
+        const users = await base44.entities.FloorUser.filter({ id: session.userId });
+        setFloorUserRole(users?.[0]?.role || null);
+      } catch {
+        setFloorUserRole(null);
+      }
+    };
+    readFloorRole();
+    // Re-check periodically so menu updates after PIN login/logout
+    const interval = setInterval(readFloorRole, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // The effective role for menu visibility: floor user role wins when present,
+  // otherwise fall back to the dashboard user's role.
+  const effectiveRole = floorUserRole || user?.role || null;
+
   const userPermissions = React.useMemo(() => {
-    if (!user || !rolePermissions) return null;
-    return rolePermissions[user.role] || [];
-  }, [user, rolePermissions]);
+    if (!effectiveRole || !rolePermissions) return null;
+    return rolePermissions[effectiveRole] || [];
+  }, [effectiveRole, rolePermissions]);
 
   // Determine if user can see a nav/settings item based on their permissions.
-  // Admins always see everything. Legacy "portal" / "store_portal_access" handled separately.
+  // Admins (dashboard role) always see everything. Owner floor role also sees all.
   const canSeeItem = React.useCallback((item) => {
-    if (!user) return false;
-    if (user.role === 'admin') return true;
+    if (!effectiveRole) return false;
+    if (effectiveRole === 'admin' || effectiveRole === 'owner') return true;
     if (!item.permission) return true; // unrestricted item
     if (!userPermissions) return false; // still loading
     return userPermissions.includes(item.permission);
-  }, [user, userPermissions]);
+  }, [effectiveRole, userPermissions]);
 
   const visibleNavItems = React.useMemo(
     () => navItems.filter(canSeeItem),
@@ -569,8 +596,8 @@ export default function Layout({ children, currentPageName }) {
               })}
             </div>}
 
-            {/* Store Portal Section (admin + portal roles) */}
-            {(user?.role === 'admin' || user?.role === 'portal' || user?.role === 'store_portal_access') && (
+            {/* Store Portal Section (admin/owner, legacy portal roles, or any role with portal permissions) */}
+            {(effectiveRole === 'admin' || effectiveRole === 'owner' || user?.role === 'portal' || user?.role === 'store_portal_access' || (userPermissions && portalAdminItems.some((it) => userPermissions.includes(it.permission)))) && (
               <div className="mt-6 pt-4 border-t border-zinc-800">
                 <button
                   onClick={() => setPortalOpen(!portalOpen)}
@@ -586,14 +613,14 @@ export default function Layout({ children, currentPageName }) {
                   <div className="space-y-1 mt-1">
                     {portalAdminItems
                       .filter((item) => {
-                        // Admin sees everything
-                        if (user?.role === 'admin') return true;
+                        // Admin/owner see everything
+                        if (effectiveRole === 'admin' || effectiveRole === 'owner') return true;
                         // Legacy "portal" role: hide admin-only management screens
                         if (user?.role === 'portal') {
                           const adminOnly = ["portal-admin/products", "portal-admin/accounts", "portal-admin/adjustments", "portal-admin/reasons"];
                           return !item.adminOnly && !adminOnly.includes(item.page);
                         }
-                        // Custom roles (e.g. store_portal_access): show only items in their permissions
+                        // Custom roles: show only items in their permissions
                         if (userPermissions && item.permission) {
                           return userPermissions.includes(item.permission);
                         }

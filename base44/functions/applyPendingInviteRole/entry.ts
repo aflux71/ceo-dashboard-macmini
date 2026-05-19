@@ -1,15 +1,18 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
-// Scheduled reconciliation:
-// For each PendingInvite with status="pending", check if a User now exists for that email.
-// If so, update the user's role to the intended invite role and mark the invite as registered.
+// Reconciliation:
+// For each PendingInvite, ensure the corresponding User's role matches the invite's intended role.
+// - pending invites: if user now exists, apply role and mark invite as "registered"
+// - registered invites: if user's current role differs from the invite role, re-apply it
+//   (this handles the case where a role was reassigned via the dashboard and the user
+//    needs to be re-synced to match)
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
 
-    const invites = await base44.asServiceRole.entities.PendingInvite.filter({ status: 'pending' });
+    const invites = await base44.asServiceRole.entities.PendingInvite.list();
     if (!invites || invites.length === 0) {
-      return Response.json({ ok: true, processed: 0, message: 'No pending invites' });
+      return Response.json({ ok: true, processed: 0, message: 'No invites' });
     }
 
     const allUsers = await base44.asServiceRole.entities.User.list();
@@ -29,7 +32,9 @@ Deno.serve(async (req) => {
 
       const intendedRole = invite.role;
       if (!intendedRole) {
-        await base44.asServiceRole.entities.PendingInvite.update(invite.id, { status: 'registered' });
+        if (invite.status !== 'registered') {
+          await base44.asServiceRole.entities.PendingInvite.update(invite.id, { status: 'registered' });
+        }
         continue;
       }
 
@@ -40,7 +45,9 @@ Deno.serve(async (req) => {
       } else {
         alreadyCorrect++;
       }
-      await base44.asServiceRole.entities.PendingInvite.update(invite.id, { status: 'registered' });
+      if (invite.status !== 'registered') {
+        await base44.asServiceRole.entities.PendingInvite.update(invite.id, { status: 'registered' });
+      }
     }
 
     return Response.json({
