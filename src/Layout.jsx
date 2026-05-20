@@ -138,24 +138,41 @@ export default function Layout({ children, currentPageName }) {
   // Track the active floor user (PIN-based session) by reading from localStorage.
   // We can't use useFloorPin() here because Layout itself renders the FloorPinProvider.
   // The active floor user's role determines what menu items are visible.
+  // Cache the resolved role per userId to avoid re-fetching (which causes nav flicker).
   const [floorUserRole, setFloorUserRole] = useState(null);
+  const floorRoleCacheRef = React.useRef({ userId: null, role: null });
   useEffect(() => {
+    let cancelled = false;
     const readFloorRole = async () => {
       try {
         const raw = localStorage.getItem("neob_floor_session");
-        if (!raw) { setFloorUserRole(null); return; }
+        if (!raw) {
+          floorRoleCacheRef.current = { userId: null, role: null };
+          if (!cancelled) setFloorUserRole(null);
+          return;
+        }
         const session = JSON.parse(raw);
-        if (!session?.userId) { setFloorUserRole(null); return; }
-        const users = await base44.entities.FloorUser.filter({ id: session.userId });
-        setFloorUserRole(users?.[0]?.role || null);
+        const userId = session?.userId || null;
+        if (!userId) {
+          floorRoleCacheRef.current = { userId: null, role: null };
+          if (!cancelled) setFloorUserRole(null);
+          return;
+        }
+        // If we already resolved this userId, don't re-fetch — prevents nav flicker.
+        if (floorRoleCacheRef.current.userId === userId) return;
+        const users = await base44.entities.FloorUser.filter({ id: userId });
+        const role = users?.[0]?.role || null;
+        floorRoleCacheRef.current = { userId, role };
+        if (!cancelled) setFloorUserRole(role);
       } catch {
-        setFloorUserRole(null);
+        if (!cancelled) setFloorUserRole(null);
       }
     };
     readFloorRole();
-    // Re-check periodically so menu updates after PIN login/logout
+    // Re-check periodically so menu updates after PIN login/logout (cache prevents
+    // unnecessary state updates / re-renders when the same user is still logged in).
     const interval = setInterval(readFloorRole, 3000);
-    return () => clearInterval(interval);
+    return () => { cancelled = true; clearInterval(interval); };
   }, []);
 
   // The effective role for menu visibility: floor user role wins when present,
