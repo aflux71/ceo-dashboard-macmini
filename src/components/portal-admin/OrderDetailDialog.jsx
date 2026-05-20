@@ -61,6 +61,36 @@ export default function OrderDetailDialog({ open, onOpenChange, order, onSave })
     setSaving(false);
   };
 
+  const handleExportShopify = () => {
+    // CSV matches Shopify add-products template: SKU, Barcode, Quantity
+    // Use fulfilled qty (what is actually shipping). Skip rows with qty <= 0.
+    const escape = (v) => {
+      const s = String(v ?? "");
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const rows = [["SKU", "Barcode", "Quantity"]];
+    items.forEach((it) => {
+      const qty = Number(it.qty_fulfilled) || 0;
+      if (qty <= 0) return;
+      const skuRaw = String(it.sku || "").trim();
+      // If the SKU is purely numeric (likely a barcode/UPC), put it in the Barcode column instead
+      const isBarcode = /^\d{8,}$/.test(skuRaw);
+      const sku = isBarcode ? "" : skuRaw;
+      const barcode = isBarcode ? skuRaw : "";
+      rows.push([sku, barcode, qty]);
+    });
+    const csv = rows.map((r) => r.map(escape).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${order.order_number || "order"}_shopify.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-zinc-900 border-zinc-800 text-white max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -172,8 +202,16 @@ export default function OrderDetailDialog({ open, onOpenChange, order, onSave })
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)} className="border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700">Close</Button>
+          <Button
+            variant="outline"
+            onClick={handleExportShopify}
+            className="border-emerald-700 bg-emerald-900/30 text-emerald-300 hover:bg-emerald-900/50"
+            title="Export fulfilled items as a CSV for Shopify upload"
+          >
+            Export for Shopify
+          </Button>
           <Button onClick={handleSave} disabled={saving} className="bg-orange-500 hover:bg-orange-600 text-white">
             {saving ? "Saving..." : "Save Changes"}
           </Button>
