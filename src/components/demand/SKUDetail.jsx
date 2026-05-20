@@ -1,14 +1,14 @@
-import React from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
-  X, ArrowRight, BarChart3, MapPin, ShoppingCart, TrendingUp,
+  X, ArrowRight, BarChart3, MapPin, ShoppingCart, TrendingUp, Loader2,
 } from "lucide-react";
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
-  PieChart, Pie, Legend,
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
+import { base44 } from "@/api/base44Client";
 import { URGENCY_COLORS, URGENCY_LABELS, formatNumber, formatCurrency, getCategoryColor } from "@/components/demand/demandHelpers";
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -18,7 +18,71 @@ export default function SKUDetail({
   onClose,
   onPushToPlanning,
   onOverrideInventory,
+  readOnly = false,
 }) {
+  const [salesView, setSalesView] = useState("monthly"); // "monthly" | "weekly"
+  const [weeklyData, setWeeklyData] = useState(null);
+  const [weeklyLoading, setWeeklyLoading] = useState(false);
+
+  // Fetch weekly aggregates on demand from ShopifySaleRecord
+  useEffect(() => {
+    if (salesView !== "weekly" || !item?.sku || weeklyData) return;
+    let cancelled = false;
+    (async () => {
+      setWeeklyLoading(true);
+      try {
+        const records = [];
+        const pageSize = 100;
+        let skip = 0;
+        while (true) {
+          const batch = await base44.entities.ShopifySaleRecord.filter({ sku: item.sku }, "-order_date", pageSize, skip);
+          records.push(...batch);
+          if (batch.length < pageSize) break;
+          skip += pageSize;
+          if (skip > 5000) break; // safety cap
+        }
+        // Bucket by ISO week (Monday start)
+        const buckets = new Map();
+        records.forEach((r) => {
+          if (!r.order_date) return;
+          const d = new Date(r.order_date);
+          if (Number.isNaN(d.getTime())) return;
+          const day = d.getDay(); // 0=Sun..6=Sat
+          const diffToMonday = (day === 0 ? -6 : 1 - day);
+          const monday = new Date(d);
+          monday.setDate(d.getDate() + diffToMonday);
+          monday.setHours(0, 0, 0, 0);
+          const key = monday.toISOString().slice(0, 10);
+          buckets.set(key, (buckets.get(key) || 0) + (Number(r.quantity) || 0));
+        });
+        // Last 26 weeks ending this Monday, in chronological order
+        const today = new Date();
+        const tDay = today.getDay();
+        const diffMon = (tDay === 0 ? -6 : 1 - tDay);
+        const thisMonday = new Date(today);
+        thisMonday.setDate(today.getDate() + diffMon);
+        thisMonday.setHours(0, 0, 0, 0);
+        const series = [];
+        for (let i = 25; i >= 0; i--) {
+          const wk = new Date(thisMonday);
+          wk.setDate(thisMonday.getDate() - i * 7);
+          const key = wk.toISOString().slice(0, 10);
+          series.push({
+            week: `${wk.getMonth() + 1}/${wk.getDate()}`,
+            qty: buckets.get(key) || 0,
+          });
+        }
+        if (!cancelled) setWeeklyData(series);
+      } catch (err) {
+        console.error("Failed to load weekly sales:", err);
+        if (!cancelled) setWeeklyData([]);
+      } finally {
+        if (!cancelled) setWeeklyLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [salesView, item?.sku, weeklyData]);
+
   if (!item) return null;
 
   const uc = URGENCY_COLORS[item.urgency];
@@ -82,60 +146,93 @@ export default function SKUDetail({
             <MetricBox label="Revenue" value={formatCurrency(item.totalRevenue)} />
           </div>
 
-          {/* Override on-hand */}
-          <Card className="bg-zinc-900 border-zinc-800">
-            <CardContent className="p-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-zinc-400">Override On-Hand for this workspace</p>
-                  <p className="text-[10px] text-zinc-600">
-                    {overrideValue != null ? `Override active: ${overrideValue}` : "Using inventory sync value"}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    placeholder={String(item.onHand)}
-                    className="w-24 h-8 bg-zinc-800 border-zinc-700 text-sm"
-                    onBlur={e => {
-                      const val = e.target.value;
-                      if (val !== "") onOverrideInventory(item.sku, Number(val));
-                    }}
-                    onKeyDown={e => {
-                      if (e.key === "Enter") {
+          {/* Override on-hand (hidden in read-only mode) */}
+          {!readOnly && onOverrideInventory && (
+            <Card className="bg-zinc-900 border-zinc-800">
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-zinc-400">Override On-Hand for this workspace</p>
+                    <p className="text-[10px] text-zinc-600">
+                      {overrideValue != null ? `Override active: ${overrideValue}` : "Using inventory sync value"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      placeholder={String(item.onHand)}
+                      className="w-24 h-8 bg-zinc-800 border-zinc-700 text-sm"
+                      onBlur={e => {
                         const val = e.target.value;
                         if (val !== "") onOverrideInventory(item.sku, Number(val));
-                      }
-                    }}
-                  />
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === "Enter") {
+                          const val = e.target.value;
+                          if (val !== "") onOverrideInventory(item.sku, Number(val));
+                        }
+                      }}
+                    />
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
 
-          {/* Monthly history */}
+          {/* Sales history (monthly / weekly toggle) */}
           <Card className="bg-zinc-900 border-zinc-800">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <BarChart3 className="w-4 h-4 text-orange-400" />
-                Monthly Sales History (2025)
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-orange-400" />
+                  {salesView === "monthly" ? "Monthly" : "Weekly"} Sales History
+                </CardTitle>
+                <div className="inline-flex rounded-md border border-zinc-700 overflow-hidden text-[11px]">
+                  <button
+                    onClick={() => setSalesView("monthly")}
+                    className={`px-2 py-1 ${salesView === "monthly" ? "bg-orange-500/20 text-orange-300" : "bg-zinc-900 text-zinc-400 hover:text-zinc-200"}`}
+                  >
+                    Monthly
+                  </button>
+                  <button
+                    onClick={() => setSalesView("weekly")}
+                    className={`px-2 py-1 border-l border-zinc-700 ${salesView === "weekly" ? "bg-orange-500/20 text-orange-300" : "bg-zinc-900 text-zinc-400 hover:text-zinc-200"}`}
+                  >
+                    Weekly
+                  </button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="h-48">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={monthlyData}>
-                    <XAxis dataKey="month" tick={{ fill: "#71717a", fontSize: 10 }} />
-                    <YAxis tick={{ fill: "#71717a", fontSize: 10 }} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: "#18181b", border: "1px solid #3f3f46", borderRadius: "8px" }}
-                      labelStyle={{ color: "#e4e4e7" }}
-                      formatter={v => [formatNumber(v), "Units"]}
-                    />
-                    <Bar dataKey="qty" fill="#ea580c" radius={[3, 3, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                {salesView === "weekly" && weeklyLoading ? (
+                  <div className="h-full flex items-center justify-center text-zinc-500">
+                    <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                    <span className="text-xs">Loading weekly data…</span>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={salesView === "monthly" ? monthlyData : (weeklyData || [])}>
+                      <XAxis
+                        dataKey={salesView === "monthly" ? "month" : "week"}
+                        tick={{ fill: "#71717a", fontSize: 10 }}
+                        interval={salesView === "weekly" ? 2 : 0}
+                      />
+                      <YAxis tick={{ fill: "#71717a", fontSize: 10 }} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: "#18181b", border: "1px solid #3f3f46", borderRadius: "8px" }}
+                        labelStyle={{ color: "#e4e4e7" }}
+                        formatter={v => [formatNumber(v), "Units"]}
+                        labelFormatter={(l) => salesView === "weekly" ? `Week of ${l}` : l}
+                      />
+                      <Bar dataKey="qty" fill="#ea580c" radius={[3, 3, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </div>
+              {salesView === "weekly" && !weeklyLoading && weeklyData && weeklyData.every(w => w.qty === 0) && (
+                <p className="text-[10px] text-zinc-500 mt-1 text-center">No weekly sales data found for the last 26 weeks.</p>
+              )}
             </CardContent>
           </Card>
 
@@ -260,14 +357,16 @@ export default function SKUDetail({
             </Card>
           )}
 
-          {/* Push to planning */}
-          <button
-            onClick={() => onPushToPlanning([item])}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-orange-600 hover:bg-orange-500 text-white font-medium rounded-lg transition-colors"
-          >
-            <ArrowRight className="w-4 h-4" />
-            Push to Planning — {formatNumber(item.productionNeed)} units
-          </button>
+          {/* Push to planning (hidden in read-only mode) */}
+          {!readOnly && onPushToPlanning && (
+            <button
+              onClick={() => onPushToPlanning([item])}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-orange-600 hover:bg-orange-500 text-white font-medium rounded-lg transition-colors"
+            >
+              <ArrowRight className="w-4 h-4" />
+              Push to Planning — {formatNumber(item.productionNeed)} units
+            </button>
+          )}
         </div>
       </div>
     </div>

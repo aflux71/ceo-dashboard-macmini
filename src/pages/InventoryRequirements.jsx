@@ -9,6 +9,7 @@ import {
 import baselineData from "@/data/baseline-2025.json";
 import { buildAliasMap, consolidateDemandBySKU } from "@/utils/skuAliasResolver";
 import InventoryRequirementsTable from "@/components/demand/InventoryRequirementsTable";
+import SKUDetail from "@/components/demand/SKUDetail";
 
 // Same baseline → summary mapping as DemandPlanner
 const baselineToSummaries = (data) =>
@@ -75,6 +76,7 @@ export default function InventoryRequirements() {
   const [plannerSKUs, setPlannerSKUs] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [forecastMonths, setForecastMonths] = useState(3);
+  const [detailItem, setDetailItem] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -195,7 +197,17 @@ export default function InventoryRequirements() {
         workspace={{ ...workspace, forecastMonths }}
         forecastMonths={forecastMonths}
         onForecastMonthsChange={setForecastMonths}
+        onViewDetail={setDetailItem}
       />
+
+      {detailItem && (
+        <SKUDetail
+          item={detailItem}
+          workspace={{ ...workspace, forecastMonths }}
+          onClose={() => setDetailItem(null)}
+          readOnly
+        />
+      )}
     </div>
   );
 }
