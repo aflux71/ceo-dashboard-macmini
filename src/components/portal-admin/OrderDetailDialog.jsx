@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Printer } from "lucide-react";
 
 const STATUSES = ["submitted", "acknowledged", "in_progress", "fulfilled", "cancelled"];
 
@@ -61,6 +62,66 @@ export default function OrderDetailDialog({ open, onOpenChange, order, onSave })
     setSaving(false);
   };
 
+  const handlePrint = () => {
+    const esc = (v) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const rowsHtml = items.map((it) => `
+      <tr>
+        <td>${esc(it.product_name)}</td>
+        <td>${esc(it.sku)}</td>
+        <td class="num">${esc(it.qty_ordered)}</td>
+        <td class="num">${esc(it.qty_fulfilled ?? 0)}</td>
+        <td>${esc(it.notes || "")}</td>
+      </tr>
+    `).join("");
+
+    const html = `<!doctype html><html><head><meta charset="utf-8" />
+      <title>Order ${esc(order.order_number || "")}</title>
+      <style>
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #111; padding: 24px; }
+        h1 { margin: 0 0 4px; font-size: 22px; }
+        .meta { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0; font-size: 13px; }
+        .meta .label { color: #666; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+        .notes { border: 1px solid #ddd; padding: 10px 12px; border-radius: 6px; margin: 12px 0; font-size: 13px; white-space: pre-wrap; }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12px; }
+        th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; vertical-align: top; }
+        th { background: #f5f5f5; }
+        td.num, th.num { text-align: right; }
+        .status { display: inline-block; padding: 2px 8px; border: 1px solid #999; border-radius: 999px; font-size: 11px; text-transform: uppercase; }
+        @media print { body { padding: 0; } }
+      </style></head><body>
+        <h1>Order ${esc(order.order_number || "")}</h1>
+        <div><span class="status">${esc(status)}</span></div>
+        <div class="meta">
+          <div><div class="label">Store</div><div>${esc(order.store_name || "—")}</div></div>
+          <div><div class="label">Contact</div><div>${esc(order.contact_name || "—")}</div></div>
+          <div><div class="label">Order Date</div><div>${esc(order.order_date || "—")}</div></div>
+          <div><div class="label">Requested Delivery</div><div>${esc(order.requested_delivery_date || "—")}</div></div>
+        </div>
+        ${order.notes ? `<div><div class="label" style="color:#666;font-size:11px;text-transform:uppercase;">Store Notes</div><div class="notes">${esc(order.notes)}</div></div>` : ""}
+        <table>
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th>SKU</th>
+              <th class="num">Ordered</th>
+              <th class="num">Fulfilled</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+        ${internalNotes ? `<div style="margin-top:16px"><div class="label" style="color:#666;font-size:11px;text-transform:uppercase;">Internal Notes</div><div class="notes">${esc(internalNotes)}</div></div>` : ""}
+        <script>window.onload = () => { window.print(); };</script>
+      </body></html>`;
+
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+  };
+
   const handleExportShopify = () => {
     // CSV matches Shopify add-products template: SKU, Barcode, Quantity
     // Use fulfilled qty (what is actually shipping). Skip rows with qty <= 0.
@@ -95,7 +156,19 @@ export default function OrderDetailDialog({ open, onOpenChange, order, onSave })
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-zinc-900 border-zinc-800 text-white max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Order {order.order_number}</DialogTitle>
+          <DialogTitle className="flex items-center gap-3">
+            <span>Order {order.order_number}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePrint}
+              className="border-zinc-700 bg-zinc-800 text-zinc-200 hover:bg-zinc-700 h-7"
+              title="Print order"
+            >
+              <Printer className="w-4 h-4 mr-1" />
+              Print
+            </Button>
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
