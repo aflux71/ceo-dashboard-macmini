@@ -28,3 +28,11 @@ dist-ssr
 *.sw?
 
 .env
+# Database
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Backups
+server/sync/*.bak
