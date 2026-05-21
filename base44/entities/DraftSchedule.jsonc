@@ -1,0 +1,222 @@
+{
+  "name": "DraftSchedule",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Title of the draft schedule"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When this draft was generated"
+    },
+    "generated_by": {
+      "type": "string",
+      "description": "User who generated the draft"
+    },
+    "horizon_days": {
+      "type": "number",
+      "default": 10,
+      "description": "Planning horizon in business days"
+    },
+    "summary": {
+      "type": "string",
+      "description": "Executive summary of the plan"
+    },
+    "scheduled_items": {
+      "type": "array",
+      "description": "Production runs to schedule (BOM-verified)",
+      "items": {
+        "type": "object",
+        "properties": {
+          "day_offset": {
+            "type": "number"
+          },
+          "scheduled_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "sku": {
+            "type": "string"
+          },
+          "product_name": {
+            "type": "string"
+          },
+          "production_line": {
+            "type": "string"
+          },
+          "batches": {
+            "type": "number"
+          },
+          "batch_size": {
+            "type": "number"
+          },
+          "total_units": {
+            "type": "number"
+          },
+          "estimated_run_hours": {
+            "type": "number"
+          },
+          "ship_ready_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low"
+            ]
+          },
+          "bom_status": {
+            "type": "string",
+            "enum": [
+              "can_make",
+              "partial",
+              "blocked",
+              "data_gap"
+            ]
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "purchase_recommendations": {
+      "type": "array",
+      "description": "Raw materials to order, grouped by supplier",
+      "items": {
+        "type": "object",
+        "properties": {
+          "supplier": {
+            "type": "string"
+          },
+          "material_sku": {
+            "type": "string"
+          },
+          "material_name": {
+            "type": "string"
+          },
+          "shortfall_qty": {
+            "type": "number"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "on_hand": {
+            "type": "number"
+          },
+          "needed": {
+            "type": "number"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "rush",
+              "standard"
+            ]
+          },
+          "lead_time_days": {
+            "type": "number"
+          },
+          "blocks_skus": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "math": {
+            "type": "string",
+            "description": "Quantity math explanation"
+          }
+        }
+      }
+    },
+    "blocked_items": {
+      "type": "array",
+      "description": "SKUs that cannot be scheduled (missing materials or data gaps)",
+      "items": {
+        "type": "object",
+        "properties": {
+          "sku": {
+            "type": "string"
+          },
+          "product_name": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "missing_materials": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "eta": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      }
+    },
+    "action_list": {
+      "type": "array",
+      "description": "Prioritized action items for the production team",
+      "items": {
+        "type": "object",
+        "properties": {
+          "step": {
+            "type": "number"
+          },
+          "action": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "due": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "produce",
+              "order",
+              "investigate",
+              "contact_copacker"
+            ]
+          }
+        }
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "approved",
+        "rejected",
+        "archived"
+      ],
+      "default": "draft"
+    },
+    "approved_by": {
+      "type": "string"
+    },
+    "approved_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "title",
+    "generated_at"
+  ]
+}

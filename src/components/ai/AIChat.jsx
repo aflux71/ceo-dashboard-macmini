@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Send, Loader2, Sparkles, User } from "lucide-react";
+import { Send, Loader2, Sparkles, User, FileText, ExternalLink } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
 const QUICK_PROMPTS = [
@@ -179,6 +179,7 @@ export default function AIChat() {
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [draftLoading, setDraftLoading] = useState(false);
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -280,6 +281,144 @@ ${demandSummaries.map(d => `- ${d.sku} | ${d.product} | avg/mo:${d.avgMonthly} |
     }
   };
 
+  const generateDraftSchedule = async () => {
+    setDraftLoading(true);
+    setMessages(prev => [...prev, { role: "user", content: "Generate a draft production schedule (BOM-verified, with purchase recommendations and action list)." }]);
+    try {
+      const context = await buildContext();
+      const me = await base44.auth.me().catch(() => null);
+
+      const schema = {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          summary: { type: "string", description: "Executive summary of the plan, what to make, what to order, key risks" },
+          horizon_days: { type: "number" },
+          scheduled_items: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                day_offset: { type: "number" },
+                scheduled_date: { type: "string" },
+                sku: { type: "string" },
+                product_name: { type: "string" },
+                production_line: { type: "string" },
+                batches: { type: "number" },
+                batch_size: { type: "number" },
+                total_units: { type: "number" },
+                estimated_run_hours: { type: "number" },
+                ship_ready_date: { type: "string" },
+                priority: { type: "string", enum: ["critical", "high", "medium", "low"] },
+                bom_status: { type: "string", enum: ["can_make", "partial", "blocked", "data_gap"] },
+                notes: { type: "string" }
+              }
+            }
+          },
+          purchase_recommendations: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                supplier: { type: "string" },
+                material_sku: { type: "string" },
+                material_name: { type: "string" },
+                shortfall_qty: { type: "number" },
+                unit: { type: "string" },
+                on_hand: { type: "number" },
+                needed: { type: "number" },
+                priority: { type: "string", enum: ["rush", "standard"] },
+                lead_time_days: { type: "number" },
+                blocks_skus: { type: "array", items: { type: "string" } },
+                math: { type: "string" }
+              }
+            }
+          },
+          blocked_items: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                sku: { type: "string" },
+                product_name: { type: "string" },
+                reason: { type: "string" },
+                missing_materials: { type: "array", items: { type: "string" } },
+                eta: { type: "string" }
+              }
+            }
+          },
+          action_list: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                step: { type: "number" },
+                action: { type: "string" },
+                owner: { type: "string" },
+                due: { type: "string" },
+                category: { type: "string", enum: ["produce", "order", "investigate", "contact_copacker"] }
+              }
+            }
+          }
+        },
+        required: ["title", "summary", "scheduled_items", "purchase_recommendations", "action_list"]
+      };
+
+      const today = new Date().toISOString().split("T")[0];
+      const result = await base44.integrations.Core.InvokeLLM({
+        model: "claude_sonnet_4_6",
+        response_json_schema: schema,
+        prompt: `${SYSTEM_PROMPT}
+
+=== LIVE DATA FROM BASE44 ===
+${context}
+
+=== TASK ===
+Today is ${today}. Generate a complete 10-business-day DRAFT PRODUCTION SCHEDULE as structured JSON following the provided schema.
+
+CRITICAL REQUIREMENTS:
+1. Execute Steps 1–4 internally, then produce the structured output.
+2. For each scheduled_items entry, you MUST first verify the BOM (Recipe ingredients vs Inventory) — set bom_status to "can_make", "partial", "blocked", or "data_gap" based on actual material availability.
+3. Only schedule items with bom_status = "can_make" or "partial". Items with bom_status = "blocked" go into blocked_items instead.
+4. Skip copacked/buy production_types from scheduled_items (mention them in summary or action_list as "contact co-packer").
+5. Exclude any SKU listed in MasterExclusion.
+6. Forecasting must be based on ForecastSuggestion + current Inventory levels (already provided).
+7. For every partial/blocked SKU, generate purchase_recommendations entries with exact shortfall math (show the calculation in the "math" field, e.g. "ceil(1658/100)=17 batches × 0.05kg = 0.85kg needed, 0.3kg on hand, shortfall 0.55kg").
+8. Group purchase_recommendations by supplier. Mark priority "rush" if needed within 7 days, otherwise "standard".
+9. Build action_list as a prioritized, owner-assigned to-do list (categories: produce, order, investigate, contact_copacker).
+10. Summary should be 3–5 sentences: what to make, what to order, top risks.
+
+Return only the JSON object matching the schema.`
+      });
+
+      const draft = await base44.entities.DraftSchedule.create({
+        title: result.title || `Draft Schedule — ${today}`,
+        generated_at: new Date().toISOString(),
+        generated_by: me?.full_name || me?.email || "AI Assistant",
+        horizon_days: result.horizon_days || 10,
+        summary: result.summary || "",
+        scheduled_items: result.scheduled_items || [],
+        purchase_recommendations: result.purchase_recommendations || [],
+        blocked_items: result.blocked_items || [],
+        action_list: result.action_list || [],
+        status: "draft"
+      });
+
+      const url = `/DraftSchedule?id=${draft.id}`;
+      window.open(url, "_blank");
+
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        content: `✅ **Draft schedule generated and opened in a new tab.**\n\n**${draft.title}**\n\n- 📅 ${result.scheduled_items?.length || 0} production runs scheduled (BOM-verified)\n- 🛒 ${result.purchase_recommendations?.length || 0} material purchase recommendations\n- ⚠️ ${result.blocked_items?.length || 0} blocked SKUs awaiting materials\n- ✅ ${result.action_list?.length || 0} action items\n\n${result.summary || ""}\n\n[Open draft schedule →](${url})`,
+        draftUrl: url
+      }]);
+    } catch (err) {
+      console.error("Draft schedule generation failed:", err);
+      setMessages(prev => [...prev, { role: "assistant", content: `Sorry, I couldn't generate the draft schedule: ${err.message || "unknown error"}` }]);
+    }
+    setDraftLoading(false);
+  };
+
   const sendMessage = async (text) => {
     const userMsg = text || input.trim();
     if (!userMsg) return;
@@ -353,6 +492,21 @@ Answer the user using the live data above. Follow your response style rules: lea
           <div ref={bottomRef} />
         </CardContent>
       </Card>
+
+      {/* Primary action: Generate Draft Schedule */}
+      <div className="mt-3">
+        <Button
+          onClick={generateDraftSchedule}
+          disabled={draftLoading || loading}
+          className="w-full bg-orange-600 hover:bg-orange-500 text-white"
+        >
+          {draftLoading ? (
+            <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating draft schedule (BOM-verified)…</>
+          ) : (
+            <><FileText className="w-4 h-4 mr-2" /> Generate Draft Production Schedule <ExternalLink className="w-3.5 h-3.5 ml-2 opacity-70" /></>
+          )}
+        </Button>
+      </div>
 
       {/* Quick prompts */}
       <div className="flex gap-2 mt-3 flex-wrap">

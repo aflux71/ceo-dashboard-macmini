@@ -22,6 +22,7 @@ import BatchInspection from './pages/BatchInspection';
 import BinMap from './pages/BinMap';
 import InventoryRequirements from './pages/InventoryRequirements';
 import MissingInventory from './pages/MissingInventory';
+import DraftSchedule from './pages/DraftSchedule';
 import PortalLogin from './pages/PortalLogin';
 import PortalOrder from './pages/PortalOrder';
 import PortalSelectStore from './pages/PortalSelectStore';
@@ -117,6 +118,7 @@ const AuthenticatedApp = () => {
       <Route path="/BinMap" element={<LayoutWrapper currentPageName="BinMap"><BinMap /></LayoutWrapper>} />
       <Route path="/InventoryRequirements" element={<LayoutWrapper currentPageName="InventoryRequirements"><InventoryRequirements /></LayoutWrapper>} />
       <Route path="/MissingInventory" element={<LayoutWrapper currentPageName="MissingInventory"><MissingInventory /></LayoutWrapper>} />
+      <Route path="/DraftSchedule" element={<LayoutWrapper currentPageName="DraftSchedule"><DraftSchedule /></LayoutWrapper>} />
       <Route path="/portal-admin/products" element={<LayoutWrapper currentPageName="PortalAdminProducts"><PortalAdminProducts /></LayoutWrapper>} />
       <Route path="/portal-admin/orders" element={<LayoutWrapper currentPageName="PortalAdminOrders"><PortalAdminOrders /></LayoutWrapper>} />
       <Route path="/portal-admin/sales-rep-order" element={<LayoutWrapper currentPageName="SalesRepOrder"><SalesRepOrder /></LayoutWrapper>} />
