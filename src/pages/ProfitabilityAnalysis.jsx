@@ -8,6 +8,7 @@ import ProfitabilityStats from "@/components/profitability/ProfitabilityStats";
 import ProfitabilityTable from "@/components/profitability/ProfitabilityTable";
 import SKUCostBreakdown from "@/components/profitability/SKUCostBreakdown";
 import EditCostsDialog from "@/components/profitability/EditCostsDialog";
+import ExportProductsButton from "@/components/profitability/ExportProductsButton";
 import {
   buildInventoryByKey,
   computeProfitabilityRow,
@@ -121,14 +122,17 @@ export default function ProfitabilityAnalysis() {
             <p className="text-sm text-zinc-500">Real-time gross margins per SKU · retail vs wholesale · dead net cost</p>
           </div>
         </div>
-        <Button
-          variant="outline"
-          onClick={loadData}
-          disabled={loading}
-          className="border-zinc-700 text-zinc-300 hover:bg-zinc-800"
-        >
-          <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <ExportProductsButton />
+          <Button
+            variant="outline"
+            onClick={loadData}
+            disabled={loading}
+            className="border-zinc-700 text-zinc-300 hover:bg-zinc-800"
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Refresh
+          </Button>
+        </div>
       </div>
 
       {loading ? (
