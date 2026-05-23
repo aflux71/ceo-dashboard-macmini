@@ -1,0 +1,41 @@
+{
+  "name": "OverheadCost",
+  "type": "object",
+  "properties": {
+    "recipe_sku": {
+      "type": "string",
+      "description": "Linked Recipe SKU (one OverheadCost record per recipe)"
+    },
+    "product_name": {
+      "type": "string",
+      "description": "Denormalized product name for display"
+    },
+    "overhead_per_unit": {
+      "type": "number",
+      "default": 0,
+      "description": "Fixed overhead allocation per unit (rent, utilities, admin) \u2014 CAD"
+    },
+    "packaging_cost_per_unit": {
+      "type": "number",
+      "default": 0,
+      "description": "Average packaging cost per unit if not captured via Inventory \u2014 CAD"
+    },
+    "shipping_cost_per_unit": {
+      "type": "number",
+      "default": 0,
+      "description": "Average inbound/outbound shipping cost per unit \u2014 CAD"
+    },
+    "other_variable_cost_per_unit": {
+      "type": "number",
+      "default": 0,
+      "description": "Any other per-unit variable costs (royalties, fees) \u2014 CAD"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Notes about how these overheads were calculated"
+    }
+  },
+  "required": [
+    "recipe_sku"
+  ]
+}

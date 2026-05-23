@@ -59,6 +59,7 @@ const portalAdminItems = [
 const navItems = [
         { name: "Dashboard", icon: BarChart3, page: "Dashboard", permission: "dashboard" },
         { name: "Analytics", icon: TrendingUp, page: "Analytics", permission: "analytics" },
+        { name: "Profitability", icon: BarChart2, page: "ProfitabilityAnalysis", permission: "profitability" },
         { name: "Issue Alerts", icon: AlertOctagon, page: "IssueAlerts", alertStyle: true, permission: "issue_alerts" },
         { name: "Equipment Repairs", icon: Wrench, page: "EquipmentRepairs", isRepairLink: true, permission: "equipment_repairs" },
         { name: "Low Consumables", icon: PackageOpen, page: "LowConsumables", isConsumablesLink: true, permission: "low_consumables" },
