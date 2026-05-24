@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>neōb — CEO Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F7F5F0;
+    --surface: #FFFFFF;
+    --surface-warm: #FAF8F4;
+    --border: #E8E3D9;
+    --border-strong: #C9C0B0;
+    --text: #1A1714;
+    --text-2: #5C5650;
+    --text-3: #9C948A;
+    --lavender: #6B5B8F;
+    --lavender-light: #EEE9F5;
+    --lavender-mid: #C4B5E8;
+    --green: #2D6A4F;
+    --green-light: #E8F5EE;
+    --amber: #92400E;
+    --amber-light: #FEF3C7;
+    --red: #991B1B;
+    --red-light: #FEE2E2;
+    --gold: #B7860B;
+    --gold-light: #FFFBEB;
+    --shadow: 0 1px 3px rgba(26,23,20,0.06), 0 1px 2px rgba(26,23,20,0.04);
+    --shadow-md: 0 4px 12px rgba(26,23,20,0.08), 0 2px 4px rgba(26,23,20,0.04);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+  }
+
+  /* HEADER */
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .header-brand {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+
+  .header-brand h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 22px;
+    color: var(--lavender);
+    letter-spacing: -0.02em;
+  }
+
+  .header-brand span {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .header-date {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--text-3);
+  }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .status-pill.on-track { background: var(--green-light); color: var(--green); }
+  .status-pill.caution { background: var(--amber-light); color: var(--amber); }
+  .status-pill.off-track { background: var(--red-light); color: var(--red); }
+
+  .status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  .refresh-btn {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-2);
+    padding: 6px 12px;
+    font-size: 12px;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s;
+  }
+  .refresh-btn:hover { background: var(--bg); border-color: var(--border-strong); }
+  .refresh-btn.spinning svg { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* MAIN */
+  .main {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 28px 32px;
+  }
+
+  /* HERO — $6M PROGRESS */
+  .hero {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 32px;
+    margin-bottom: 20px;
+    box-shadow: var(--shadow);
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 32px;
+    align-items: center;
+  }
+
+  .hero-left h2 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 13px;
+    color: var(--text-3);
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+  }
+
+  .hero-numbers {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .hero-current {
+    font-family: 'DM Serif Display', serif;
+    font-size: 52px;
+    color: var(--lavender);
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+
+  .hero-target {
+    font-size: 16px;
+    color: var(--text-3);
+    font-weight: 400;
+  }
+
+  .hero-target strong {
+    color: var(--text-2);
+    font-weight: 500;
+  }
+
+  .progress-track {
+    height: 8px;
+    background: var(--bg);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 10px;
+    position: relative;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--lavender-mid), var(--lavender));
+    border-radius: 4px;
+    transition: width 1s ease;
+  }
+
+  .progress-milestones {
+    display: flex;
+    gap: 24px;
+  }
+
+  .milestone {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .milestone-label {
+    font-size: 10px;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 500;
+  }
+
+  .milestone-val {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .milestone-val.done { color: var(--green); }
+  .milestone-val.active { color: var(--lavender); font-weight: 600; }
+  .milestone-val.future { color: var(--text-3); }
+
+  .hero-right {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 220px;
+  }
+
+  .run-rate-card {
+    background: var(--lavender-light);
+    border-radius: 12px;
+    padding: 16px 20px;
+    text-align: center;
+  }
+
+  .run-rate-label {
+    font-size: 10px;
+    color: var(--lavender);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+
+  .run-rate-val {
+    font-family: 'DM Serif Display', serif;
+    font-size: 28px;
+    color: var(--lavender);
+    line-height: 1;
+  }
+
+  .run-rate-sub {
+    font-size: 11px;
+    color: var(--lavender);
+    opacity: 0.7;
+    margin-top: 4px;
+  }
+
+  .year-progress {
+    background: var(--surface-warm);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 20px;
+  }
+
+  .year-progress-label {
+    font-size: 10px;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 500;
+    margin-bottom: 8px;
+  }
+
+  .year-progress-bar {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 6px;
+  }
+
+  .year-progress-fill {
+    height: 100%;
+    background: var(--text-3);
+    border-radius: 2px;
+  }
+
+  .year-progress-vals {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text-3);
+  }
+
+  /* KPI ROW */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+    box-shadow: var(--shadow);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    border-radius: 12px 12px 0 0;
+  }
+
+  .kpi-card.green::before { background: var(--green); }
+  .kpi-card.amber::before { background: #D97706; }
+  .kpi-card.red::before { background: var(--red); }
+  .kpi-card.neutral::before { background: var(--border-strong); }
+
+  .kpi-label {
+    font-size: 10px;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+
+  .kpi-value {
+    font-family: 'DM Serif Display', serif;
+    font-size: 34px;
+    line-height: 1;
+    letter-spacing: -0.01em;
+    margin-bottom: 8px;
+  }
+
+  .kpi-value.green { color: var(--green); }
+  .kpi-value.amber { color: #D97706; }
+  .kpi-value.red { color: var(--red); }
+  .kpi-value.neutral { color: var(--text); }
+
+  .kpi-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .kpi-target {
+    font-size: 11px;
+    color: var(--text-3);
+  }
+
+  .kpi-delta {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 7px;
+    border-radius: 4px;
+  }
+
+  .kpi-delta.up { background: var(--green-light); color: var(--green); }
+  .kpi-delta.down { background: var(--red-light); color: var(--red); }
+  .kpi-delta.flat { background: var(--bg); color: var(--text-3); }
+
+  .kpi-bar {
+    height: 3px;
+    background: var(--bg);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .kpi-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.8s ease;
+  }
+
+  .kpi-bar-fill.green { background: var(--green); }
+  .kpi-bar-fill.amber { background: #D97706; }
+  .kpi-bar-fill.red { background: var(--red); }
+
+  /* BOTTOM GRID */
+  .bottom-grid {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+
+  /* STORE TABLE */
+  .store-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+
+  .section-header {
+    padding: 18px 24px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .section-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 16px;
+    color: var(--text);
+    font-weight: 400;
+  }
+
+  .section-sub {
+    font-size: 11px;
+    color: var(--text-3);
+    margin-top: 2px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  thead th {
+    padding: 10px 16px;
+    text-align: left;
+    font-size: 10px;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+    background: var(--surface-warm);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  tbody tr {
+    border-bottom: 1px solid var(--bg);
+    transition: background 0.1s;
+  }
+
+  tbody tr:hover { background: var(--surface-warm); }
+  tbody tr:last-child { border-bottom: none; }
+
+  td {
+    padding: 11px 16px;
+    color: var(--text);
+    white-space: nowrap;
+  }
+
+  .store-name {
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .store-name.top { color: var(--lavender); }
+
+  .revenue-val {
+    font-family: 'DM Mono', monospace;
+    font-weight: 500;
+  }
+
+  .vs-target-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  .vs-target-chip.up { background: var(--green-light); color: var(--green); }
+  .vs-target-chip.down { background: var(--red-light); color: var(--red); }
+
+  .kpi-dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-right: 4px;
+  }
+
+  .kpi-dot.green { background: var(--green); }
+  .kpi-dot.amber { background: #D97706; }
+  .kpi-dot.red { background: var(--red); }
+  .kpi-dot.gray { background: var(--border-strong); }
+
+  /* RIGHT COLUMN */
+  .right-col {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  /* TASKS */
+  .tasks-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    flex: 1;
+  }
+
+  .task-item {
+    padding: 11px 20px;
+    border-bottom: 1px solid var(--bg);
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .task-item:last-child { border-bottom: none; }
+
+  .task-priority {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .task-priority.critical { background: #FEE2E2; color: #991B1B; }
+  .task-priority.high { background: #FEF3C7; color: #92400E; }
+  .task-priority.medium { background: #EDE9FE; color: #5B21B6; }
+  .task-priority.low { background: var(--bg); color: var(--text-3); }
+
+  .task-body { flex: 1; min-width: 0; }
+
+  .task-title {
+    font-size: 12px;
+    color: var(--text);
+    font-weight: 500;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .task-meta {
+    font-size: 11px;
+    color: var(--text-3);
+    margin-top: 2px;
+    display: flex;
+    gap: 8px;
+  }
+
+  .task-meta .overdue { color: var(--red); font-weight: 500; }
+
+  /* ALERTS */
+  .alerts-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+
+  .alert-item {
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--bg);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+  }
+
+  .alert-item:last-child { border-bottom: none; }
+  .alert-icon { font-size: 14px; flex-shrink: 0; }
+  .alert-text { color: var(--text-2); flex: 1; }
+  .alert-text strong { color: var(--text); }
+
+  /* GROWTH PLAN */
+  .growth-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+
+  .quarter-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+  }
+
+  .quarter-cell {
+    padding: 16px 20px;
+    border-right: 1px solid var(--border);
+  }
+
+  .quarter-cell:last-child { border-right: none; }
+
+  .quarter-label {
+    font-size: 10px;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .quarter-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .quarter-badge {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .quarter-badge.complete { background: var(--green-light); color: var(--green); }
+  .quarter-badge.active { background: var(--lavender-light); color: var(--lavender); }
+  .quarter-badge.upcoming { background: var(--bg); color: var(--text-3); }
+
+  .quarter-tasks {
+    font-size: 11px;
+    color: var(--text-3);
+    line-height: 1.6;
+  }
+
+  .quarter-tasks .done { color: var(--green); }
+  .quarter-tasks .pending { color: var(--text-2); }
+  .quarter-tasks .overdue { color: var(--red); }
+
+  /* LOADING */
+  .loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    color: var(--text-3);
+    gap: 10px;
+    font-size: 13px;
+  }
+
+  .spinner {
+    width: 20px; height: 20px;
+    border: 2px solid var(--border);
+    border-top-color: var(--lavender);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  /* FADE IN */
+  .fade-in {
+    animation: fadeIn 0.4s ease forwards;
+    opacity: 0;
+  }
+
+  @keyframes fadeIn {
+    to { opacity: 1; }
+  }
+
+  .fade-in:nth-child(1) { animation-delay: 0.05s; }
+  .fade-in:nth-child(2) { animation-delay: 0.1s; }
+  .fade-in:nth-child(3) { animation-delay: 0.15s; }
+  .fade-in:nth-child(4) { animation-delay: 0.2s; }
+  .fade-in:nth-child(5) { animation-delay: 0.25s; }
+
+  /* DATA UNAVAILABLE */
+  .no-data {
+    font-size: 12px;
+    color: var(--text-3);
+    font-style: italic;
+  }
+
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 0 20px;
+  }
+
+  @media (max-width: 1100px) {
+    .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+    .bottom-grid { grid-template-columns: 1fr; }
+    .quarter-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  @media (max-width: 768px) {
+    .main { padding: 16px; }
+    .hero { grid-template-columns: 1fr; }
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .hero-current { font-size: 40px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-brand">
+    <h1>neōb</h1>
+    <span>CEO Dashboard</span>
+  </div>
+  <div class="header-right">
+    <span class="header-date" id="headerDate">—</span>
+    <div class="status-pill" id="statusPill">
+      <span class="status-dot"></span>
+      <span id="statusText">Loading...</span>
+    </div>
+    <button class="refresh-btn" id="refreshBtn" onclick="loadAll()">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>
+      </svg>
+      Refresh
+    </button>
+  </div>
+</header>
+
+<main class="main" id="mainContent">
+  <div class="loading"><div class="spinner"></div> Loading dashboard...</div>
+</main>
+
+<script>
+const API = 'http://100.68.55.123:3001';
+
+// ── PLAN DATA (from plan_targets.csv) ──────────────────────────────
+const ANNUAL_TARGETS = {
+  2025: 3300000, 2026: 4200000, 2027: 5100000, 2028: 6000000
+};
+
+const STORE_TARGETS_2026 = {
+  'Flower Farm': 1100000,
+  'Queen Street': 1250000,
+  'Stratford': 380000,
+  'Bracebridge': 175000,
+  'Elora': 470000,
+  'Online/DTC': 650000,
+};
+
+const KPI_TARGETS = {
+  aov: 55,
+  bundle_pct: 0.40,
+  forty_compliance: 0.90,
+  soap_attach: 0.35,
+};
+
+const TASKS = [
+  { title: '5-day staff training + role-play certification', owner: 'Melissa', due: '2026-01-17', status: 'In Progress', priority: 'critical', quarter: 'Q1' },
+  { title: '$40 rule enforcement + POS exception tracking', owner: 'Melissa', due: '2026-02-07', status: 'In Progress', priority: 'critical', quarter: 'Q1' },
+  { title: 'Staff incentive structure ($50-$150/mo bonus)', owner: 'Melissa', due: '2026-02-28', status: 'Not Started', priority: 'high', quarter: 'Q1' },
+  { title: 'Launch bundle system (3/store, 20% off)', owner: 'Ops', due: '2026-01-24', status: 'In Progress', priority: 'critical', quarter: 'Q1' },
+  { title: 'Phase 2 SKU decisions (46 SKUs) → 304', owner: 'Robert', due: '2026-04-15', status: 'Not Started', priority: 'high', quarter: 'Q2' },
+  { title: 'Co-packer first sellable product', owner: 'Ops', due: '2026-03-31', status: 'In Progress', priority: 'critical', quarter: 'Q1' },
+  { title: 'BON Loyalty reconfiguration', owner: 'Commerce', due: '2026-03-15', status: 'Not Started', priority: 'high', quarter: 'Q1' },
+  { title: 'ESP/SMS platform decision', owner: 'Commerce', due: '2026-03-15', status: 'Not Started', priority: 'high', quarter: 'Q1' },
+  { title: 'Pricing reset go-live', owner: 'Robert', due: '2026-03-01', status: 'Complete', priority: 'critical', quarter: 'Q1' },
+  { title: 'Phase 1 kill list (80 SKUs) 430→350', owner: 'Robert', due: '2026-01-15', status: 'Complete', priority: 'critical', quarter: 'Q1' },
+  { title: 'Bundle penetration 35-40% by Q2', owner: 'Melissa', due: '2026-06-30', status: 'Not Started', priority: 'high', quarter: 'Q2' },
+  { title: 'Phase 3 final SKU lock → 270', owner: 'Robert', due: '2026-07-10', status: 'Not Started', priority: 'high', quarter: 'Q3' },
+  { title: 'Active SKUs locked at 270 — zero creep', owner: 'Robert', due: '2026-12-31', status: 'Not Started', priority: 'critical', quarter: 'Q4' },
+];
+
+const REMINDERS = [
+  { text: 'Tuesday KPI meeting', due: null, priority: 'high', recurring: 'Weekly' },
+  { text: 'Phase 2 SKU kill list decision', due: '2026-04-15', priority: 'high' },
+  { text: 'Monthly bundle reset', due: null, priority: 'high', recurring: 'Monthly' },
+  { text: 'Q1 quarterly review', due: '2026-04-01', priority: 'high' },
+  { text: 'Shampoo bar repositioning', due: '2026-03-31', priority: 'medium' },
+  { text: 'Phase 3 SKU final lock', due: '2026-07-10', priority: 'high' },
+  { text: 'Shopify token rotation (expires Nov 2026)', due: '2026-10-15', priority: 'high' },
+];
+
+// ── HELPERS ───────────────────────────────────────────────────────
+function fmt$(n) {
+  if (n == null) return '—';
+  if (n >= 1000000) return '$' + (n/1000000).toFixed(2) + 'M';
+  if (n >= 1000) return '$' + (n/1000).toFixed(1) + 'k';
+  return '$' + n.toFixed(0);
+}
+
+function fmtPct(n) {
+  if (n == null) return '—';
+  return (n * 100).toFixed(0) + '%';
+}
+
+function today() {
+  return new Date().toLocaleDateString('en-CA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+function isOverdue(dateStr) {
+  if (!dateStr) return false;
+  return new Date(dateStr) < new Date(new Date().toDateString());
+}
+
+function daysUntil(dateStr) {
+  if (!dateStr) return null;
+  const diff = new Date(dateStr) - new Date(new Date().toDateString());
+  return Math.ceil(diff / 86400000);
+}
+
+function getStatus(value, target) {
+  if (!target || value == null) return 'neutral';
+  const pct = value / target;
+  if (pct >= 0.95) return 'green';
+  if (pct >= 0.75) return 'amber';
+  return 'red';
+}
+
+function yearProgress() {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), 0, 1);
+  const end = new Date(now.getFullYear() + 1, 0, 1);
+  return ((now - start) / (end - start));
+}
+
+// ── FETCH DATA ─────────────────────────────────────────────────────
+async function fetchStats() {
+  try {
+    const r = await fetch(API + '/api/stats/ceo');
+    return await r.json();
+  } catch(e) { return null; }
+}
+
+async function fetchSyncStatus() {
+  try {
+    const r = await fetch(API + '/api/sync/status');
+    return await r.json();
+  } catch(e) { return null; }
+}
+
+async function fetchStoreData() {
+  try {
+    const [s30, ytd] = await Promise.all([
+      fetch(API + '/api/revenue/by-store?period=30d').then(function(r){ return r.json(); }),
+      fetch(API + '/api/revenue/ytd').then(function(r){ return r.json(); })
+    ]);
+    return { s30: s30, ytd: ytd };
+  } catch(e) { return null; }
+}
+
+function buildStoreRows(rows) {
+  return rows.map(function(s, i) {
+    var target = STORE_TARGETS_2026[s.location_name] || 0;
+    var attPct = target > 0 ? (s.ytd_revenue / target) : null;
+    var vsLy = s.ly_revenue > 0 ? Math.round(((s.ytd_revenue - s.ly_revenue) / s.ly_revenue) * 100) : null;
+    var vsLyStatus = (vsLy !== null && vsLy >= 0) ? 'up' : 'down';
+    var aovStatus = s.aov >= KPI_TARGETS.aov ? 'green' : s.aov >= KPI_TARGETS.aov * 0.75 ? 'amber' : 'red';
+    var attStatus = attPct && attPct >= 0.95 ? 'up' : 'down';
+    var vsLyChip = vsLy !== null
+      ? '<span class="vs-target-chip ' + vsLyStatus + '">' + (vsLy >= 0 ? '+' : '') + vsLy + '%</span>'
+      : '<span class="no-data">—</span>';
+    var attChip = attPct
+      ? '<span class="vs-target-chip ' + attStatus + '">' + (attPct * 100).toFixed(0) + '%</span>'
+      : '<span class="no-data">—</span>';
+    return '<tr>' +
+      '<td class="store-name ' + (i === 0 ? 'top' : '') + '">' + s.location_name + '</td>' +
+      '<td class="revenue-val">' + fmt$(s.revenue || 0) + '</td>' +
+      '<td><span class="kpi-dot ' + aovStatus + '"></span>$' + (s.aov || 0).toFixed(0) + '</td>' +
+      '<td class="revenue-val" style="font-weight:600">' + fmt$(s.ytd_revenue || 0) + '</td>' +
+      '<td class="revenue-val" style="color:var(--text-3)">' + (s.ly_revenue ? fmt$(s.ly_revenue) : '—') + '</td>' +
+      '<td>' + vsLyChip + '</td>' +
+      '<td class="revenue-val" style="color:var(--text-3)">' + fmt$(target) + '</td>' +
+      '<td>' + attChip + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+// ── RENDER ─────────────────────────────────────────────────────────
+function renderDashboard(stats, storeData) {
+  const now = new Date();
+  const yearPct = yearProgress();
+  const yearTarget2026 = ANNUAL_TARGETS[2026];
+
+  // Revenue — use accurate CEO stats endpoint
+  const rev30d = stats?.rev_30d || 0;
+  const orders30d = stats?.orders_30d || 0;
+  const aov30d = stats?.aov_30d || 0;
+  const revYTD = stats?.rev_ytd || 0;
+  const ordersYTD = stats?.orders_ytd || 0;
+  const aovYTD = stats?.aov_ytd || 0;
+  const annualRunRate = stats?.annual_run_rate || 0;
+  const ytdTarget = yearTarget2026 * yearPct;
+
+  // AOV from stats
+  const aov = stats ? (rev30d / Math.max(stats.orders * (30/365), 1)) : null;
+  const aovFromOrders = stats?.orders > 0 ? rev30d / (stats.unfulfilled > 0 ? stats.orders * 0.02 : 100) : null;
+
+  // KPI status
+  const revenueStatus = getStatus(rev30d * 12, yearTarget2026);
+
+  // Tasks analysis
+  const today_str = new Date().toISOString().split('T')[0];
+  const overdueTasks = TASKS.filter(t => t.status !== 'Complete' && t.due && t.due < today_str);
+  const activeTasks = TASKS.filter(t => ['In Progress', 'Not Started'].includes(t.status) && (!t.due || t.due >= today_str))
+    .sort((a, b) => (a.due || '9999') < (b.due || '9999') ? -1 : 1)
+    .slice(0, 6);
+  const completedTasks = TASKS.filter(t => t.status === 'Complete').length;
+
+  // Overall status
+  const totalOpen = overdueTasks.length;
+  let overallStatus = 'on-track';
+  let overallText = 'On Track';
+  if (totalOpen >= 3) { overallStatus = 'off-track'; overallText = `${totalOpen} Overdue`; }
+  else if (totalOpen > 0) { overallStatus = 'caution'; overallText = `${totalOpen} Overdue`; }
+
+  // Last sync
+  const lastSync = stats?.last_sync
+    ? new Date(stats.last_sync.replace(' ', 'T') + 'Z').toLocaleString('en-CA', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Toronto' })
+    : 'Unknown';
+
+  var stores30d = storeData && storeData.s30 ? storeData.s30.stores || [] : [];
+  var storesYTD = storeData && storeData.ytd ? storeData.ytd.stores || [] : [];
+  var ytdTotal = storeData && storeData.ytd ? storeData.ytd.ytd_total || {} : {};
+  var lyTotal = storeData && storeData.ytd ? storeData.ytd.ly_total || {} : {};
+  var vsLyPct = storeData && storeData.ytd ? storeData.ytd.vs_ly_pct : null;
+  var storeMap = {};
+  stores30d.forEach(function(s) { storeMap[s.location_name] = Object.assign({}, s, {ytd_revenue:0, ly_revenue:0}); });
+  storesYTD.forEach(function(s) {
+    if (storeMap[s.location_name]) {
+      storeMap[s.location_name].ytd_revenue = s.revenue;
+      storeMap[s.location_name].ly_revenue = s.ly_revenue || 0;
+    } else {
+      storeMap[s.location_name] = {location_name:s.location_name, revenue:0, orders:0, aov:0, ytd_revenue:s.revenue, ly_revenue:s.ly_revenue||0};
+    }
+  });
+  var storeRows = Object.values(storeMap).sort(function(a,b){ return (b.ytd_revenue||0)-(a.ytd_revenue||0); });
+
+  // Update header
+  document.getElementById('headerDate').textContent = today();
+  const pill = document.getElementById('statusPill');
+  pill.className = `status-pill ${overallStatus}`;
+  document.getElementById('statusText').textContent = overallText;
+
+  const html = `
+    <!-- HERO -->
+    <div class="hero fade-in">
+      <div class="hero-left">
+        <h2>2026 Revenue — Path to $6M</h2>
+        <div class="hero-numbers">
+          <span class="hero-current">${fmt$(annualRunRate)}</span>
+          <span class="hero-target">run rate &nbsp;/&nbsp; <strong>$4.2M</strong> 2026 target</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" style="width: ${Math.min((annualRunRate / yearTarget2026) * 100, 100).toFixed(1)}%"></div>
+        </div>
+        <div class="progress-milestones">
+          <div class="milestone">
+            <span class="milestone-label">2025 Actual</span>
+            <span class="milestone-val done">$3.28M ✓</span>
+          </div>
+          <div class="milestone">
+            <span class="milestone-label">2026 Target</span>
+            <span class="milestone-val active">$4.20M ←</span>
+          </div>
+          <div class="milestone">
+            <span class="milestone-label">2027 Target</span>
+            <span class="milestone-val future">$5.10M</span>
+          </div>
+          <div class="milestone">
+            <span class="milestone-label">2028 Target</span>
+            <span class="milestone-val future">$6.00M</span>
+          </div>
+          <div class="milestone">
+            <span class="milestone-label">Plan Complete</span>
+            <span class="milestone-val done">${completedTasks}/${TASKS.length} tasks</span>
+          </div>
+        </div>
+      </div>
+      <div class="hero-right">
+        <div class="run-rate-card">
+          <div class="run-rate-label">30-Day Revenue</div>
+          <div class="run-rate-val">${fmt$(rev30d)}</div>
+          <div class="run-rate-sub">vs $${(yearTarget2026/12).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')} monthly target</div>
+        </div>
+        <div class="year-progress">
+          <div class="year-progress-label">Year Elapsed</div>
+          <div class="year-progress-bar">
+            <div class="year-progress-fill" style="width: ${(yearPct * 100).toFixed(0)}%"></div>
+          </div>
+          <div class="year-progress-vals">
+            <span>${(yearPct * 100).toFixed(0)}% of 2026</span>
+            <span>Last sync: ${lastSync}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI ROW -->
+    <div class="kpi-grid">
+      ${renderKPI('Revenue (30d)', fmt$(rev30d), 'YTD: ' + fmt$(revYTD), getStatus(revYTD, ytdTarget), null, revYTD / ytdTarget)}
+      ${renderKPI('Orders (30d)', orders30d ? orders30d.toLocaleString() : '—', 'Unfulfilled: ' + (stats?.unfulfilled || 0), stats?.unfulfilled > 20 ? 'amber' : 'green', null, null)}
+      ${renderKPI('Avg Order Value', aov30d ? '$' + aov30d.toFixed(0) : '—', 'Target: $' + KPI_TARGETS.aov, getStatus(aov30d, KPI_TARGETS.aov), null, aov30d / KPI_TARGETS.aov)}
+      ${renderKPI('Active SKUs', stats?.active_products ? stats.active_products.toLocaleString() : '—', 'Target: 270 by EOY', 'amber', null, null)}
+      ${renderKPI('Inventory Units', stats?.inventory_units ? stats.inventory_units.toLocaleString() : '—', 'Across 10 locations', 'neutral', null, null)}
+    </div>
+
+    <!-- BOTTOM GRID -->
+    <div class="bottom-grid fade-in">
+      <!-- STORE TABLE -->
+      <div class="store-section">
+        <div class="section-header">
+          <div>
+            <div class="section-title">Store Performance</div>
+            <div class="section-sub">Real Shopify data · Matrixify excluded · YTD vs same period LY</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-family:'DM Mono',monospace;font-size:13px;font-weight:600">
+              YTD ${fmt$(ytdTotal.revenue || 0)}
+              <span style="font-size:11px;padding:2px 8px;border-radius:4px;margin-left:6px;background:${(vsLyPct||0) >= 0 ? 'var(--green-light)' : 'var(--red-light)'};color:${(vsLyPct||0) >= 0 ? 'var(--green)' : 'var(--red)'}">
+                ${(vsLyPct||0) >= 0 ? '+' : ''}${vsLyPct||0}% vs LY
+              </span>
+            </div>
+            <div style="font-size:11px;color:var(--text-3);margin-top:2px">LY same period: ${fmt$(lyTotal.revenue || 0)}</div>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Store</th>
+              <th>30d Rev</th>
+              <th>30d AOV</th>
+              <th>YTD Revenue</th>
+              <th>LY Same Period</th>
+              <th>vs LY</th>
+              <th>2026 Target</th>
+              <th>Attainment</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${buildStoreRows(storeRows)}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- RIGHT COL -->
+      <div class="right-col">
+        <!-- OVERDUE ALERTS -->
+        ${overdueTasks.length > 0 ? `
+        <div class="alerts-card">
+          <div class="section-header">
+            <div class="section-title" style="color:var(--red)">⚠ ${overdueTasks.length} Overdue</div>
+          </div>
+          ${overdueTasks.slice(0,4).map(t => `
+            <div class="alert-item">
+              <span class="alert-icon">🔴</span>
+              <span class="alert-text"><strong>${t.title.substring(0,42)}${t.title.length > 42 ? '…' : ''}</strong> · ${t.owner} · ${t.due}</span>
+            </div>
+          `).join('')}
+        </div>` : ''}
+
+        <!-- TASKS -->
+        <div class="tasks-card">
+          <div class="section-header">
+            <div class="section-title">Growth Plan Tasks</div>
+            <div class="section-sub">${completedTasks} complete · ${overdueTasks.length} overdue</div>
+          </div>
+          ${activeTasks.map(t => {
+            const d = daysUntil(t.due);
+            const dueTxt = !t.due ? 'No date' : d === 0 ? 'Today' : d < 0 ? `${Math.abs(d)}d overdue` : d <= 7 ? `${d}d` : t.due;
+            const dueClass = d < 0 ? 'overdue' : '';
+            return `<div class="task-item">
+              <span class="task-priority ${t.priority}">${t.priority}</span>
+              <div class="task-body">
+                <div class="task-title">${t.title}</div>
+                <div class="task-meta">
+                  <span>${t.owner}</span>
+                  <span class="${dueClass}">${dueTxt}</span>
+                  <span>${t.quarter}</span>
+                </div>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+
+        <!-- UPCOMING REMINDERS -->
+        <div class="alerts-card">
+          <div class="section-header">
+            <div class="section-title">Upcoming</div>
+          </div>
+          ${REMINDERS.filter(r => r.due).sort((a,b) => a.due < b.due ? -1 : 1).slice(0,5).map(r => {
+            const d = daysUntil(r.due);
+            const over = d < 0;
+            return `<div class="alert-item">
+              <span class="alert-icon">${over ? '🔴' : d <= 7 ? '🟡' : '📅'}</span>
+              <span class="alert-text"><strong>${r.text}</strong> · <span style="color:${over ? 'var(--red)' : d <= 7 ? '#D97706' : 'var(--text-3)'}">${over ? Math.abs(d) + 'd overdue' : d + 'd'}</span></span>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+    </div>
+
+    <!-- GROWTH PLAN QUARTERLY VIEW -->
+    <div class="growth-card fade-in">
+      <div class="section-header">
+        <div>
+          <div class="section-title">12-Quarter Roadmap — 2026 Milestones</div>
+          <div class="section-sub">Jan 2026 – Dec 2026 · $3.28M → $4.20M</div>
+        </div>
+      </div>
+      <div class="quarter-grid">
+        <div class="quarter-cell">
+          <div class="quarter-label">Q1 2026 — Jan–Mar</div>
+          <div class="quarter-status"><span class="quarter-badge active">In Progress</span></div>
+          <div class="quarter-tasks">
+            <div class="done">✓ Phase 1 kill list (430→350 SKUs)</div>
+            <div class="done">✓ Pricing reset go-live Mar 1</div>
+            <div class="pending">· Staff training + certification</div>
+            <div class="pending">· Bundle system install</div>
+            <div class="overdue">⚠ Co-packer first sellable (Mar 31)</div>
+            <div class="overdue">⚠ BON Loyalty reconfig (Mar 15)</div>
+          </div>
+        </div>
+        <div class="quarter-cell">
+          <div class="quarter-label">Q2 2026 — Apr–Jun</div>
+          <div class="quarter-status"><span class="quarter-badge upcoming">Upcoming</span></div>
+          <div class="quarter-tasks">
+            <div class="pending">· Phase 2 SKU decisions (350→304)</div>
+            <div class="pending">· Bundle penetration 35–40%</div>
+            <div class="pending">· $40 compliance 90%</div>
+            <div class="pending">· Email + SMS platform live</div>
+            <div class="pending">· Clearance Batch 1 complete</div>
+          </div>
+        </div>
+        <div class="quarter-cell">
+          <div class="quarter-label">Q3 2026 — Jul–Sep</div>
+          <div class="quarter-status"><span class="quarter-badge upcoming">Upcoming</span></div>
+          <div class="quarter-tasks">
+            <div class="pending">· Phase 3 SKU final lock (304→270)</div>
+            <div class="pending">· AOV stability at $60+</div>
+            <div class="pending">· Clearance Batch 2 complete</div>
+            <div class="pending">· Peak tourist season execution</div>
+          </div>
+        </div>
+        <div class="quarter-cell">
+          <div class="quarter-label">Q4 2026 — Oct–Dec</div>
+          <div class="quarter-status"><span class="quarter-badge upcoming">Upcoming</span></div>
+          <div class="quarter-tasks">
+            <div class="pending">· SKUs locked at 270 — zero creep</div>
+            <div class="pending">· Margin ≥70%</div>
+            <div class="pending">· Premium gifting readiness</div>
+            <div class="pending">· Close at $4.2M target</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="text-align:center; padding: 16px 0; font-size: 11px; color: var(--text-3); font-family: 'DM Mono', monospace;">
+      neōb CEO Dashboard · Data from Shopify via neobM3server · Last refreshed ${new Date().toLocaleTimeString('en-CA')}
+    </div>
+  `;
+
+  document.getElementById('mainContent').innerHTML = html;
+}
+
+function renderKPI(label, value, sub, status, delta, barPct) {
+  const pct = barPct != null ? Math.min(Math.max(barPct, 0), 1.5) : null;
+  return `<div class="kpi-card ${status} fade-in">
+    <div class="kpi-label">${label}</div>
+    <div class="kpi-value ${status}">${value}</div>
+    <div class="kpi-meta">
+      <span class="kpi-target">${sub}</span>
+      ${delta ? `<span class="kpi-delta ${delta > 0 ? 'up' : 'down'}">${delta > 0 ? '+' : ''}${delta}%</span>` : ''}
+    </div>
+    ${pct != null ? `<div class="kpi-bar"><div class="kpi-bar-fill ${status}" style="width:${(pct * 100).toFixed(0)}%"></div></div>` : ''}
+  </div>`;
+}
+
+async function loadAll() {
+  const btn = document.getElementById('refreshBtn');
+  if (btn) btn.classList.add('spinning');
+
+  const [stats, storeData] = await Promise.all([fetchStats(), fetchStoreData()]);
+  renderDashboard(stats, storeData);
+
+  if (btn) btn.classList.remove('spinning');
+}
+
+// Init
+loadAll();
+// Auto-refresh every 5 minutes
+setInterval(loadAll, 300000);
+</script>
+</body>
+</html>

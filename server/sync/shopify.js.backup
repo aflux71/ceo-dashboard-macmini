@@ -35,45 +35,6 @@ function nextPageUrl(linkHeader) {
   return match ? match[1] : null;
 }
 
-// ── Location resolution ──────────────────────────────────────────
-// Shopify REST orders give location_id reliably only for POS orders.
-// We derive: (1) source_name (web/pos/etc), (2) best-effort location_id.
-function resolveOrderLocation(o) {
-  let locationId = o.location_id ? String(o.location_id) : null;
-
-  // POS orders without top-level location_id: check fulfillments
-  if (!locationId && Array.isArray(o.fulfillments) && o.fulfillments.length > 0) {
-    const fl = o.fulfillments.find(f => f.location_id);
-    if (fl) locationId = String(fl.location_id);
-  }
-
-  return {
-    locationId,
-    sourceName: o.source_name || 'unknown'
-  };
-}
-
-// Map Shopify location IDs -> store names (from inventory sync — 10 known locations)
-const LOCATION_NAMES = {
-  '72406499553': 'neob HQ',
-  '83628064993': 'Ecommerce Warehouse',
-  '86510141665': '3PL-Online Orders',
-  '83109183713': 'Festivals & Events',
-  '81226596577': 'Walkers Market Warehouse',
-  '72406204641': 'Queen Street',
-  '72403026145': 'Flower Farm',
-  '72406270177': 'Elora',
-  '72406335713': 'Stratford',
-  '72406401249': 'Bracebridge'
-};
-
-function locationName(locationId, sourceName) {
-  if (locationId && LOCATION_NAMES[locationId]) return LOCATION_NAMES[locationId];
-  if (sourceName === 'web') return 'Online/DTC';
-  if (sourceName === 'pos') return 'Retail (unattributed)';
-  return 'Unattributed';
-}
-
 export async function syncProducts() {
   console.log('Syncing products...');
   let synced = 0;
@@ -108,47 +69,36 @@ export async function syncProducts() {
   return synced;
 }
 
-const ORDER_INSERT_SQL = `
-  INSERT OR REPLACE INTO orders
-  (id, order_number, email, financial_status, fulfillment_status,
-   total_price, currency, location_id, location_name, source_name,
-   created_at, updated_at, synced_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-`;
-
-function insertOrders(orders) {
-  const insert = db.prepare(ORDER_INSERT_SQL);
-  const insertMany = db.transaction((items) => {
-    for (const o of items) {
-      const { locationId, sourceName } = resolveOrderLocation(o);
-      const locName = locationName(locationId, sourceName);
-      insert.run(
-        String(o.id), String(o.order_number), o.email,
-        o.financial_status, o.fulfillment_status,
-        o.total_price, o.currency,
-        locationId, locName, sourceName,
-        o.created_at, o.updated_at
-      );
-    }
-  });
-  insertMany(orders);
-}
-
-// Explicit history floor — covers all orders back to Feb 2024.
-// A fixed date is more predictable than a rolling window and won't drift.
-const ORDER_HISTORY_FLOOR = '2024-01-01T00:00:00Z';
-
 export async function syncOrders() {
-  console.log('Syncing orders (full history from ' + ORDER_HISTORY_FLOOR + ') with location data...');
+  console.log('Syncing orders (last 12 months)...');
   let synced = 0;
-  const createdMin = ORDER_HISTORY_FLOOR;
+  const twelveMonthsAgo = new Date();
+  twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+  const createdMin = twelveMonthsAgo.toISOString();
   let url = `${SHOPIFY_URL}/orders.json?limit=250&status=any&created_at_min=${createdMin}`;
+
+  const insert = db.prepare(`
+    INSERT OR REPLACE INTO orders
+    (id, order_number, email, financial_status, fulfillment_status,
+     total_price, currency, created_at, updated_at, synced_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+  `);
 
   let page = 0;
   while (url) {
     const res = await getWithRetry(url);
     const orders = res.data.orders;
-    insertOrders(orders);
+    const insertMany = db.transaction((items) => {
+      for (const o of items) {
+        insert.run(
+          String(o.id), String(o.order_number), o.email,
+          o.financial_status, o.fulfillment_status,
+          o.total_price, o.currency,
+          o.created_at, o.updated_at
+        );
+      }
+    });
+    insertMany(orders);
     synced += orders.length;
     page++;
     if (page % 10 === 0) console.log(`  ...${synced} orders`);
@@ -170,10 +120,27 @@ export async function syncOrdersIncremental(hoursBack = 48) {
   const updatedMin = since.toISOString();
   let url = `${SHOPIFY_URL}/orders.json?limit=250&status=any&updated_at_min=${updatedMin}`;
 
+  const insert = db.prepare(`
+    INSERT OR REPLACE INTO orders
+    (id, order_number, email, financial_status, fulfillment_status,
+     total_price, currency, created_at, updated_at, synced_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+  `);
+
   while (url) {
     const res = await getWithRetry(url);
     const orders = res.data.orders;
-    insertOrders(orders);
+    const insertMany = db.transaction((items) => {
+      for (const o of items) {
+        insert.run(
+          String(o.id), String(o.order_number), o.email,
+          o.financial_status, o.fulfillment_status,
+          o.total_price, o.currency,
+          o.created_at, o.updated_at
+        );
+      }
+    });
+    insertMany(orders);
     synced += orders.length;
     url = nextPageUrl(res.headers['link']);
     if (url) await sleep(600);

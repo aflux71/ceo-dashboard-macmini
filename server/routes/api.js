@@ -210,4 +210,269 @@ router.post('/assistant', async (req, res) => {
   }
 });
 
+
+// Enhanced CEO stats endpoint
+router.get('/stats/ceo', (req, res) => {
+  try {
+    const d30 = new Date(Date.now() - 30*86400000).toISOString();
+    const ytd = new Date(new Date().getFullYear(), 0, 1).toISOString();
+
+    const s30 = db.prepare('SELECT COUNT(*) AS cnt, COALESCE(SUM(CAST(total_price AS REAL)),0) AS rev FROM orders WHERE created_at >= ?').get(d30);
+    const sYTD = db.prepare('SELECT COUNT(*) AS cnt, COALESCE(SUM(CAST(total_price AS REAL)),0) AS rev FROM orders WHERE created_at >= ?').get(ytd);
+    const prods = db.prepare("SELECT COUNT(*) AS c FROM products WHERE status = 'active'").get();
+    const inv = db.prepare('SELECT COALESCE(SUM(available),0) AS u FROM inventory').get();
+    const unf = db.prepare("SELECT COUNT(*) AS c FROM orders WHERE fulfillment_status IS NULL OR fulfillment_status = 'partial'").get();
+    const lastSync = db.prepare("SELECT created_at FROM sync_log WHERE status='success' ORDER BY id DESC LIMIT 1").get();
+
+    const dayOfYear = Math.ceil((Date.now() - new Date(new Date().getFullYear(),0,1)) / 86400000);
+    const annualRunRate = Math.round((sYTD.rev / dayOfYear) * 365);
+
+    res.json({
+      rev_30d: Math.round(s30.rev * 100) / 100,
+      orders_30d: s30.cnt,
+      aov_30d: s30.cnt > 0 ? Math.round(s30.rev / s30.cnt * 100) / 100 : 0,
+      rev_ytd: Math.round(sYTD.rev * 100) / 100,
+      orders_ytd: sYTD.cnt,
+      aov_ytd: sYTD.cnt > 0 ? Math.round(sYTD.rev / sYTD.cnt * 100) / 100 : 0,
+      annual_run_rate: annualRunRate,
+      active_products: prods.c,
+      inventory_units: inv.u,
+      unfulfilled: unf.c,
+      last_sync: lastSync?.created_at || null,
+      day_of_year: dayOfYear
+    });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+
+// Enhanced CEO stats endpoint
+router.get('/stats/ceo', (req, res) => {
+  try {
+    const d30 = new Date(Date.now() - 30*86400000).toISOString();
+    const ytd = new Date(new Date().getFullYear(), 0, 1).toISOString();
+
+    const s30 = db.prepare('SELECT COUNT(*) AS cnt, COALESCE(SUM(CAST(total_price AS REAL)),0) AS rev FROM orders WHERE created_at >= ?').get(d30);
+    const sYTD = db.prepare('SELECT COUNT(*) AS cnt, COALESCE(SUM(CAST(total_price AS REAL)),0) AS rev FROM orders WHERE created_at >= ?').get(ytd);
+    const prods = db.prepare("SELECT COUNT(*) AS c FROM products WHERE status = 'active'").get();
+    const inv = db.prepare('SELECT COALESCE(SUM(available),0) AS u FROM inventory').get();
+    const unf = db.prepare("SELECT COUNT(*) AS c FROM orders WHERE fulfillment_status IS NULL OR fulfillment_status = 'partial'").get();
+    const lastSync = db.prepare("SELECT created_at FROM sync_log WHERE status='success' ORDER BY id DESC LIMIT 1").get();
+
+    const dayOfYear = Math.ceil((Date.now() - new Date(new Date().getFullYear(),0,1)) / 86400000);
+    const annualRunRate = Math.round((sYTD.rev / dayOfYear) * 365);
+
+    res.json({
+      rev_30d: Math.round(s30.rev * 100) / 100,
+      orders_30d: s30.cnt,
+      aov_30d: s30.cnt > 0 ? Math.round(s30.rev / s30.cnt * 100) / 100 : 0,
+      rev_ytd: Math.round(sYTD.rev * 100) / 100,
+      orders_ytd: sYTD.cnt,
+      aov_ytd: sYTD.cnt > 0 ? Math.round(sYTD.rev / sYTD.cnt * 100) / 100 : 0,
+      annual_run_rate: annualRunRate,
+      active_products: prods.c,
+      inventory_units: inv.u,
+      unfulfilled: unf.c,
+      last_sync: lastSync?.created_at || null,
+      day_of_year: dayOfYear
+    });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+
+// ── Channel exclusions — baked into every revenue query ──────────
+// Matrixify App: pre-Shopify historical import (8,180 orders, $788K) — NOT real Shopify sales
+// 3890849: unknown app channel, likely another import — excluded for data integrity
+const EXCLUDED_SOURCES = "'Matrixify App','3890849'";
+
+// Known retail store location IDs
+const STORE_LOCATIONS = {
+  '72406204641': 'Queen Street',
+  '72403026145': 'Flower Farm',
+  '72406270177': 'Elora',
+  '72406335713': 'Stratford',
+  '72406401249': 'Bracebridge'
+};
+
+// ── /api/revenue/by-store ─────────────────────────────────────────
+// Returns per-store revenue, orders, AOV for a given period
+// Query params: period = '30d' | 'ytd' | 'ly30d' | 'lytd' | custom
+// Optional: date_from, date_to (ISO strings)
+router.get('/revenue/by-store', (req, res) => {
+  try {
+    const { period = '30d', date_from, date_to } = req.query;
+    const { from, to } = resolvePeriod(period, date_from, date_to);
+
+    // Per-store revenue (POS orders with known location)
+    const storeRows = db.prepare(`
+      SELECT
+        location_id,
+        location_name,
+        COUNT(*) AS orders,
+        ROUND(SUM(CAST(total_price AS REAL)), 2) AS revenue,
+        ROUND(SUM(CAST(total_price AS REAL)) / COUNT(*), 2) AS aov
+      FROM orders
+      WHERE source_name NOT IN (${EXCLUDED_SOURCES})
+        AND created_at >= ?
+        AND created_at < ?
+        AND location_id IS NOT NULL
+        AND location_name NOT IN ('neob HQ','Ecommerce Warehouse','3PL-Online Orders','Festivals & Events','Walkers Market Warehouse')
+      GROUP BY location_id, location_name
+      ORDER BY revenue DESC
+    `).all(from, to);
+
+    // Online/DTC revenue (web orders)
+    const onlineRow = db.prepare(`
+      SELECT
+        'Online/DTC' AS location_name,
+        COUNT(*) AS orders,
+        ROUND(SUM(CAST(total_price AS REAL)), 2) AS revenue,
+        ROUND(SUM(CAST(total_price AS REAL)) / COUNT(*), 2) AS aov
+      FROM orders
+      WHERE source_name = 'web'
+        AND created_at >= ?
+        AND created_at < ?
+    `).get(from, to);
+
+    // Total (all clean channels)
+    const totalRow = db.prepare(`
+      SELECT
+        COUNT(*) AS orders,
+        ROUND(SUM(CAST(total_price AS REAL)), 2) AS revenue,
+        ROUND(SUM(CAST(total_price AS REAL)) / COUNT(*), 2) AS aov
+      FROM orders
+      WHERE source_name NOT IN (${EXCLUDED_SOURCES})
+        AND created_at >= ?
+        AND created_at < ?
+    `).get(from, to);
+
+    const stores = storeRows.map(r => ({
+      location_id: r.location_id,
+      location_name: r.location_name,
+      orders: r.orders,
+      revenue: r.revenue,
+      aov: r.aov
+    }));
+
+    if (onlineRow?.revenue) {
+      stores.push({
+        location_id: 'online',
+        location_name: 'Online/DTC',
+        orders: onlineRow.orders,
+        revenue: onlineRow.revenue,
+        aov: onlineRow.aov
+      });
+    }
+
+    res.json({
+      period,
+      from,
+      to,
+      stores,
+      total: totalRow
+    });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── /api/revenue/ytd ──────────────────────────────────────────────
+// YTD revenue vs same period last year, by store + total
+router.get('/revenue/ytd', (req, res) => {
+  try {
+    const now = new Date();
+    const yearStart = `${now.getFullYear()}-01-01T00:00:00Z`;
+    const today = now.toISOString();
+
+    // Same day/month range last year
+    const lyStart = `${now.getFullYear()-1}-01-01T00:00:00Z`;
+    const lyEnd = new Date(now);
+    lyEnd.setFullYear(lyEnd.getFullYear() - 1);
+    const lyToday = lyEnd.toISOString();
+
+    const ytdStores = getStoreRevenue(yearStart, today);
+    const lyStores = getStoreRevenue(lyStart, lyToday);
+
+    // Merge YTD and LY
+    const storeMap = {};
+    for (const s of ytdStores) {
+      storeMap[s.location_name] = { ...s, ly_revenue: 0, ly_orders: 0, ly_aov: 0 };
+    }
+    for (const s of lyStores) {
+      if (storeMap[s.location_name]) {
+        storeMap[s.location_name].ly_revenue = s.revenue;
+        storeMap[s.location_name].ly_orders = s.orders;
+        storeMap[s.location_name].ly_aov = s.aov;
+      } else {
+        storeMap[s.location_name] = { location_name: s.location_name, revenue: 0, orders: 0, aov: 0, ly_revenue: s.revenue, ly_orders: s.orders, ly_aov: s.aov };
+      }
+    }
+
+    const stores = Object.values(storeMap).sort((a,b) => b.revenue - a.revenue);
+
+    // Totals
+    const ytdTotal = db.prepare(`
+      SELECT COUNT(*) AS orders, ROUND(SUM(CAST(total_price AS REAL)),2) AS revenue
+      FROM orders WHERE source_name NOT IN (${EXCLUDED_SOURCES}) AND created_at >= ? AND created_at < ?
+    `).get(yearStart, today);
+
+    const lyTotal = db.prepare(`
+      SELECT COUNT(*) AS orders, ROUND(SUM(CAST(total_price AS REAL)),2) AS revenue
+      FROM orders WHERE source_name NOT IN (${EXCLUDED_SOURCES}) AND created_at >= ? AND created_at < ?
+    `).get(lyStart, lyToday);
+
+    res.json({
+      ytd_from: yearStart,
+      ytd_to: today,
+      ly_from: lyStart,
+      ly_to: lyToday,
+      stores,
+      ytd_total: ytdTotal,
+      ly_total: lyTotal,
+      vs_ly_pct: lyTotal.revenue > 0 ? Math.round(((ytdTotal.revenue - lyTotal.revenue) / lyTotal.revenue) * 100) : null
+    });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── helpers ───────────────────────────────────────────────────────
+function resolvePeriod(period, date_from, date_to) {
+  const now = new Date();
+  if (date_from && date_to) return { from: date_from, to: date_to };
+  switch(period) {
+    case 'ytd':
+      return { from: `${now.getFullYear()}-01-01T00:00:00Z`, to: now.toISOString() };
+    case 'lytd': {
+      const ly = new Date(now); ly.setFullYear(ly.getFullYear()-1);
+      return { from: `${ly.getFullYear()}-01-01T00:00:00Z`, to: ly.toISOString() };
+    }
+    case '7d':
+      return { from: new Date(now - 7*86400000).toISOString(), to: now.toISOString() };
+    case '30d':
+    default:
+      return { from: new Date(now - 30*86400000).toISOString(), to: now.toISOString() };
+  }
+}
+
+function getStoreRevenue(from, to) {
+  const storeRows = db.prepare(`
+    SELECT location_name, COUNT(*) AS orders,
+      ROUND(SUM(CAST(total_price AS REAL)),2) AS revenue,
+      ROUND(SUM(CAST(total_price AS REAL))/COUNT(*),2) AS aov
+    FROM orders
+    WHERE source_name NOT IN (${EXCLUDED_SOURCES})
+      AND created_at >= ? AND created_at < ?
+      AND location_id IS NOT NULL
+      AND location_name NOT IN ('neob HQ','Ecommerce Warehouse','3PL-Online Orders','Festivals & Events','Walkers Market Warehouse','Retail (unattributed)','Unattributed')
+    GROUP BY location_name ORDER BY revenue DESC
+  `).all(from, to);
+
+  const onlineRow = db.prepare(`
+    SELECT COUNT(*) AS orders,
+      ROUND(SUM(CAST(total_price AS REAL)),2) AS revenue,
+      ROUND(SUM(CAST(total_price AS REAL))/COUNT(*),2) AS aov
+    FROM orders WHERE source_name = 'web' AND created_at >= ? AND created_at < ?
+  `).get(from, to);
+
+  const result = [...storeRows];
+  if (onlineRow?.revenue) result.push({ location_name: 'Online/DTC', ...onlineRow });
+  return result;
+}
+
 export default router;

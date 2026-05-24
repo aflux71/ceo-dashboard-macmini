@@ -134,14 +134,12 @@ function insertOrders(orders) {
   insertMany(orders);
 }
 
-// Explicit history floor — covers all orders back to Feb 2024.
-// A fixed date is more predictable than a rolling window and won't drift.
-const ORDER_HISTORY_FLOOR = '2024-01-01T00:00:00Z';
-
 export async function syncOrders() {
-  console.log('Syncing orders (full history from ' + ORDER_HISTORY_FLOOR + ') with location data...');
+  console.log('Syncing orders (last 12 months) with location data...');
   let synced = 0;
-  const createdMin = ORDER_HISTORY_FLOOR;
+  const twelveMonthsAgo = new Date();
+  twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+  const createdMin = twelveMonthsAgo.toISOString();
   let url = `${SHOPIFY_URL}/orders.json?limit=250&status=any&created_at_min=${createdMin}`;
 
   let page = 0;
