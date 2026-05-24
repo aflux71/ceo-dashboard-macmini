@@ -2,16 +2,176 @@ import React, { useState, useRef, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Send, Loader2, Sparkles, User } from "lucide-react";
+import { Send, Loader2, Sparkles, User, FileText, ExternalLink } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
 const QUICK_PROMPTS = [
-  "What are my top 10 low-stock inventory items?",
-  "Summarize current demand planner critical SKUs",
-  "Which batches are pending QC right now?",
-  "Show me label stock levels below reorder point",
-  "What are the most ordered products in the last 3 months?",
+  "Run the full production planning workflow (Steps 1-5)",
+  "What should we make, can we make it, and what do we need to order?",
+  "Rank the top 15 SKUs that need production attention",
+  "Which SKUs are BLOCKED on raw materials right now?",
+  "Build a 10-day production schedule by line",
+  "Generate the purchase order queue grouped by supplier",
 ];
+
+const SYSTEM_PROMPT = `You are the neōb Production Planning Assistant, an intelligent scheduling and operations AI for neōb (Niagara Essential Oils and Blends Inc.), a luxury bath and body manufacturing company based in Niagara-on-the-Lake, Ontario.
+
+You have access to the following entities via live data: ForecastSuggestion, ProductionRequest, ProductionLineCapacity, Recipe, Batch, MaterialUsage, Inventory, Supplier, and MasterExclusion.
+
+## YOUR ROLE
+You help the production team answer one core question on every run:
+"What should we make, can we make it, and what do we need to order?"
+
+## neōb Business Context
+**Production lines (4):**
+- **Piston Filler 1** — Creams and liquids (soaps, body washes, lotions, shampoos, conditioners)
+- **Piston Filler 2** — Essential oils, roll-ons, serums
+- **Melter** — Deodorant, glycerin soap bars
+- **Powder Room** — Shampoo bars, bath bombs
+
+**Production types (Recipe.production_type):**
+- \`make\` — produced in-house (schedule on production lines)
+- \`copacked\` — outsourced to a co-packer (do NOT schedule on production lines)
+- \`buy\` — purchased finished goods (do NOT schedule on production lines)
+
+**Planning horizon:** 2–3 weeks. Supplier lead times: 3–8 weeks (procurement alerts must be proactive).
+
+---
+
+## STEP 1 — READ THE DEMAND PLANNER
+
+Read all ForecastSuggestions with status \`suggested\`, \`scheduled\`, \`on_hold\`, or \`in_progress\` (treat as pending/urgent).
+Exclude any SKU in MasterExclusion.
+Sort by priority using this logic:
+- **CRITICAL**: on_hand = 0 AND suggested_qty > 0
+- **HIGH**: on_hand < reorder_point AND days_until_stockout <= 14
+- **MEDIUM**: days_until_stockout between 15–30
+- **LOW**: everything else
+
+Present a ranked list of the top 15 SKUs that need production attention.
+
+---
+
+## STEP 2 — CHECK INVENTORY AGAINST BOM
+
+For each SKU in the ranked list, retrieve its Recipe (BOM).
+For each ingredient/component in the Recipe:
+- Check current Inventory quantity for that material SKU
+- Calculate total needed: ceil(suggested_qty / batch_size) × ingredient_qty per batch
+- Calculate how many full batches can be made with available stock
+
+Output for each SKU:
+- ✅ **CAN MAKE** — sufficient raw materials on hand
+- ⚠️ **PARTIAL** — can make X of Y batches before materials run out
+- ❌ **BLOCKED** — missing one or more critical materials
+
+If a SKU has no Recipe, flag as **DATA GAP — no recipe**; if a material's inventory record is missing, flag as **DATA GAP — material not tracked**. Do not assume availability.
+
+---
+
+## STEP 3 — BUILD PRODUCTION SCHEDULE RECOMMENDATIONS
+
+From SKUs marked ✅ or ⚠️ (skip \`copacked\` and \`buy\` types):
+- Assign to a ProductionLine based on ProductionLineCapacity and the Recipe's preferred production_line
+- Calculate estimated run time using filling_rate_units_per_hour and batches × batch_size
+- Add degassing_time_days + qc_hold_time_days to get the earliest ship-ready date
+- Factor in changeover_time_minutes between batches on the same line
+- Flag any line capacity conflicts (daily_capacity exceeded)
+
+Present as a sequenced daily schedule for the next 10 business days.
+
+---
+
+## STEP 4 — RAW MATERIAL ORDER RECOMMENDATIONS
+
+For SKUs marked ⚠️ PARTIAL or ❌ BLOCKED:
+- Identify every missing or insufficient material from the BOM
+- Calculate exact shortfall = needed − on_hand
+- Group shortfalls by Supplier (from Inventory.supplier)
+- Use Inventory.lead_time_days first, fall back to Supplier.lead_time_days
+- Flag materials needed within 7 days as 🔴 **RUSH ORDER**
+- Flag materials needed within 8–21 days as 🟡 **STANDARD ORDER**
+
+Output a purchase order summary grouped by supplier, with:
+- Material name & SKU
+- Quantity needed (with unit)
+- Priority (RUSH / STANDARD)
+- SKUs blocked pending this material
+
+---
+
+## STEP 5 — SUMMARY OUTPUT FORMAT
+
+Always end with a structured summary in this exact format:
+
+### 🟥 CRITICAL — Produce Immediately (stock = 0)
+[list]
+
+### 🟧 HIGH PRIORITY — Produce This Week
+[list]
+
+### ✅ Scheduled — Can Run Now
+[production schedule by line + date]
+
+### 🛒 Purchase Order Queue
+[grouped by supplier]
+
+### ⚠️ Blocked — Awaiting Materials
+[list with ETA if known]
+
+---
+
+## RULES
+
+- **Never schedule a batch without first confirming BOM materials are available or on order.**
+- **Always show your quantity math** (e.g., "Recipe calls for 2.4L fragrance per batch × 3 batches = 7.2L needed, 5.1L on hand, shortfall: 2.1L").
+- **If inventory data is missing for a material, flag it as DATA GAP** — do not assume availability.
+- **Use metric units (L, kg, g, ml, units)** consistent with existing recipe records.
+- **Do not modify any records without explicit user confirmation.**
+- **Always exclude MasterExclusion SKUs** from planning.
+- **Never schedule \`copacked\` or \`buy\` items on production lines** — use Recipe.copacker_lead_time_days for co-pack timing instead.
+- **Round up to the nearest whole batch** when calculating production qty.
+
+## Response Style
+- Lead with the answer, then the detail
+- Always show quantities with units (kg, L, g, ml, units)
+- Flag critical items first (negative stock, missed order windows)
+- Be specific: "Order 25L Lemongrass EO from Azelis Canada by 2026-06-04" — not "consider ordering lemongrass"
+- When data is missing (no recipe, no supplier lead time), say so explicitly as DATA GAP
+- For co-packed items, give the co-packer lead time and suggest contacting the co-packer
+
+## Output Formatting (CRITICAL: Base44 chat does NOT render markdown tables)
+**DO NOT use | pipe tables, --- separators, or markdown table syntax**
+
+Instead, format lists like this:
+
+MATERIAL: Lavender Oil (Glorious)
+  Needed for: Roll-on Lavender ×1658, Baby Butter ×177
+  Quantity: ~6–8 kg
+  Supplier: Azelis Canada Inc
+  Lead time: 49 days 🔴 OVERDUE — order immediately
+
+(blank line between items)
+
+MATERIAL: Grapeseed Oil
+  Needed for: Body Oil Blend ×420
+  Quantity: ~2–3 kg
+  Supplier: Azelis Canada Inc
+  Lead time: 42 days 🟡 URGENT
+
+Rules:
+- Use ALL CAPS for section headers (CRITICAL, URGENT, WATCH, MATERIAL, SKU, etc.)
+- Use plain numbered lists for action items (1. 2. 3. etc.)
+- Separate each item with a blank line
+- Use emoji indicators: 🔴 OVERDUE, 🟡 URGENT, 🟢 OK, ⚠️ WATCH
+- NO --- or === dividers
+- NO | pipe characters
+- Keep responses concise; lead with summary first
+
+## What You Cannot Do Yet
+- Access Shopify per-store retail inventory directly (use Production Assistant at 100.68.55.123:3001)
+- See financial forecasts or revenue targets (use the CEO Dashboard)
+- Send purchase orders automatically (create a PurchaseRequisition record instead)`;
 
 export default function AIChat() {
   const [messages, setMessages] = useState([
@@ -19,6 +179,7 @@ export default function AIChat() {
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [draftLoading, setDraftLoading] = useState(false);
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -27,29 +188,235 @@ export default function AIChat() {
 
   const buildContext = async () => {
     try {
-      const [inventory, labels, batches, demandSummaries] = await Promise.all([
-        base44.entities.Inventory.list('-updated_date', 50).catch(() => []),
+      const [
+        inventory,
+        labels,
+        batches,
+        demandSummaries,
+        forecastSuggestions,
+        masterExclusions,
+        recipes,
+        suppliers,
+        lineCapacity,
+        openPOs,
+        requisitions,
+        copackOrders,
+        productionRequests,
+      ] = await Promise.all([
+        base44.entities.Inventory.list('-updated_date', 100).catch(() => []),
         base44.entities.Label.list('-updated_date', 50).catch(() => []),
-        base44.entities.Batch.filter({ status: { $in: ['pending_qc', 'started', 'on_hold'] } }).catch(() => []),
-        base44.entities.DemandSummary.list('-updated_date', 30).catch(() => []),
+        base44.entities.Batch.filter({ status: { $in: ['pending_qc', 'started', 'on_hold', 'in_review'] } }).catch(() => []),
+        base44.entities.DemandSummary.list('-avgMonthly', 50).catch(() => []),
+        base44.entities.ForecastSuggestion.filter({ status: { $in: ['suggested', 'scheduled', 'on_hold', 'in_progress'] } }).catch(() => []),
+        base44.entities.MasterExclusion.list().catch(() => []),
+        base44.entities.Recipe.filter({ active: true }).catch(() => []),
+        base44.entities.Supplier.list().catch(() => []),
+        base44.entities.ProductionLineCapacity.filter({ active: true }).catch(() => []),
+        base44.entities.PurchaseOrder.filter({ status: { $in: ['submitted', 'confirmed', 'shipped'] } }).catch(() => []),
+        base44.entities.PurchaseRequisition.list('-created_date', 30).catch(() => []),
+        base44.entities.CopackOrder.list('-created_date', 30).catch(() => []),
+        base44.entities.ProductionRequest.filter({ status: { $in: ['pending', 'material_check', 'approved', 'in_production'] } }).catch(() => []),
       ]);
 
+      // Build excluded SKU set so the model doesn't have to remember it
+      const excludedSkus = new Set(masterExclusions.map(m => m.sku));
+
+      // Compact recipe view — keep ingredients/packaging short
+      const recipeBlock = recipes.slice(0, 80).map(r => {
+        const ing = (r.ingredients || []).map(i => `${i.material}:${i.qty}${i.unit || ''}`).join(', ');
+        return `- ${r.sku} | ${r.name} | type:${r.production_type || 'make'} | line:${r.production_line || '?'} | batch:${r.batch_size}${r.batch_unit || ''} | copacker_lead:${r.copacker_lead_time_days || '-'}d | ingredients:[${ing}]`;
+      }).join('\n');
+
       return `
-INVENTORY SNAPSHOT (top 50 by recent update):
-${inventory.map(i => `- ${i.sku} | ${i.name} | qty: ${i.quantity} ${i.unit} | reorder at: ${i.reorder_point || 'N/A'}`).join('\n')}
+=== MASTER EXCLUSION LIST (NEVER plan these) ===
+${masterExclusions.map(m => `- ${m.sku} (${m.scope})${m.reason ? ' — ' + m.reason : ''}`).join('\n') || '(none)'}
 
-LABEL STOCK (top 50):
-${labels.map(l => `- ${l.sku} | ${l.name} | on hand: ${l.current_quantity} | reorder at: ${l.reorder_point}`).join('\n')}
+=== FORECAST SUGGESTIONS (active production needs) ===
+${forecastSuggestions
+  .filter(f => !excludedSkus.has(f.sku))
+  .sort((a, b) => {
+    const order = { critical: 0, event: 1, soon: 2, ok: 3 };
+    return (order[a.urgency] ?? 9) - (order[b.urgency] ?? 9);
+  })
+  .slice(0, 60)
+  .map(f => `- ${f.urgency?.toUpperCase()} | ${f.sku} | ${f.product_name} | need:${f.suggested_qty} | on_hand:${f.on_hand} | by:${f.target_date || '-'} | line:${f.assigned_production_line || f.production_line || '?'} | status:${f.status}`)
+  .join('\n') || '(none)'}
 
-ACTIVE BATCHES (pending QC / in progress):
-${batches.map(b => `- ${b.batch_id} | ${b.product_name} | qty: ${b.quantity} | status: ${b.status}`).join('\n')}
+=== PRODUCTION REQUESTS (manual + forecast) ===
+${productionRequests.map(p => `- ${p.urgency?.toUpperCase() || '-'} | ${p.sku} | ${p.product_name} | qty:${p.quantity_needed} | due:${p.due_date || '-'} | type:${p.production_type || '-'} | status:${p.status}`).join('\n') || '(none)'}
 
-TOP DEMAND SUMMARIES (avg monthly):
-${demandSummaries.map(d => `- ${d.sku} | ${d.product} | avg/mo: ${d.avgMonthly} | total: ${d.totalQty}`).join('\n')}
+=== RAW MATERIAL & FINISHED INVENTORY (top 100) ===
+${inventory.map(i => `- ${i.sku} | ${i.name} | type:${i.type} | qty:${i.quantity}${i.unit} | reorder@${i.reorder_point || '-'} | reorder_qty:${i.reorder_qty || '-'} | supplier:${i.supplier || '-'} | lead:${i.lead_time_days || '-'}d`).join('\n')}
+
+=== RECIPES / BOM (active, top 80) ===
+${recipeBlock}
+
+=== SUPPLIERS ===
+${suppliers.map(s => `- ${s.name} | lead:${s.lead_time_days || '-'}d | contact:${s.contact_email || s.contact_name || '-'}`).join('\n') || '(none)'}
+
+=== PRODUCTION LINE CAPACITY ===
+${lineCapacity.map(l => `- Line ${l.line_number} (${l.line_name}) | daily:${l.daily_capacity_units || l.daily_capacity_liters || '?'} | fill_rate:${l.filling_rate_units_per_hour || '-'}/hr | changeover:${l.changeover_time_minutes || '-'}min | types:[${(l.product_types || []).join(',')}]`).join('\n') || '(none)'}
+
+=== LABEL STOCK (top 50) ===
+${labels.map(l => `- ${l.sku} | ${l.name} | on_hand:${l.current_quantity} | reorder@${l.reorder_point} | lead:${l.lead_time_days || '-'}d`).join('\n')}
+
+=== OPEN PURCHASE ORDERS ===
+${openPOs.slice(0, 30).map(po => `- ${po.po_number} | ${po.supplier} | status:${po.status} | expected:${po.expected_date || '-'} | items:${(po.items || []).length}`).join('\n') || '(none)'}
+
+=== OPEN PURCHASE REQUISITIONS ===
+${requisitions.slice(0, 30).map(r => `- ${r.sku || '-'} | ${r.product_name || r.material_name || '-'} | qty:${r.quantity || '-'} | status:${r.status || '-'}`).join('\n') || '(none)'}
+
+=== ACTIVE CO-PACK ORDERS ===
+${copackOrders.slice(0, 20).map(c => `- ${c.sku || '-'} | ${c.product_name || '-'} | qty:${c.quantity || '-'} | ship_by:${c.ship_by || '-'} | status:${c.status || '-'}`).join('\n') || '(none)'}
+
+=== ACTIVE BATCHES (pending QC / in progress / on hold / in review) ===
+${batches.map(b => `- ${b.batch_id} | ${b.sku} | ${b.product_name} | qty:${b.quantity} | line:${b.production_line || '-'} | status:${b.status}`).join('\n') || '(none)'}
+
+=== DEMAND SUMMARIES (top 50 by avg monthly) ===
+${demandSummaries.map(d => `- ${d.sku} | ${d.product} | avg/mo:${d.avgMonthly} | total:${d.totalQty} | data_months:${d.dataMonths || '-'}`).join('\n')}
       `.trim();
-    } catch {
+    } catch (err) {
+      console.error('AIChat context build failed:', err);
       return "Context unavailable.";
     }
+  };
+
+  const generateDraftSchedule = async () => {
+    setDraftLoading(true);
+    setMessages(prev => [...prev, { role: "user", content: "Generate a draft production schedule (BOM-verified, with purchase recommendations and action list)." }]);
+    try {
+      const context = await buildContext();
+      const me = await base44.auth.me().catch(() => null);
+
+      const schema = {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          summary: { type: "string", description: "Executive summary of the plan, what to make, what to order, key risks" },
+          horizon_days: { type: "number" },
+          scheduled_items: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                day_offset: { type: "number" },
+                scheduled_date: { type: "string" },
+                sku: { type: "string" },
+                product_name: { type: "string" },
+                production_line: { type: "string" },
+                batches: { type: "number" },
+                batch_size: { type: "number" },
+                total_units: { type: "number" },
+                estimated_run_hours: { type: "number" },
+                ship_ready_date: { type: "string" },
+                priority: { type: "string", enum: ["critical", "high", "medium", "low"] },
+                bom_status: { type: "string", enum: ["can_make", "partial", "blocked", "data_gap"] },
+                notes: { type: "string" }
+              }
+            }
+          },
+          purchase_recommendations: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                supplier: { type: "string" },
+                material_sku: { type: "string" },
+                material_name: { type: "string" },
+                shortfall_qty: { type: "number" },
+                unit: { type: "string" },
+                on_hand: { type: "number" },
+                needed: { type: "number" },
+                priority: { type: "string", enum: ["rush", "standard"] },
+                lead_time_days: { type: "number" },
+                blocks_skus: { type: "array", items: { type: "string" } },
+                math: { type: "string" }
+              }
+            }
+          },
+          blocked_items: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                sku: { type: "string" },
+                product_name: { type: "string" },
+                reason: { type: "string" },
+                missing_materials: { type: "array", items: { type: "string" } },
+                eta: { type: "string" }
+              }
+            }
+          },
+          action_list: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                step: { type: "number" },
+                action: { type: "string" },
+                owner: { type: "string" },
+                due: { type: "string" },
+                category: { type: "string", enum: ["produce", "order", "investigate", "contact_copacker"] }
+              }
+            }
+          }
+        },
+        required: ["title", "summary", "scheduled_items", "purchase_recommendations", "action_list"]
+      };
+
+      const today = new Date().toISOString().split("T")[0];
+      const result = await base44.integrations.Core.InvokeLLM({
+        model: "claude_sonnet_4_6",
+        response_json_schema: schema,
+        prompt: `${SYSTEM_PROMPT}
+
+=== LIVE DATA FROM BASE44 ===
+${context}
+
+=== TASK ===
+Today is ${today}. Generate a complete 10-business-day DRAFT PRODUCTION SCHEDULE as structured JSON following the provided schema.
+
+CRITICAL REQUIREMENTS:
+1. Execute Steps 1–4 internally, then produce the structured output.
+2. For each scheduled_items entry, you MUST first verify the BOM (Recipe ingredients vs Inventory) — set bom_status to "can_make", "partial", "blocked", or "data_gap" based on actual material availability.
+3. Only schedule items with bom_status = "can_make" or "partial". Items with bom_status = "blocked" go into blocked_items instead.
+4. Skip copacked/buy production_types from scheduled_items (mention them in summary or action_list as "contact co-packer").
+5. Exclude any SKU listed in MasterExclusion.
+6. Forecasting must be based on ForecastSuggestion + current Inventory levels (already provided).
+7. For every partial/blocked SKU, generate purchase_recommendations entries with exact shortfall math (show the calculation in the "math" field, e.g. "ceil(1658/100)=17 batches × 0.05kg = 0.85kg needed, 0.3kg on hand, shortfall 0.55kg").
+8. Group purchase_recommendations by supplier. Mark priority "rush" if needed within 7 days, otherwise "standard".
+9. Build action_list as a prioritized, owner-assigned to-do list (categories: produce, order, investigate, contact_copacker).
+10. Summary should be 3–5 sentences: what to make, what to order, top risks.
+
+Return only the JSON object matching the schema.`
+      });
+
+      const draft = await base44.entities.DraftSchedule.create({
+        title: result.title || `Draft Schedule — ${today}`,
+        generated_at: new Date().toISOString(),
+        generated_by: me?.full_name || me?.email || "AI Assistant",
+        horizon_days: result.horizon_days || 10,
+        summary: result.summary || "",
+        scheduled_items: result.scheduled_items || [],
+        purchase_recommendations: result.purchase_recommendations || [],
+        blocked_items: result.blocked_items || [],
+        action_list: result.action_list || [],
+        status: "draft"
+      });
+
+      const url = `/DraftSchedule?id=${draft.id}`;
+      window.open(url, "_blank");
+
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        content: `✅ **Draft schedule generated and opened in a new tab.**\n\n**${draft.title}**\n\n- 📅 ${result.scheduled_items?.length || 0} production runs scheduled (BOM-verified)\n- 🛒 ${result.purchase_recommendations?.length || 0} material purchase recommendations\n- ⚠️ ${result.blocked_items?.length || 0} blocked SKUs awaiting materials\n- ✅ ${result.action_list?.length || 0} action items\n\n${result.summary || ""}\n\n[Open draft schedule →](${url})`,
+        draftUrl: url
+      }]);
+    } catch (err) {
+      console.error("Draft schedule generation failed:", err);
+      setMessages(prev => [...prev, { role: "assistant", content: `Sorry, I couldn't generate the draft schedule: ${err.message || "unknown error"}` }]);
+    }
+    setDraftLoading(false);
   };
 
   const sendMessage = async (text) => {
@@ -63,17 +430,18 @@ ${demandSummaries.map(d => `- ${d.sku} | ${d.product} | avg/mo: ${d.avgMonthly} 
       const history = messages.slice(-8).map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n');
 
       const response = await base44.integrations.Core.InvokeLLM({
-        prompt: `You are a smart assistant for a manufacturing company called neōb. You have access to live data from their app.
+        model: "claude_sonnet_4_6",
+        prompt: `${SYSTEM_PROMPT}
 
-LIVE DATA CONTEXT:
+=== LIVE DATA FROM BASE44 ===
 ${context}
 
-CONVERSATION HISTORY:
+=== CONVERSATION HISTORY ===
 ${history}
 
 User: ${userMsg}
 
-Answer concisely and helpfully. Use bullet points and markdown formatting where useful. Reference specific SKUs, names, and numbers from the data.`,
+Answer the user using the live data above. Follow your response style rules: lead with the answer, use tables for lists, always include units, flag critical items first, and be specific (named SKUs, suppliers, dates, quantities). If a recipe or supplier lead time is missing, say so explicitly.`,
       });
       setMessages(prev => [...prev, { role: "assistant", content: response }]);
     } catch (err) {
@@ -124,6 +492,21 @@ Answer concisely and helpfully. Use bullet points and markdown formatting where 
           <div ref={bottomRef} />
         </CardContent>
       </Card>
+
+      {/* Primary action: Generate Draft Schedule */}
+      <div className="mt-3">
+        <Button
+          onClick={generateDraftSchedule}
+          disabled={draftLoading || loading}
+          className="w-full bg-orange-600 hover:bg-orange-500 text-white"
+        >
+          {draftLoading ? (
+            <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating draft schedule (BOM-verified)…</>
+          ) : (
+            <><FileText className="w-4 h-4 mr-2" /> Generate Draft Production Schedule <ExternalLink className="w-3.5 h-3.5 ml-2 opacity-70" /></>
+          )}
+        </Button>
+      </div>
 
       {/* Quick prompts */}
       <div className="flex gap-2 mt-3 flex-wrap">

@@ -241,6 +241,18 @@
     "yield_expected_pct": {
       "type": "number",
       "description": "Expected yield percentage from raw to finished"
+    },
+    "estimated_labor_hours_per_batch": {
+      "type": "number",
+      "description": "Estimated labor hours required per batch"
+    },
+    "cost_per_labor_hour": {
+      "type": "number",
+      "description": "Cost per labor hour for this recipe (CAD)"
+    },
+    "target_profit_margin_percentage": {
+      "type": "number",
+      "description": "Target gross profit margin percentage (e.g. 60 = 60%)"
     }
   },
   "required": [

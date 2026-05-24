@@ -74,6 +74,7 @@ export default function InventoryRequirements() {
   const [events, setEvents] = useState([]);
   const [workspace, setWorkspace] = useState({ ...DEFAULT_WORKSPACE, minMonthlyVelocity: 0 });
   const [plannerSKUs, setPlannerSKUs] = useState(new Set());
+  const [requestedSKUs, setRequestedSKUs] = useState(new Map()); // sku -> status
   const [loading, setLoading] = useState(true);
   const [forecastMonths, setForecastMonths] = useState(3);
   const [detailItem, setDetailItem] = useState(null);
@@ -153,6 +154,19 @@ export default function InventoryRequirements() {
           });
           setPlannerSKUs(new Set(suggestions.map((s) => s.sku)));
         } catch {}
+
+        // Active Production Requests (any in-pipeline stage)
+        try {
+          const requests = await base44.entities.ProductionRequest.filter({
+            status: { $in: ["pending", "material_check", "approved", "in_production"] },
+          });
+          const map = new Map();
+          requests.forEach((r) => {
+            // Keep the most-advanced status if duplicates exist
+            if (r.sku) map.set(r.sku, r.status);
+          });
+          setRequestedSKUs(map);
+        } catch {}
       } catch (err) {
         console.error("Failed to load inventory requirements data:", err);
         setSummaries(baselineToSummaries(baselineData));
@@ -194,6 +208,7 @@ export default function InventoryRequirements() {
       <InventoryRequirementsTable
         plan={plan}
         plannerSKUs={plannerSKUs}
+        requestedSKUs={requestedSKUs}
         workspace={{ ...workspace, forecastMonths }}
         forecastMonths={forecastMonths}
         onForecastMonthsChange={setForecastMonths}

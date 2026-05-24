@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Search, ClipboardList, Eye, Send, CheckCircle2, AlertCircle } from "lucide-react";
+import { Search, ClipboardList, Eye, Send, CheckCircle2, AlertCircle, Clock } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { URGENCY_COLORS, URGENCY_LABELS, formatNumber, getCategories } from "@/components/demand/demandHelpers";
 import { sortPlanItems } from "@/components/demand/demandEngine";
@@ -16,14 +16,23 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
  * Read-only mirror of the Demand Planner's Full Plan table.
  * No selection, no push-to-planning, no config editing.
  */
+const REQUEST_STATUS_LABEL = {
+  pending: "Pending",
+  material_check: "Material Check",
+  approved: "Approved",
+  in_production: "In Production",
+};
+
 export default function InventoryRequirementsTable({
   plan,
   plannerSKUs,
+  requestedSKUs,
   workspace,
   onViewDetail,
   forecastMonths,
   onForecastMonthsChange,
 }) {
+  const [locallyRequested, setLocallyRequested] = useState(new Map());
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState("All");
   const [urgencyFilter, setUrgencyFilter] = useState("All");
@@ -65,6 +74,11 @@ export default function InventoryRequirementsTable({
       });
       console.log("ProductionRequest created:", created);
       queryClient.invalidateQueries({ queryKey: ["production_requests_pending"] });
+      setLocallyRequested((prev) => {
+        const next = new Map(prev);
+        next.set(pushItem.sku, "pending");
+        return next;
+      });
       setPushSuccess(pushItem.sku);
       setTimeout(() => setPushSuccess(null), 3000);
       closePush();
@@ -241,17 +255,51 @@ export default function InventoryRequirementsTable({
                     {item.monthsCover === 99 ? "99+" : `${item.monthsCover} mo`}
                   </td>
                   <td className="px-3 py-2 text-right">
-                    <Button
-                      size="sm"
-                      onClick={(e) => { e.stopPropagation(); openPush(item); }}
-                      className="h-7 px-2 text-xs bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 border border-orange-500/30"
-                    >
-                      {pushSuccess === item.sku ? (
-                        <><CheckCircle2 className="w-3 h-3 mr-1" />Pushed</>
-                      ) : (
-                        <><Send className="w-3 h-3 mr-1" />Push</>
-                      )}
-                    </Button>
+                    {(() => {
+                      const requestStatus = locallyRequested.get(item.sku) || requestedSKUs?.get?.(item.sku);
+                      const onPlanner = plannerSKUs?.has?.(item.sku);
+                      const inPipeline = !!requestStatus || onPlanner;
+                      return (
+                        <div className="flex items-center justify-end gap-1.5">
+                          {requestStatus && (
+                            <span
+                              className="inline-flex items-center gap-0.5 text-[9px] text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded-full"
+                              title={`Production Request — ${REQUEST_STATUS_LABEL[requestStatus] || requestStatus}`}
+                            >
+                              <Clock className="w-2.5 h-2.5" />
+                              {REQUEST_STATUS_LABEL[requestStatus] || requestStatus}
+                            </span>
+                          )}
+                          {!requestStatus && onPlanner && (
+                            <span
+                              className="inline-flex items-center gap-0.5 text-[9px] text-blue-400 bg-blue-500/10 border border-blue-500/30 px-1.5 py-0.5 rounded-full"
+                              title="Already on Production Planner"
+                            >
+                              <ClipboardList className="w-2.5 h-2.5" />
+                              Planner
+                            </span>
+                          )}
+                          <Button
+                            size="sm"
+                            onClick={(e) => { e.stopPropagation(); openPush(item); }}
+                            className={`h-7 px-2 text-xs border ${
+                              inPipeline
+                                ? "bg-zinc-800 hover:bg-zinc-700 text-zinc-400 border-zinc-700"
+                                : "bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 border-orange-500/30"
+                            }`}
+                            title={inPipeline ? "Already in pipeline — push again to add another request" : "Push to Production Request"}
+                          >
+                            {pushSuccess === item.sku ? (
+                              <><CheckCircle2 className="w-3 h-3 mr-1" />Pushed</>
+                            ) : inPipeline ? (
+                              <><Send className="w-3 h-3 mr-1" />Re-push</>
+                            ) : (
+                              <><Send className="w-3 h-3 mr-1" />Push</>
+                            )}
+                          </Button>
+                        </div>
+                      );
+                    })()}
                   </td>
                 </tr>
               );

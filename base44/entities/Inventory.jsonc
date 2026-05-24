@@ -141,6 +141,14 @@
     "component_photo": {
       "type": "string",
       "description": "Photo URL of the physical component (bottle, cap, label, etc.)"
+    },
+    "retail_price": {
+      "type": "number",
+      "description": "Retail selling price (CAD) \u2014 for finished_product type"
+    },
+    "wholesale_price": {
+      "type": "number",
+      "description": "Wholesale selling price (CAD) \u2014 for finished_product type"
     }
   },
   "required": [
