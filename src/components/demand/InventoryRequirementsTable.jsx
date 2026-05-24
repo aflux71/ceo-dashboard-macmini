@@ -212,6 +212,7 @@ export default function InventoryRequirementsTable({
               ))}
               <th className="px-3 py-2 text-right text-zinc-500 font-medium text-xs uppercase w-20">Need</th>
               <th className="px-3 py-2 text-right text-zinc-500 font-medium text-xs uppercase w-20">Cover</th>
+              <th className="px-3 py-2 text-right text-zinc-500 font-medium text-xs uppercase w-32">Status</th>
               <th className="px-3 py-2 text-right text-zinc-500 font-medium text-xs uppercase w-28">Action</th>
             </tr>
           </thead>
@@ -254,53 +255,58 @@ export default function InventoryRequirementsTable({
                   <td className={`px-3 py-2 text-right tabular-nums ${uc.text}`}>
                     {item.monthsCover === 99 ? "99+" : `${item.monthsCover} mo`}
                   </td>
-                  <td className="px-3 py-2 text-right">
-                    {(() => {
-                      const requestStatus = locallyRequested.get(item.sku) || requestedSKUs?.get?.(item.sku);
-                      const onPlanner = plannerSKUs?.has?.(item.sku);
-                      const inPipeline = !!requestStatus || onPlanner;
-                      return (
-                        <div className="flex items-center justify-end gap-1.5">
-                          {requestStatus && (
-                            <span
-                              className="inline-flex items-center gap-0.5 text-[9px] text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded-full"
-                              title={`Production Request — ${REQUEST_STATUS_LABEL[requestStatus] || requestStatus}`}
+                  {(() => {
+                    const requestStatus = locallyRequested.get(item.sku) || requestedSKUs?.get?.(item.sku);
+                    const onPlanner = plannerSKUs?.has?.(item.sku);
+                    const inPipeline = !!requestStatus || onPlanner;
+                    return (
+                      <>
+                        <td className="px-3 py-2 text-right">
+                          <div className="flex items-center justify-end">
+                            {requestStatus ? (
+                              <span
+                                className="inline-flex items-center gap-1 h-7 px-2 text-xs font-medium rounded-md border text-amber-400 bg-amber-500/10 border-amber-500/30"
+                                title={`Production Request — ${REQUEST_STATUS_LABEL[requestStatus] || requestStatus}`}
+                              >
+                                <Clock className="w-3 h-3" />
+                                {REQUEST_STATUS_LABEL[requestStatus] || requestStatus}
+                              </span>
+                            ) : onPlanner ? (
+                              <span
+                                className="inline-flex items-center gap-1 h-7 px-2 text-xs font-medium rounded-md border text-blue-400 bg-blue-500/10 border-blue-500/30"
+                                title="Already on Production Planner"
+                              >
+                                <ClipboardList className="w-3 h-3" />
+                                Planner
+                              </span>
+                            ) : null}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <div className="flex items-center justify-end">
+                            <Button
+                              size="sm"
+                              onClick={(e) => { e.stopPropagation(); openPush(item); }}
+                              className={`h-7 px-2 text-xs border ${
+                                inPipeline
+                                  ? "bg-zinc-800 hover:bg-zinc-700 text-zinc-400 border-zinc-700"
+                                  : "bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 border-orange-500/30"
+                              }`}
+                              title={inPipeline ? "Already in pipeline — push again to add another request" : "Push to Production Request"}
                             >
-                              <Clock className="w-2.5 h-2.5" />
-                              {REQUEST_STATUS_LABEL[requestStatus] || requestStatus}
-                            </span>
-                          )}
-                          {!requestStatus && onPlanner && (
-                            <span
-                              className="inline-flex items-center gap-0.5 text-[9px] text-blue-400 bg-blue-500/10 border border-blue-500/30 px-1.5 py-0.5 rounded-full"
-                              title="Already on Production Planner"
-                            >
-                              <ClipboardList className="w-2.5 h-2.5" />
-                              Planner
-                            </span>
-                          )}
-                          <Button
-                            size="sm"
-                            onClick={(e) => { e.stopPropagation(); openPush(item); }}
-                            className={`h-7 px-2 text-xs border ${
-                              inPipeline
-                                ? "bg-zinc-800 hover:bg-zinc-700 text-zinc-400 border-zinc-700"
-                                : "bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 border-orange-500/30"
-                            }`}
-                            title={inPipeline ? "Already in pipeline — push again to add another request" : "Push to Production Request"}
-                          >
-                            {pushSuccess === item.sku ? (
-                              <><CheckCircle2 className="w-3 h-3 mr-1" />Pushed</>
-                            ) : inPipeline ? (
-                              <><Send className="w-3 h-3 mr-1" />Re-push</>
-                            ) : (
-                              <><Send className="w-3 h-3 mr-1" />Push</>
-                            )}
-                          </Button>
-                        </div>
-                      );
-                    })()}
-                  </td>
+                              {pushSuccess === item.sku ? (
+                                <><CheckCircle2 className="w-3 h-3 mr-1" />Pushed</>
+                              ) : inPipeline ? (
+                                <><Send className="w-3 h-3 mr-1" />Re-push</>
+                              ) : (
+                                <><Send className="w-3 h-3 mr-1" />Push</>
+                              )}
+                            </Button>
+                          </div>
+                        </td>
+                      </>
+                    );
+                  })()}
                 </tr>
               );
             })}
