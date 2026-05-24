@@ -7,10 +7,12 @@
       "enum": [
         "admin",
         "user",
-        "portal"
+        "portal",
+        "owner"
       ],
       "default": "user",
-      "description": "User role - 'portal' is limited to portal admin pages only"
+      "description": "User role - 'portal' is limited to portal admin pages only, 'owner' has full system access"
     }
-  }
+  },
+  "required": []
 }
