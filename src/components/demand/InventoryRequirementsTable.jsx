@@ -265,7 +265,7 @@ export default function InventoryRequirementsTable({
                           <div className="flex items-center justify-end">
                             {requestStatus ? (
                               <span
-                                className="inline-flex items-center gap-1 h-7 px-2 text-xs font-medium rounded-md border text-amber-400 bg-amber-500/10 border-amber-500/30"
+                                className="inline-flex items-center gap-1 h-7 px-2 text-xs font-medium rounded-md border text-amber-400 bg-amber-500/10 border-amber-500/30 whitespace-nowrap"
                                 title={`Production Request — ${REQUEST_STATUS_LABEL[requestStatus] || requestStatus}`}
                               >
                                 <Clock className="w-3 h-3" />
@@ -273,7 +273,7 @@ export default function InventoryRequirementsTable({
                               </span>
                             ) : onPlanner ? (
                               <span
-                                className="inline-flex items-center gap-1 h-7 px-2 text-xs font-medium rounded-md border text-blue-400 bg-blue-500/10 border-blue-500/30"
+                                className="inline-flex items-center gap-1 h-7 px-2 text-xs font-medium rounded-md border text-blue-400 bg-blue-500/10 border-blue-500/30 whitespace-nowrap"
                                 title="Already on Production Planner"
                               >
                                 <ClipboardList className="w-3 h-3" />
