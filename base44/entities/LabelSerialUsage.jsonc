@@ -1,0 +1,58 @@
+{
+  "name": "LabelSerialUsage",
+  "type": "object",
+  "properties": {
+    "label_id": {
+      "type": "string",
+      "description": "Reference to Label entity"
+    },
+    "label_sku": {
+      "type": "string"
+    },
+    "label_name": {
+      "type": "string"
+    },
+    "po_id": {
+      "type": "string",
+      "description": "LabelPurchaseOrder id the consumed range came from"
+    },
+    "po_number": {
+      "type": "string"
+    },
+    "serial_prefix": {
+      "type": "string"
+    },
+    "serial_start": {
+      "type": "number",
+      "description": "First serial consumed in this event"
+    },
+    "serial_end": {
+      "type": "number",
+      "description": "Last serial consumed in this event"
+    },
+    "serial_padding": {
+      "type": "number",
+      "default": 4
+    },
+    "quantity": {
+      "type": "number",
+      "description": "Number of labels consumed"
+    },
+    "used_by": {
+      "type": "string",
+      "description": "User who logged the usage"
+    },
+    "used_for": {
+      "type": "string",
+      "description": "Batch ID, production run, or free-form description of where serials went"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "label_id",
+    "label_sku",
+    "quantity"
+  ]
+}
