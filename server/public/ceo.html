@@ -803,6 +803,10 @@
     <h1>neōb</h1>
     <span>CEO Dashboard</span>
   </div>
+  <div class="header-nav" style="display:flex;gap:8px;margin-left:24px">
+    <a href="ceo.html" class="nav-link active" style="padding:6px 14px;border-radius:8px;font-size:13px;font-weight:500;text-decoration:none;background:var(--lavender-light);color:var(--lavender)">Dashboard</a>
+    <a href="tasks.html" class="nav-link" style="padding:6px 14px;border-radius:8px;font-size:13px;font-weight:500;text-decoration:none;color:var(--text-2)">Tasks</a>
+  </div>
   <div class="header-right">
     <span class="header-date" id="headerDate">—</span>
     <div class="status-pill" id="statusPill">
@@ -1008,6 +1012,14 @@ async function fetchSyncStatus() {
   } catch(e) { return null; }
 }
 
+async function fetchTasks() {
+  try {
+    const r = await fetch(API + '/api/tasks');
+    const data = await r.json();
+    return data.tasks || [];
+  } catch(e) { return null; }
+}
+
 async function fetchStoreData(period) {
   try {
     var pd = getPeriodDates(period || currentPeriod);
@@ -1051,7 +1063,7 @@ function buildStoreRows(rows) {
 }
 
 // ── RENDER ─────────────────────────────────────────────────────────
-function renderDashboard(stats, storeData) {
+function renderDashboard(stats, storeData, liveTasks) {
   const now = new Date();
   const yearPct = yearProgress();
   const yearTarget2026 = ANNUAL_TARGETS[2026];
@@ -1073,13 +1085,18 @@ function renderDashboard(stats, storeData) {
   // KPI status
   const revenueStatus = getStatus(rev30d * 12, yearTarget2026);
 
-  // Tasks analysis
+  // Tasks analysis — live data from /api/tasks (falls back to empty if unavailable)
   const today_str = new Date().toISOString().split('T')[0];
-  const overdueTasks = TASKS.filter(t => t.status !== 'Complete' && t.due && t.due < today_str);
-  const activeTasks = TASKS.filter(t => ['In Progress', 'Not Started'].includes(t.status) && (!t.due || t.due >= today_str))
+  const taskData = (liveTasks && liveTasks.length) ? liveTasks.map(t => ({
+    title: t.title, owner: t.owner, due: t.due_date, status: t.status,
+    priority: t.priority, quarter: t.quarter, notes: t.notes
+  })) : [];
+  const overdueTasks = taskData.filter(t => t.status !== 'Complete' && t.due && t.due < today_str);
+  const activeTasks = taskData.filter(t => ['In Progress', 'Not Started', 'Issue'].includes(t.status) && (!t.due || t.due >= today_str))
     .sort((a, b) => (a.due || '9999') < (b.due || '9999') ? -1 : 1)
     .slice(0, 6);
-  const completedTasks = TASKS.filter(t => t.status === 'Complete').length;
+  const completedTasks = taskData.filter(t => t.status === 'Complete').length;
+  const totalTaskCount = taskData.length;
 
   // Overall status
   const totalOpen = overdueTasks.length;
@@ -1185,7 +1202,7 @@ function renderDashboard(stats, storeData) {
           </div>
           <div class="milestone">
             <span class="milestone-label">Plan Complete</span>
-            <span class="milestone-val done">${completedTasks}/${TASKS.length} tasks</span>
+            <span class="milestone-val done">${completedTasks}/${totalTaskCount} tasks</span>
           </div>
         </div>
       </div>
@@ -1274,7 +1291,7 @@ function renderDashboard(stats, storeData) {
         <!-- TASKS -->
         <div class="tasks-card">
           <div class="section-header">
-            <div class="section-title">Growth Plan Tasks</div>
+            <div class="section-title"><a href="tasks.html" style="color:inherit;text-decoration:none">Growth Plan Tasks →</a></div>
             <div class="section-sub">${completedTasks} complete · ${overdueTasks.length} overdue</div>
           </div>
           ${activeTasks.map(t => {
@@ -1393,8 +1410,8 @@ async function loadAll(period) {
   const btn = document.getElementById('refreshBtn');
   if (btn) btn.classList.add('spinning');
 
-  const [stats, storeData] = await Promise.all([fetchStats(), fetchStoreData(currentPeriod)]);
-  renderDashboard(stats, storeData);
+  const [stats, storeData, liveTasks] = await Promise.all([fetchStats(), fetchStoreData(currentPeriod), fetchTasks()]);
+  renderDashboard(stats, storeData, liveTasks);
 
   if (btn) btn.classList.remove('spinning');
 }

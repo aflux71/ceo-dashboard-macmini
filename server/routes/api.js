@@ -475,4 +475,74 @@ function getStoreRevenue(from, to) {
   return result;
 }
 
+
+// ── TASK MANAGEMENT ENDPOINTS ─────────────────────────────────────
+
+// GET all tasks
+router.get('/tasks', (req, res) => {
+  try {
+    const tasks = db.prepare('SELECT * FROM tasks ORDER BY due_date ASC').all();
+    res.json({ tasks });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST create a new task
+router.post('/tasks', (req, res) => {
+  try {
+    const { title, owner, quarter, priority, status, due_date, notes } = req.body;
+    if (!title) return res.status(400).json({ error: 'Title is required' });
+    const result = db.prepare(`
+      INSERT INTO tasks (title, owner, quarter, priority, status, due_date, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      title,
+      owner || null,
+      quarter || null,
+      priority || 'medium',
+      status || 'Not Started',
+      due_date || null,
+      notes || null
+    );
+    const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(result.lastInsertRowid);
+    res.json({ task });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// PATCH update a task
+router.patch('/tasks/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
+    if (!existing) return res.status(404).json({ error: 'Task not found' });
+
+    const fields = ['title','owner','quarter','priority','status','due_date','notes'];
+    const updates = [];
+    const values = [];
+    for (const f of fields) {
+      if (req.body[f] !== undefined) {
+        updates.push(`${f} = ?`);
+        values.push(req.body[f]);
+      }
+    }
+    if (updates.length === 0) return res.json({ task: existing });
+
+    updates.push("updated_at = datetime('now')");
+    values.push(id);
+    db.prepare(`UPDATE tasks SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+    const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
+    res.json({ task });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE a task
+router.delete('/tasks/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
+    if (!existing) return res.status(404).json({ error: 'Task not found' });
+    db.prepare('DELETE FROM tasks WHERE id = ?').run(id);
+    res.json({ ok: true, deleted: id });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
 export default router;
