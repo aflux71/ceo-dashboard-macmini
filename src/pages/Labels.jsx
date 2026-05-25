@@ -27,6 +27,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import Badge from "@/components/ui/Badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
   Plus,
@@ -43,7 +44,9 @@ import {
   ArrowDown,
   ShoppingCart,
   Printer,
+  Hash,
 } from "lucide-react";
+import LabelSerials from "./LabelSerials";
 
 export default function Labels() {
   const [search, setSearch] = useState("");
@@ -384,6 +387,18 @@ export default function Labels() {
         </div>
       </div>
 
+      <Tabs defaultValue="inventory" className="space-y-6">
+        <TabsList className="bg-zinc-900 border border-zinc-800">
+          <TabsTrigger value="inventory" className="data-[state=active]:bg-zinc-800 data-[state=active]:text-orange-400">
+            <Tag className="w-4 h-4 mr-2" /> Inventory
+          </TabsTrigger>
+          <TabsTrigger value="serials" className="data-[state=active]:bg-zinc-800 data-[state=active]:text-orange-400">
+            <Hash className="w-4 h-4 mr-2" /> Serial Tracking
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="inventory" className="space-y-6 mt-0">
+
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="bg-zinc-900 border-zinc-800">
@@ -575,6 +590,12 @@ export default function Labels() {
         recipes={allProducts}
         isLoading={createMutation.isPending || updateMutation.isPending}
       />
+        </TabsContent>
+
+        <TabsContent value="serials" className="mt-0">
+          <LabelSerials />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
