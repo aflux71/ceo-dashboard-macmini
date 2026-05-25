@@ -74,6 +74,11 @@ export default function LabelPurchaseOrders() {
     queryFn: () => base44.entities.Label.list(),
   });
 
+  const { data: suppliers = [] } = useQuery({
+    queryKey: ["suppliers-active"],
+    queryFn: () => base44.entities.Supplier.filter({ active: true }, "name"),
+  });
+
   const createMutation = useMutation({
     mutationFn: (data) => base44.entities.LabelPurchaseOrder.create(data),
     onSuccess: () => {
@@ -442,6 +447,7 @@ export default function LabelPurchaseOrders() {
         open={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
         labels={labels}
+        suppliers={suppliers}
         onCreate={(data) => createMutation.mutate(data)}
         isPending={createMutation.isPending}
       />
@@ -564,6 +570,7 @@ export default function LabelPurchaseOrders() {
         open={!!editPO}
         po={editPO}
         labels={labels}
+        suppliers={suppliers}
         onClose={() => setEditPO(null)}
         onSave={(updatedData) => handleEditSave(editPO, updatedData)}
         isPending={updateMutation.isPending}
@@ -572,7 +579,7 @@ export default function LabelPurchaseOrders() {
   );
 }
 
-function EditPODialog({ open, po, labels, onClose, onSave, isPending }) {
+function EditPODialog({ open, po, labels, suppliers = [], onClose, onSave, isPending }) {
   const [supplierName, setSupplierName] = useState("");
   const [expectedDate, setExpectedDate] = useState("");
   const [notes, setNotes] = useState("");
@@ -657,8 +664,8 @@ function EditPODialog({ open, po, labels, onClose, onSave, isPending }) {
         <div className="flex-1 overflow-y-auto space-y-5 py-2 pr-1">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-xs text-zinc-400 mb-1 block">Supplier Name</label>
-              <Input value={supplierName} onChange={(e) => setSupplierName(e.target.value)} className="bg-zinc-800 border-zinc-700 h-9 text-sm" />
+              <label className="text-xs text-zinc-400 mb-1 block">Supplier</label>
+              <SupplierSelect value={supplierName} onChange={setSupplierName} suppliers={suppliers} />
             </div>
             <div>
               <label className="text-xs text-zinc-400 mb-1 block">Expected Delivery Date</label>
@@ -791,7 +798,31 @@ function EditPODialog({ open, po, labels, onClose, onSave, isPending }) {
   );
 }
 
-function ManualPODialog({ open, onClose, labels, onCreate, isPending }) {
+function SupplierSelect({ value, onChange, suppliers }) {
+  // Show the current value even if it doesn't match a known supplier (legacy free-text)
+  const hasUnknownLegacy = value && !suppliers.some((s) => s.name === value);
+  return (
+    <Select value={value || ""} onValueChange={onChange}>
+      <SelectTrigger className="bg-zinc-800 border-zinc-700 h-9 text-sm">
+        <SelectValue placeholder="Select supplier..." />
+      </SelectTrigger>
+      <SelectContent>
+        {hasUnknownLegacy && (
+          <SelectItem value={value}>{value} (legacy)</SelectItem>
+        )}
+        {suppliers.length === 0 ? (
+          <div className="px-2 py-1.5 text-xs text-zinc-500">No active suppliers</div>
+        ) : (
+          suppliers.map((s) => (
+            <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+          ))
+        )}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function ManualPODialog({ open, onClose, labels, suppliers = [], onCreate, isPending }) {
   const [search, setSearch] = useState("");
   const [supplierName, setSupplierName] = useState("");
   const [expectedDate, setExpectedDate] = useState("");
@@ -888,8 +919,8 @@ function ManualPODialog({ open, onClose, labels, onCreate, isPending }) {
           {/* PO Details */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-xs text-zinc-400 mb-1 block">Supplier Name</label>
-              <Input value={supplierName} onChange={(e) => setSupplierName(e.target.value)} placeholder="e.g. Ruasma Printing" className="bg-zinc-800 border-zinc-700 h-9 text-sm" />
+              <label className="text-xs text-zinc-400 mb-1 block">Supplier</label>
+              <SupplierSelect value={supplierName} onChange={setSupplierName} suppliers={suppliers} />
             </div>
             <div>
               <label className="text-xs text-zinc-400 mb-1 block">Expected Delivery Date</label>
