@@ -12,7 +12,7 @@ const variants = {
   cyan: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
 };
 
-export default function Badge({ children, variant = "default", className }) {
+function Badge({ children, variant = "default", className }) {
   return (
     <span className={cn(
       "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border",
@@ -23,3 +23,6 @@ export default function Badge({ children, variant = "default", className }) {
     </span>
   );
 }
+
+export default Badge;
+export { Badge };
