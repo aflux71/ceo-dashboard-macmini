@@ -715,6 +715,85 @@
     .kpi-grid { grid-template-columns: repeat(2, 1fr); }
     .hero-current { font-size: 40px; }
   }
+
+  /* PERIOD SELECTOR */
+  .period-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 20px;
+  }
+  .period-label {
+    font-size: 11px;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+    margin-right: 4px;
+  }
+  .period-btn {
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-2);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .period-btn:hover { border-color: var(--lavender-mid); color: var(--lavender); }
+  .period-btn.active {
+    background: var(--lavender);
+    border-color: var(--lavender);
+    color: white;
+  }
+  .period-context {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--text-3);
+    font-family: 'DM Mono', monospace;
+  }
+
+  .custom-range {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    margin-left: 8px;
+    padding: 4px 12px;
+    background: var(--surface);
+    border: 1px solid var(--lavender-mid);
+    border-radius: 20px;
+  }
+  .custom-range.visible { display: flex; }
+  .custom-range label {
+    font-size: 11px;
+    color: var(--text-3);
+    font-weight: 500;
+  }
+  .custom-range input[type="date"] {
+    border: none;
+    background: transparent;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--text);
+    cursor: pointer;
+    outline: none;
+  }
+  .custom-range-apply {
+    padding: 3px 10px;
+    background: var(--lavender);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .custom-range-apply:hover { opacity: 0.85; }
 </style>
 </head>
 <body>
@@ -745,6 +824,84 @@
 
 <script>
 const API = 'http://100.68.55.123:3001';
+
+// ── Period state ─────────────────────────────────────────────────
+var currentPeriod = '30d';
+
+var PERIODS = [
+  { key: '7d',        label: 'Last 7 Days' },
+  { key: 'last_week', label: 'Last Week' },
+  { key: '30d',       label: 'Last 30 Days' },
+  { key: 'mtd',       label: 'This Month' },
+  { key: 'ytd',       label: 'YTD' },
+  { key: 'custom',    label: 'Custom' }
+];
+
+var customFrom = null;
+var customTo = null;
+
+function getPeriodDates(period) {
+  var now = new Date();
+  var to, from, lyFrom, lyTo;
+  switch(period) {
+    case '7d':
+      from = new Date(now - 7*86400000);
+      to = now;
+      break;
+    case 'last_week': {
+      var day = now.getDay();
+      var lastMon = new Date(now); lastMon.setDate(now.getDate() - day - 6);
+      lastMon.setHours(0,0,0,0);
+      var lastSun = new Date(lastMon); lastSun.setDate(lastMon.getDate() + 6);
+      lastSun.setHours(23,59,59,999);
+      from = lastMon; to = lastSun;
+      break;
+    }
+    case 'mtd':
+      from = new Date(now.getFullYear(), now.getMonth(), 1);
+      to = now;
+      break;
+    case 'ytd':
+      from = new Date(now.getFullYear(), 0, 1);
+      to = now;
+      break;
+    case 'custom':
+      if (customFrom) {
+        var fp = customFrom.split('-');
+        from = new Date(parseInt(fp[0]), parseInt(fp[1])-1, parseInt(fp[2]), 0, 0, 0);
+      } else {
+        from = new Date(now - 30*86400000);
+      }
+      if (customTo) {
+        var tp = customTo.split('-');
+        to = new Date(parseInt(tp[0]), parseInt(tp[1])-1, parseInt(tp[2]), 23, 59, 59);
+      } else {
+        to = now;
+      }
+      break;
+    case '30d':
+    default:
+      from = new Date(now - 30*86400000);
+      to = now;
+      break;
+  }
+  lyFrom = new Date(from); lyFrom.setFullYear(lyFrom.getFullYear() - 1);
+  lyTo = new Date(to); lyTo.setFullYear(lyTo.getFullYear() - 1);
+  return {
+    from: from.toISOString(),
+    to: to.toISOString(),
+    lyFrom: lyFrom.toISOString(),
+    lyTo: lyTo.toISOString(),
+    label: formatDateRange(from, to)
+  };
+}
+
+function formatDateRange(from, to) {
+  var opts = { month: 'short', day: 'numeric', timeZone: 'America/Toronto' };
+  var f = from.toLocaleDateString('en-CA', opts);
+  var t = to.toLocaleDateString('en-CA', opts);
+  return f + ' – ' + t;
+}
 
 // ── PLAN DATA (from plan_targets.csv) ──────────────────────────────
 const ANNUAL_TARGETS = {
@@ -851,13 +1008,18 @@ async function fetchSyncStatus() {
   } catch(e) { return null; }
 }
 
-async function fetchStoreData() {
+async function fetchStoreData(period) {
   try {
-    const [s30, ytd] = await Promise.all([
-      fetch(API + '/api/revenue/by-store?period=30d').then(function(r){ return r.json(); }),
-      fetch(API + '/api/revenue/ytd').then(function(r){ return r.json(); })
+    var pd = getPeriodDates(period || currentPeriod);
+    var storeUrl = API + '/api/revenue/by-store?date_from=' + encodeURIComponent(pd.from) + '&date_to=' + encodeURIComponent(pd.to);
+    var lyStoreUrl = API + '/api/revenue/by-store?date_from=' + encodeURIComponent(pd.lyFrom) + '&date_to=' + encodeURIComponent(pd.lyTo);
+    var ytdUrl = API + '/api/revenue/ytd';
+    const [s30, lyStore, ytd] = await Promise.all([
+      fetch(storeUrl).then(function(r){ return r.json(); }),
+      fetch(lyStoreUrl).then(function(r){ return r.json(); }),
+      fetch(ytdUrl).then(function(r){ return r.json(); })
     ]);
-    return { s30: s30, ytd: ytd };
+    return { s30: s30, lyStore: lyStore, ytd: ytd, periodDates: pd };
   } catch(e) { return null; }
 }
 
@@ -865,7 +1027,7 @@ function buildStoreRows(rows) {
   return rows.map(function(s, i) {
     var target = STORE_TARGETS_2026[s.location_name] || 0;
     var attPct = target > 0 ? (s.ytd_revenue / target) : null;
-    var vsLy = s.ly_revenue > 0 ? Math.round(((s.ytd_revenue - s.ly_revenue) / s.ly_revenue) * 100) : null;
+    var vsLy = s.ly_revenue > 0 ? Math.round(((s.period_revenue - s.ly_revenue) / s.ly_revenue) * 100) : null;
     var vsLyStatus = (vsLy !== null && vsLy >= 0) ? 'up' : 'down';
     var aovStatus = s.aov >= KPI_TARGETS.aov ? 'green' : s.aov >= KPI_TARGETS.aov * 0.75 ? 'amber' : 'red';
     var attStatus = attPct && attPct >= 0.95 ? 'up' : 'down';
@@ -877,7 +1039,7 @@ function buildStoreRows(rows) {
       : '<span class="no-data">—</span>';
     return '<tr>' +
       '<td class="store-name ' + (i === 0 ? 'top' : '') + '">' + s.location_name + '</td>' +
-      '<td class="revenue-val">' + fmt$(s.revenue || 0) + '</td>' +
+      '<td class="revenue-val">' + fmt$(s.period_revenue || s.revenue || 0) + '</td>' +
       '<td><span class="kpi-dot ' + aovStatus + '"></span>$' + (s.aov || 0).toFixed(0) + '</td>' +
       '<td class="revenue-val" style="font-weight:600">' + fmt$(s.ytd_revenue || 0) + '</td>' +
       '<td class="revenue-val" style="color:var(--text-3)">' + (s.ly_revenue ? fmt$(s.ly_revenue) : '—') + '</td>' +
@@ -932,21 +1094,43 @@ function renderDashboard(stats, storeData) {
     : 'Unknown';
 
   var stores30d = storeData && storeData.s30 ? storeData.s30.stores || [] : [];
+  var lyStores = storeData && storeData.lyStore ? storeData.lyStore.stores || [] : [];
   var storesYTD = storeData && storeData.ytd ? storeData.ytd.stores || [] : [];
   var ytdTotal = storeData && storeData.ytd ? storeData.ytd.ytd_total || {} : {};
   var lyTotal = storeData && storeData.ytd ? storeData.ytd.ly_total || {} : {};
   var vsLyPct = storeData && storeData.ytd ? storeData.ytd.vs_ly_pct : null;
+  var periodDates = storeData && storeData.periodDates ? storeData.periodDates : null;
+
+  // For period store comparison: current period vs same period LY
+  var periodTotal = storeData && storeData.s30 ? storeData.s30.total || {} : {};
+  var lyPeriodTotal = storeData && storeData.lyStore ? storeData.lyStore.total || {} : {};
+  var vsPeriodLyPct = lyPeriodTotal.revenue > 0
+    ? Math.round(((periodTotal.revenue - lyPeriodTotal.revenue) / lyPeriodTotal.revenue) * 100)
+    : null;
+
+  // Build LY lookup for current period
+  var lyMap = {};
+  lyStores.forEach(function(s) { lyMap[s.location_name] = s; });
+
   var storeMap = {};
-  stores30d.forEach(function(s) { storeMap[s.location_name] = Object.assign({}, s, {ytd_revenue:0, ly_revenue:0}); });
+  stores30d.forEach(function(s) {
+    var ly = lyMap[s.location_name] || {};
+    storeMap[s.location_name] = Object.assign({}, s, {
+      period_revenue: s.revenue,
+      ly_revenue: ly.revenue || 0,
+      ly_aov: ly.aov || 0,
+      ytd_revenue: 0
+    });
+  });
   storesYTD.forEach(function(s) {
     if (storeMap[s.location_name]) {
       storeMap[s.location_name].ytd_revenue = s.revenue;
-      storeMap[s.location_name].ly_revenue = s.ly_revenue || 0;
     } else {
-      storeMap[s.location_name] = {location_name:s.location_name, revenue:0, orders:0, aov:0, ytd_revenue:s.revenue, ly_revenue:s.ly_revenue||0};
+      var ly = lyMap[s.location_name] || {};
+      storeMap[s.location_name] = {location_name:s.location_name, revenue:0, orders:0, aov:0, period_revenue:0, ytd_revenue:s.revenue, ly_revenue:ly.revenue||0};
     }
   });
-  var storeRows = Object.values(storeMap).sort(function(a,b){ return (b.ytd_revenue||0)-(a.ytd_revenue||0); });
+  var storeRows = Object.values(storeMap).sort(function(a,b){ return (b.period_revenue||0)-(a.period_revenue||0); });
 
   // Update header
   document.getElementById('headerDate').textContent = today();
@@ -955,6 +1139,22 @@ function renderDashboard(stats, storeData) {
   document.getElementById('statusText').textContent = overallText;
 
   const html = `
+    <!-- PERIOD BAR -->
+    <div class="period-bar">
+      <span class="period-label">Period</span>
+      ${PERIODS.map(function(p) {
+        return '<button class="period-btn' + (p.key === currentPeriod ? ' active' : '') + '" data-period="' + p.key + '" onclick="setPeriod(\'' + p.key + '\')">' + p.label + '</button>';
+      }).join('')}
+      <div id="customRange" class="custom-range${currentPeriod === 'custom' ? ' visible' : ''}">
+        <label>From</label>
+        <input type="date" id="customFromDate" value="${customFrom || ''}" max="${new Date().toISOString().split('T')[0]}">
+        <label>To</label>
+        <input type="date" id="customToDate" value="${customTo || ''}" max="${new Date().toISOString().split('T')[0]}">
+        <button class="custom-range-apply" onclick="applyCustomRange()">Apply</button>
+      </div>
+      <span class="period-context">${periodDates ? periodDates.label : ''}</span>
+    </div>
+
     <!-- HERO -->
     <div class="hero fade-in">
       <div class="hero-left">
@@ -1024,24 +1224,24 @@ function renderDashboard(stats, storeData) {
         <div class="section-header">
           <div>
             <div class="section-title">Store Performance</div>
-            <div class="section-sub">Real Shopify data · Matrixify excluded · YTD vs same period LY</div>
+            <div class="section-sub">Real Shopify data · Matrixify excluded · ${periodDates ? periodDates.label : "30 days"} vs same period LY</div>
           </div>
           <div style="text-align:right">
             <div style="font-family:'DM Mono',monospace;font-size:13px;font-weight:600">
-              YTD ${fmt$(ytdTotal.revenue || 0)}
-              <span style="font-size:11px;padding:2px 8px;border-radius:4px;margin-left:6px;background:${(vsLyPct||0) >= 0 ? 'var(--green-light)' : 'var(--red-light)'};color:${(vsLyPct||0) >= 0 ? 'var(--green)' : 'var(--red)'}">
-                ${(vsLyPct||0) >= 0 ? '+' : ''}${vsLyPct||0}% vs LY
+              ${periodDates ? periodDates.label : 'Period'}: ${fmt$(periodTotal.revenue || 0)}
+              <span style="font-size:11px;padding:2px 8px;border-radius:4px;margin-left:6px;background:${(vsPeriodLyPct||0) >= 0 ? 'var(--green-light)' : 'var(--red-light)'};color:${(vsPeriodLyPct||0) >= 0 ? 'var(--green)' : 'var(--red)'}">
+                ${vsPeriodLyPct !== null ? ((vsPeriodLyPct >= 0 ? '+' : '') + vsPeriodLyPct + '% vs LY') : '—'}
               </span>
             </div>
-            <div style="font-size:11px;color:var(--text-3);margin-top:2px">LY same period: ${fmt$(lyTotal.revenue || 0)}</div>
+            <div style="font-size:11px;color:var(--text-3);margin-top:2px">YTD: ${fmt$(ytdTotal.revenue || 0)} · LY period: ${fmt$(lyPeriodTotal.revenue || 0)}</div>
           </div>
         </div>
         <table>
           <thead>
             <tr>
               <th>Store</th>
-              <th>30d Rev</th>
-              <th>30d AOV</th>
+              <th>Period Rev</th>
+              <th>Period AOV</th>
               <th>YTD Revenue</th>
               <th>LY Same Period</th>
               <th>vs LY</th>
@@ -1188,14 +1388,34 @@ function renderKPI(label, value, sub, status, delta, barPct) {
   </div>`;
 }
 
-async function loadAll() {
+async function loadAll(period) {
+  if (period) currentPeriod = period;
   const btn = document.getElementById('refreshBtn');
   if (btn) btn.classList.add('spinning');
 
-  const [stats, storeData] = await Promise.all([fetchStats(), fetchStoreData()]);
+  const [stats, storeData] = await Promise.all([fetchStats(), fetchStoreData(currentPeriod)]);
   renderDashboard(stats, storeData);
 
   if (btn) btn.classList.remove('spinning');
+}
+
+function setPeriod(period) {
+  currentPeriod = period;
+  document.querySelectorAll('.period-btn').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.period === period);
+  });
+  var cr = document.getElementById('customRange');
+  if (cr) cr.classList.toggle('visible', period === 'custom');
+  if (period !== 'custom') loadAll(period);
+}
+
+function applyCustomRange() {
+  var fromEl = document.getElementById('customFromDate');
+  var toEl = document.getElementById('customToDate');
+  if (!fromEl.value || !toEl.value) return;
+  customFrom = fromEl.value;
+  customTo = toEl.value;
+  loadAll('custom');
 }
 
 // Init
