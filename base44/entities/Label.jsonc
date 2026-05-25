@@ -53,13 +53,11 @@
       "description": "Cost per label"
     },
     "notes": {
-      "type": "string",
-      "description": "Additional notes"
+      "type": "string"
     },
     "active": {
       "type": "boolean",
-      "default": true,
-      "description": "Whether label is active"
+      "default": true
     },
     "print_on_demand": {
       "type": "boolean",
@@ -70,6 +68,49 @@
       "type": "boolean",
       "default": false,
       "description": "If true, label is seasonal and low stock alerts are suppressed"
+    },
+    "serial_ranges": {
+      "type": "array",
+      "description": "Received serial ranges for this label (used for tracking)",
+      "items": {
+        "type": "object",
+        "properties": {
+          "po_id": {
+            "type": "string",
+            "description": "LabelPurchaseOrder id this range came from"
+          },
+          "po_number": {
+            "type": "string",
+            "description": "PO number for display"
+          },
+          "serial_prefix": {
+            "type": "string"
+          },
+          "serial_start": {
+            "type": "number"
+          },
+          "serial_end": {
+            "type": "number"
+          },
+          "serial_padding": {
+            "type": "number",
+            "default": 4
+          },
+          "quantity": {
+            "type": "number",
+            "description": "Total labels in this range"
+          },
+          "quantity_used": {
+            "type": "number",
+            "default": 0,
+            "description": "Number consumed from this range"
+          },
+          "received_date": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      }
     }
   },
   "required": [

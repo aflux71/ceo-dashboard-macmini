@@ -45,6 +45,9 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import SerialRangeInputs from "@/components/labels/SerialRangeInputs";
+import ReceivePODialog from "@/components/labels/ReceivePODialog";
+import { formatSerialRange, rangeCount, validateRanges } from "@/components/labels/serialUtils";
 
 const STATUS_CONFIG = {
   pending_approval: { label: "Pending Approval", variant: "amber", icon: Clock },
@@ -60,6 +63,8 @@ export default function LabelPurchaseOrders() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedPO, setSelectedPO] = useState(null);
   const [editPO, setEditPO] = useState(null);
+  const [receivePO, setReceivePO] = useState(null);
+  const [isReceiving, setIsReceiving] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -127,29 +132,50 @@ export default function LabelPurchaseOrders() {
     });
   };
 
-  const handleReceive = async (po) => {
-    // Update PO status
-    await base44.entities.LabelPurchaseOrder.update(po.id, {
-      status: "received",
-      received_date: new Date().toISOString().split("T")[0],
-    });
+  const handleReceiveConfirm = async (itemsWithSerials) => {
+    setIsReceiving(true);
+    try {
+      const today = new Date().toISOString().split("T")[0];
 
-    // Update label quantities
-    for (const item of po.items || []) {
-      if (item.label_id) {
+      // Update PO with serial ranges + received status
+      await base44.entities.LabelPurchaseOrder.update(receivePO.id, {
+        status: "received",
+        received_date: today,
+        items: itemsWithSerials,
+      });
+
+      // Update label quantities AND append serial range to each label
+      for (const item of itemsWithSerials) {
+        if (!item.label_id) continue;
         const labels = await base44.entities.Label.filter({ id: item.label_id });
-        if (labels.length > 0) {
-          const label = labels[0];
-          await base44.entities.Label.update(item.label_id, {
-            current_quantity: (label.current_quantity || 0) + item.quantity,
-          });
-        }
+        if (labels.length === 0) continue;
+        const label = labels[0];
+        const newRange = {
+          po_id: receivePO.id,
+          po_number: receivePO.po_number,
+          serial_prefix: item.serial_prefix || "",
+          serial_start: Number(item.serial_start),
+          serial_end: Number(item.serial_end),
+          serial_padding: item.serial_padding || 4,
+          quantity: rangeCount(item.serial_start, item.serial_end),
+          quantity_used: 0,
+          received_date: today,
+        };
+        await base44.entities.Label.update(item.label_id, {
+          current_quantity: (label.current_quantity || 0) + item.quantity,
+          serial_ranges: [...(label.serial_ranges || []), newRange],
+        });
       }
-    }
 
-    queryClient.invalidateQueries({ queryKey: ["labelPurchaseOrders"] });
-    queryClient.invalidateQueries({ queryKey: ["labels"] });
-    toast.success("Order received and label quantities updated");
+      queryClient.invalidateQueries({ queryKey: ["labelPurchaseOrders"] });
+      queryClient.invalidateQueries({ queryKey: ["labels"] });
+      toast.success("Order received and serial ranges saved");
+      setReceivePO(null);
+    } catch (e) {
+      toast.error("Failed to receive: " + e.message);
+    } finally {
+      setIsReceiving(false);
+    }
   };
 
   const handleCancel = (po) => {
@@ -393,8 +419,9 @@ export default function LabelPurchaseOrders() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleReceive(order)}
+                              onClick={() => setReceivePO(order)}
                               className="text-green-400 hover:text-green-300"
+                              title="Receive PO"
                             >
                               <Package className="w-4 h-4" />
                             </Button>
@@ -485,6 +512,11 @@ export default function LabelPurchaseOrders() {
                             <div>
                               <p className="text-white">{item.label_name}</p>
                               <p className="text-xs text-zinc-500">{item.label_sku}</p>
+                              {item.serial_start !== undefined && item.serial_end !== undefined && (
+                                <p className="text-xs text-orange-400 font-mono mt-1">
+                                  S/N: {formatSerialRange(item.serial_prefix, item.serial_start, item.serial_end, item.serial_padding || 4)}
+                                </p>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell className="text-right text-white">{item.quantity}</TableCell>
@@ -517,6 +549,15 @@ export default function LabelPurchaseOrders() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Receive PO Dialog */}
+      <ReceivePODialog
+        open={!!receivePO}
+        po={receivePO}
+        onClose={() => setReceivePO(null)}
+        onConfirm={handleReceiveConfirm}
+        isPending={isReceiving}
+      />
 
       {/* Edit PO Dialog */}
       <EditPODialog
@@ -579,6 +620,10 @@ function EditPODialog({ open, po, labels, onClose, onSave, isPending }) {
     }));
   };
 
+  const updateItemSerial = (labelId, field, value) => {
+    setItems(prev => prev.map(item => item.label_id === labelId ? { ...item, [field]: value } : item));
+  };
+
   const removeItem = (labelId) => {
     setItems(prev => prev.filter(i => i.label_id !== labelId));
   };
@@ -586,6 +631,11 @@ function EditPODialog({ open, po, labels, onClose, onSave, isPending }) {
   const total = items.reduce((sum, i) => sum + (i.total_cost || 0), 0);
 
   const handleSave = () => {
+    const err = validateRanges(items);
+    if (err) {
+      toast.error(err.message);
+      return;
+    }
     onSave({
       supplier_name: supplierName,
       expected_delivery_date: expectedDate || null,
@@ -666,37 +716,49 @@ function EditPODialog({ open, po, labels, onClose, onSave, isPending }) {
                   </TableHeader>
                   <TableBody>
                     {items.map((item) => (
-                      <TableRow key={item.label_id} className="border-zinc-800">
-                        <TableCell>
-                          <p className="text-white text-sm">{item.label_name}</p>
-                          <p className="text-xs text-zinc-500">{item.label_sku}</p>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Input
-                            type="number"
-                            value={item.quantity}
-                            onChange={(e) => updateItem(item.label_id, "quantity", e.target.value)}
-                            className="bg-zinc-800 border-zinc-700 h-7 text-sm w-20 text-right ml-auto"
-                          />
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Input
-                            type="number"
-                            step="0.001"
-                            value={item.unit_cost}
-                            onChange={(e) => updateItem(item.label_id, "unit_cost", e.target.value)}
-                            className="bg-zinc-800 border-zinc-700 h-7 text-sm w-24 text-right ml-auto"
-                          />
-                        </TableCell>
-                        <TableCell className="text-right text-white text-sm font-medium">
-                          ${(item.total_cost || 0).toFixed(2)}
-                        </TableCell>
-                        <TableCell>
-                          <button onClick={() => removeItem(item.label_id)} className="text-zinc-500 hover:text-red-400">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </TableCell>
-                      </TableRow>
+                      <React.Fragment key={item.label_id}>
+                        <TableRow className="border-zinc-800">
+                          <TableCell>
+                            <p className="text-white text-sm">{item.label_name}</p>
+                            <p className="text-xs text-zinc-500">{item.label_sku}</p>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Input
+                              type="number"
+                              value={item.quantity}
+                              onChange={(e) => updateItem(item.label_id, "quantity", e.target.value)}
+                              className="bg-zinc-800 border-zinc-700 h-7 text-sm w-20 text-right ml-auto"
+                            />
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Input
+                              type="number"
+                              step="0.001"
+                              value={item.unit_cost}
+                              onChange={(e) => updateItem(item.label_id, "unit_cost", e.target.value)}
+                              className="bg-zinc-800 border-zinc-700 h-7 text-sm w-24 text-right ml-auto"
+                            />
+                          </TableCell>
+                          <TableCell className="text-right text-white text-sm font-medium">
+                            ${(item.total_cost || 0).toFixed(2)}
+                          </TableCell>
+                          <TableCell>
+                            <button onClick={() => removeItem(item.label_id)} className="text-zinc-500 hover:text-red-400">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </TableCell>
+                        </TableRow>
+                        <TableRow className="border-zinc-800 bg-zinc-950/40">
+                          <TableCell colSpan={5} className="py-2">
+                            <p className="text-[11px] text-zinc-500 mb-1">Serial range (optional)</p>
+                            <SerialRangeInputs
+                              item={item}
+                              onChange={(field, value) => updateItemSerial(item.label_id, field, value)}
+                              compact
+                            />
+                          </TableCell>
+                        </TableRow>
+                      </React.Fragment>
                     ))}
                   </TableBody>
                 </Table>
@@ -783,6 +845,10 @@ function ManualPODialog({ open, onClose, labels, onCreate, isPending }) {
     );
   };
 
+  const updateItemSerial = (labelId, field, value) => {
+    setItems((prev) => prev.map((item) => item.label_id === labelId ? { ...item, [field]: value } : item));
+  };
+
   const removeItem = (labelId) => {
     setItems((prev) => prev.filter((i) => i.label_id !== labelId));
   };
@@ -790,6 +856,11 @@ function ManualPODialog({ open, onClose, labels, onCreate, isPending }) {
   const total = items.reduce((sum, i) => sum + (i.total_cost || 0), 0);
 
   const handleCreate = () => {
+    const err = validateRanges(items);
+    if (err) {
+      toast.error(err.message);
+      return;
+    }
     const poNumber = `LPO-${Date.now().toString().slice(-6)}`;
     onCreate({
       po_number: poNumber,
@@ -886,37 +957,49 @@ function ManualPODialog({ open, onClose, labels, onCreate, isPending }) {
                   </TableHeader>
                   <TableBody>
                     {items.map((item) => (
-                      <TableRow key={item.label_id} className="border-zinc-800">
-                        <TableCell>
-                          <p className="text-white text-sm">{item.label_name}</p>
-                          <p className="text-xs text-zinc-500">{item.label_sku}</p>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Input
-                            type="number"
-                            value={item.quantity}
-                            onChange={(e) => updateItem(item.label_id, "quantity", e.target.value)}
-                            className="bg-zinc-800 border-zinc-700 h-7 text-sm w-20 text-right ml-auto"
-                          />
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Input
-                            type="number"
-                            step="0.001"
-                            value={item.unit_cost}
-                            onChange={(e) => updateItem(item.label_id, "unit_cost", e.target.value)}
-                            className="bg-zinc-800 border-zinc-700 h-7 text-sm w-24 text-right ml-auto"
-                          />
-                        </TableCell>
-                        <TableCell className="text-right text-white text-sm font-medium">
-                          ${item.total_cost.toFixed(2)}
-                        </TableCell>
-                        <TableCell>
-                          <button onClick={() => removeItem(item.label_id)} className="text-zinc-500 hover:text-red-400">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </TableCell>
-                      </TableRow>
+                      <React.Fragment key={item.label_id}>
+                        <TableRow className="border-zinc-800">
+                          <TableCell>
+                            <p className="text-white text-sm">{item.label_name}</p>
+                            <p className="text-xs text-zinc-500">{item.label_sku}</p>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Input
+                              type="number"
+                              value={item.quantity}
+                              onChange={(e) => updateItem(item.label_id, "quantity", e.target.value)}
+                              className="bg-zinc-800 border-zinc-700 h-7 text-sm w-20 text-right ml-auto"
+                            />
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Input
+                              type="number"
+                              step="0.001"
+                              value={item.unit_cost}
+                              onChange={(e) => updateItem(item.label_id, "unit_cost", e.target.value)}
+                              className="bg-zinc-800 border-zinc-700 h-7 text-sm w-24 text-right ml-auto"
+                            />
+                          </TableCell>
+                          <TableCell className="text-right text-white text-sm font-medium">
+                            ${item.total_cost.toFixed(2)}
+                          </TableCell>
+                          <TableCell>
+                            <button onClick={() => removeItem(item.label_id)} className="text-zinc-500 hover:text-red-400">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </TableCell>
+                        </TableRow>
+                        <TableRow className="border-zinc-800 bg-zinc-950/40">
+                          <TableCell colSpan={5} className="py-2">
+                            <p className="text-[11px] text-zinc-500 mb-1">Serial range (optional)</p>
+                            <SerialRangeInputs
+                              item={item}
+                              onChange={(field, value) => updateItemSerial(item.label_id, field, value)}
+                              compact
+                            />
+                          </TableCell>
+                        </TableRow>
+                      </React.Fragment>
                     ))}
                   </TableBody>
                 </Table>

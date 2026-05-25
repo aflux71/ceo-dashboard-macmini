@@ -50,6 +50,23 @@
           },
           "total_cost": {
             "type": "number"
+          },
+          "serial_prefix": {
+            "type": "string",
+            "description": "Optional serial prefix (e.g., LBL-)"
+          },
+          "serial_start": {
+            "type": "number",
+            "description": "Starting serial number for this line"
+          },
+          "serial_end": {
+            "type": "number",
+            "description": "Ending serial number for this line"
+          },
+          "serial_padding": {
+            "type": "number",
+            "default": 4,
+            "description": "Zero-padding for serial display (e.g., 4 -> 0001)"
           }
         }
       }
@@ -64,39 +81,32 @@
     },
     "expected_delivery_date": {
       "type": "string",
-      "format": "date",
-      "description": "Expected delivery based on lead time"
+      "format": "date"
     },
     "order_date": {
       "type": "string",
-      "format": "date",
-      "description": "Date order was placed"
+      "format": "date"
     },
     "received_date": {
       "type": "string",
-      "format": "date",
-      "description": "Actual received date"
+      "format": "date"
     },
     "auto_generated": {
       "type": "boolean",
-      "default": false,
-      "description": "Whether this PO was auto-generated"
+      "default": false
     },
     "generation_reason": {
-      "type": "string",
-      "description": "Why this PO was generated (e.g., 'Low stock alert')"
+      "type": "string"
     },
     "approved_by": {
-      "type": "string",
-      "description": "User who approved"
+      "type": "string"
     },
     "approved_date": {
       "type": "string",
       "format": "date-time"
     },
     "notes": {
-      "type": "string",
-      "description": "Additional notes"
+      "type": "string"
     }
   },
   "required": [
