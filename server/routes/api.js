@@ -221,7 +221,8 @@ router.get('/stats/ceo', (req, res) => {
     const sYTD = db.prepare('SELECT COUNT(*) AS cnt, COALESCE(SUM(CAST(total_price AS REAL)),0) AS rev FROM orders WHERE created_at >= ?').get(ytd);
     const prods = db.prepare("SELECT COUNT(*) AS c FROM products WHERE status = 'active'").get();
     const inv = db.prepare('SELECT COALESCE(SUM(available),0) AS u FROM inventory').get();
-    const unf = db.prepare("SELECT COUNT(*) AS c FROM orders WHERE fulfillment_status IS NULL OR fulfillment_status = 'partial'").get();
+    const unfCutoff = new Date(Date.now() - 14*86400000).toISOString();
+    const unf = db.prepare("SELECT COUNT(*) AS c FROM orders WHERE fulfillment_status IS NULL AND created_at >= ?").get(unfCutoff);
     const lastSync = db.prepare("SELECT created_at FROM sync_log WHERE status='success' ORDER BY id DESC LIMIT 1").get();
 
     const dayOfYear = Math.ceil((Date.now() - new Date(new Date().getFullYear(),0,1)) / 86400000);
@@ -255,7 +256,8 @@ router.get('/stats/ceo', (req, res) => {
     const sYTD = db.prepare('SELECT COUNT(*) AS cnt, COALESCE(SUM(CAST(total_price AS REAL)),0) AS rev FROM orders WHERE created_at >= ?').get(ytd);
     const prods = db.prepare("SELECT COUNT(*) AS c FROM products WHERE status = 'active'").get();
     const inv = db.prepare('SELECT COALESCE(SUM(available),0) AS u FROM inventory').get();
-    const unf = db.prepare("SELECT COUNT(*) AS c FROM orders WHERE fulfillment_status IS NULL OR fulfillment_status = 'partial'").get();
+    const unfCutoff = new Date(Date.now() - 14*86400000).toISOString();
+    const unf = db.prepare("SELECT COUNT(*) AS c FROM orders WHERE fulfillment_status IS NULL AND created_at >= ?").get(unfCutoff);
     const lastSync = db.prepare("SELECT created_at FROM sync_log WHERE status='success' ORDER BY id DESC LIMIT 1").get();
 
     const dayOfYear = Math.ceil((Date.now() - new Date(new Date().getFullYear(),0,1)) / 86400000);
