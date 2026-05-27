@@ -916,6 +916,15 @@ function ManualPODialog({ open, onClose, labels, suppliers = [], onCreate, isPen
   const total = items.reduce((sum, i) => sum + (i.total_cost || 0), 0);
 
   const handleCreate = () => {
+    if (!supplierName) {
+      toast.error("Please select a supplier");
+      return;
+    }
+    const supplier = suppliers.find((s) => s.name === supplierName);
+    if (!supplier) {
+      toast.error("Selected supplier not found — please pick from the list");
+      return;
+    }
     const err = validateRanges(items);
     if (err) {
       toast.error(err.message);
@@ -924,6 +933,7 @@ function ManualPODialog({ open, onClose, labels, suppliers = [], onCreate, isPen
     const poNumber = `LPO-${Date.now().toString().slice(-6)}`;
     onCreate({
       po_number: poNumber,
+      supplier_id: supplier.id,
       supplier_name: supplierName,
       status: "pending_approval",
       expected_delivery_date: expectedDate || null,
