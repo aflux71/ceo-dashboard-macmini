@@ -626,10 +626,6 @@ function EditPODialog({ open, po, labels, suppliers = [], onClose, onSave, isPen
       if (item.label_id !== labelId) return item;
       const updated = { ...item, [field]: Number(value) };
       updated.total_cost = updated.quantity * updated.unit_cost;
-      // Keep serial_end synced with quantity when start is set
-      if (field === "quantity" && updated.serial_start !== undefined) {
-        updated.serial_end = Number(updated.serial_start) + (Number(updated.quantity) || 0) - 1;
-      }
       return updated;
     }));
   };
@@ -881,10 +877,6 @@ function ManualPODialog({ open, onClose, labels, suppliers = [], onCreate, isPen
         if (item.label_id !== labelId) return item;
         const updated = { ...item, [field]: Number(value) };
         updated.total_cost = updated.quantity * updated.unit_cost;
-        // Keep serial_end synced with quantity when start is set
-        if (field === "quantity" && updated.serial_start !== undefined) {
-          updated.serial_end = Number(updated.serial_start) + (Number(updated.quantity) || 0) - 1;
-        }
         return updated;
       })
     );

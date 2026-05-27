@@ -1,24 +1,25 @@
 import React from "react";
 import { Input } from "@/components/ui/input";
-import { rangeCount, formatSerialRange } from "./serialUtils";
+import { formatSerial } from "./serialUtils";
 
-// Compact inline serial range editor for a single PO line item.
+// Inline serial batch-number editor for a single PO line item.
+// Model: one serial number identifies an entire batch (all units of this line share it).
 // Props:
-//   item            — { serial_prefix, serial_start, serial_end, serial_padding, quantity }
+//   item            — { serial_prefix, serial_start, serial_padding }
 //   onChange(field, value) — called when a field changes
-//   compact         — when true, render in a single row (used inside tables)
+//   compact         — when true, render in a single row
 export default function SerialRangeInputs({ item, onChange, compact = false }) {
-  const count = rangeCount(item.serial_start, item.serial_end);
-  const expected = Number(item.quantity || 0);
-  const mismatch = count > 0 && expected > 0 && count !== expected;
-  const preview = formatSerialRange(
-    item.serial_prefix,
-    item.serial_start,
-    item.serial_end,
-    item.serial_padding || 4
-  );
+  const padding = item.serial_padding ?? 3;
+  const preview = formatSerial(item.serial_prefix, item.serial_start, padding);
 
-  const wrapper = compact ? "flex flex-wrap items-center gap-2" : "grid grid-cols-4 gap-2";
+  const wrapper = compact ? "flex flex-wrap items-center gap-2" : "grid grid-cols-3 gap-2";
+
+  // Keep serial_end == serial_start so existing readers stay consistent
+  const handleStartChange = (value) => {
+    const num = value === "" ? undefined : Number(value);
+    onChange("serial_start", num);
+    onChange("serial_end", num);
+  };
 
   return (
     <div className="space-y-1">
@@ -31,22 +32,15 @@ export default function SerialRangeInputs({ item, onChange, compact = false }) {
         />
         <Input
           type="number"
-          placeholder="Start #"
+          placeholder="Serial #"
           value={item.serial_start ?? ""}
-          onChange={(e) => onChange("serial_start", e.target.value === "" ? undefined : Number(e.target.value))}
-          className="bg-zinc-800 border-zinc-700 h-7 text-xs w-24"
-        />
-        <Input
-          type="number"
-          placeholder="End #"
-          value={item.serial_end ?? ""}
-          onChange={(e) => onChange("serial_end", e.target.value === "" ? undefined : Number(e.target.value))}
+          onChange={(e) => handleStartChange(e.target.value)}
           className="bg-zinc-800 border-zinc-700 h-7 text-xs w-24"
         />
         <Input
           type="number"
           placeholder="Padding"
-          value={item.serial_padding ?? 4}
+          value={padding}
           onChange={(e) => onChange("serial_padding", Number(e.target.value) || 0)}
           className="bg-zinc-800 border-zinc-700 h-7 text-xs w-20"
           min={0}
@@ -55,15 +49,8 @@ export default function SerialRangeInputs({ item, onChange, compact = false }) {
       </div>
       {preview && (
         <div className="text-[11px] text-zinc-500">
-          {preview}
-          <span className="ml-2">
-            ({count} serial{count !== 1 ? "s" : ""})
-          </span>
-          {mismatch && (
-            <span className="ml-2 text-amber-400">
-              ⚠ does not match quantity ({expected})
-            </span>
-          )}
+          Batch S/N: <span className="text-zinc-300 font-mono">{preview}</span>
+          <span className="ml-2">(applies to all {item.quantity || 0} units)</span>
         </div>
       )}
     </div>

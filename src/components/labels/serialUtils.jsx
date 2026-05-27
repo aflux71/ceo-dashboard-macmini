@@ -27,23 +27,27 @@ export function nextAvailableStart(label, prefix) {
   return (maxEnd || 0) + 1;
 }
 
-// Build an auto-populated serial range for a label + quantity.
-// Uses julian-date prefix and the next sequential number for that prefix.
-// `draftItems` (optional) — items already added to the current PO draft. Their
-// existing ranges (same prefix) are considered so newly-added items continue
-// from the next available number, not collide with prior in-draft items.
-export function autoSerialRange(label, quantity, date = new Date(), draftItems = []) {
+// Build an auto-populated serial "batch number" for a label.
+// Model: one serial number identifies an entire batch/line (not per unit).
+// All units of that line share the same number, e.g. 26165-001.
+// The next label line in the same PO becomes 26165-002, etc.
+// `draftItems` (optional) — items already added to the current PO draft.
+// Their numbers (same prefix) are considered so the new line gets the next
+// available sequential number across BOTH historical and in-draft usage.
+export function autoSerialRange(label, _quantity, date = new Date(), draftItems = []) {
   const prefix = julianDatePrefix(date);
-  let start = nextAvailableStart(label, prefix);
-  // Also bump past any in-draft items sharing the same prefix
+  let nextNum = nextAvailableStart(label, prefix);
   for (const it of draftItems) {
     if ((it.serial_prefix || "") !== prefix) continue;
-    const end = Number(it.serial_end);
-    if (!isNaN(end) && end + 1 > start) start = end + 1;
+    const n = Number(it.serial_start);
+    if (!isNaN(n) && n + 1 > nextNum) nextNum = n + 1;
   }
-  const qty = Number(quantity) || 0;
-  const end = qty > 0 ? start + qty - 1 : start;
-  return { serial_prefix: prefix, serial_start: start, serial_end: end, serial_padding: 4 };
+  return {
+    serial_prefix: prefix,
+    serial_start: nextNum,
+    serial_end: nextNum, // single batch number — start == end
+    serial_padding: 3,
+  };
 }
 
 export function formatSerial(prefix, n, padding = 4) {
@@ -53,7 +57,11 @@ export function formatSerial(prefix, n, padding = 4) {
 }
 
 export function formatSerialRange(prefix, start, end, padding = 4) {
-  if (start === undefined || end === undefined || start === null || end === null) return "";
+  if (start === undefined || start === null) return "";
+  // When start == end (the common batch-number case), just show the single number.
+  if (end === undefined || end === null || Number(end) === Number(start)) {
+    return formatSerial(prefix, start, padding);
+  }
   return `${formatSerial(prefix, start, padding)} – ${formatSerial(prefix, end, padding)}`;
 }
 
