@@ -2,6 +2,41 @@
 // A serial range is defined by: prefix (string, optional), start (number), end (number), padding (number).
 // Display format: `${prefix}${String(n).padStart(padding, '0')}`
 
+// Returns a Julian-date prefix in the format YYDDD- (e.g. 26147- for May 27, 2026).
+// Used as the default serial prefix when adding a label to a new PO.
+export function julianDatePrefix(date = new Date()) {
+  const yy = String(date.getFullYear()).slice(-2);
+  const start = new Date(date.getFullYear(), 0, 0);
+  const diff = date - start;
+  const day = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const ddd = String(day).padStart(3, "0");
+  return `${yy}${ddd}-`;
+}
+
+// Compute the next available start number for a label based on its existing
+// serial_ranges. Returns 1 if no prior ranges exist (per-prefix scoped if a
+// prefix is supplied; otherwise scoped to the overall max + 1).
+export function nextAvailableStart(label, prefix) {
+  const ranges = (label?.serial_ranges || []).filter((r) =>
+    prefix === undefined ? true : (r.serial_prefix || "") === (prefix || "")
+  );
+  if (ranges.length === 0) return 1;
+  const maxEnd = Math.max(
+    ...ranges.map((r) => Number(r.serial_end || 0)).filter((n) => !isNaN(n))
+  );
+  return (maxEnd || 0) + 1;
+}
+
+// Build an auto-populated serial range for a label + quantity.
+// Uses julian-date prefix and the next sequential number for that prefix.
+export function autoSerialRange(label, quantity, date = new Date()) {
+  const prefix = julianDatePrefix(date);
+  const start = nextAvailableStart(label, prefix);
+  const qty = Number(quantity) || 0;
+  const end = qty > 0 ? start + qty - 1 : start;
+  return { serial_prefix: prefix, serial_start: start, serial_end: end, serial_padding: 4 };
+}
+
 export function formatSerial(prefix, n, padding = 4) {
   if (n === undefined || n === null || isNaN(n)) return "";
   const padded = String(Number(n)).padStart(Number(padding) || 0, "0");

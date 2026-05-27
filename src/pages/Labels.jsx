@@ -45,8 +45,10 @@ import {
   ShoppingCart,
   Printer,
   Hash,
+  Settings,
 } from "lucide-react";
 import LabelSerials from "./LabelSerials";
+import AllSerialsSettings from "@/components/labels/AllSerialsSettings";
 
 export default function Labels() {
   const [search, setSearch] = useState("");
@@ -395,6 +397,9 @@ export default function Labels() {
           <TabsTrigger value="serials" className="data-[state=active]:bg-zinc-800 data-[state=active]:text-orange-400">
             <Hash className="w-4 h-4 mr-2" /> Serial Tracking
           </TabsTrigger>
+          <TabsTrigger value="settings" className="data-[state=active]:bg-zinc-800 data-[state=active]:text-orange-400">
+            <Settings className="w-4 h-4 mr-2" /> Settings
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="inventory" className="space-y-6 mt-0">
@@ -594,6 +599,10 @@ export default function Labels() {
 
         <TabsContent value="serials" className="mt-0">
           <LabelSerials />
+        </TabsContent>
+
+        <TabsContent value="settings" className="mt-0">
+          <AllSerialsSettings />
         </TabsContent>
       </Tabs>
     </div>

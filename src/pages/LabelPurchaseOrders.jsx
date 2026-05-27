@@ -47,7 +47,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import SerialRangeInputs from "@/components/labels/SerialRangeInputs";
 import ReceivePODialog from "@/components/labels/ReceivePODialog";
-import { formatSerialRange, rangeCount, validateRanges } from "@/components/labels/serialUtils";
+import { formatSerialRange, rangeCount, validateRanges, autoSerialRange } from "@/components/labels/serialUtils";
 
 const STATUS_CONFIG = {
   pending_approval: { label: "Pending Approval", variant: "amber", icon: Clock },
@@ -607,13 +607,16 @@ function EditPODialog({ open, po, labels, suppliers = [], onClose, onSave, isPen
 
   const addLabel = (label) => {
     if (items.find(i => i.label_id === label.id)) return;
+    const qty = label.reorder_qty || 500;
+    const auto = autoSerialRange(label, qty);
     setItems(prev => [...prev, {
       label_id: label.id,
       label_name: label.name,
       label_sku: label.sku,
-      quantity: label.reorder_qty || 500,
+      quantity: qty,
       unit_cost: label.cost_per_unit || 0,
-      total_cost: (label.reorder_qty || 500) * (label.cost_per_unit || 0),
+      total_cost: qty * (label.cost_per_unit || 0),
+      ...auto,
     }]);
     setSearch("");
   };
@@ -623,6 +626,10 @@ function EditPODialog({ open, po, labels, suppliers = [], onClose, onSave, isPen
       if (item.label_id !== labelId) return item;
       const updated = { ...item, [field]: Number(value) };
       updated.total_cost = updated.quantity * updated.unit_cost;
+      // Keep serial_end synced with quantity when start is set
+      if (field === "quantity" && updated.serial_start !== undefined) {
+        updated.serial_end = Number(updated.serial_start) + (Number(updated.quantity) || 0) - 1;
+      }
       return updated;
     }));
   };
@@ -852,15 +859,18 @@ function ManualPODialog({ open, onClose, labels, suppliers = [], onCreate, isPen
 
   const addItem = (label) => {
     if (items.find((i) => i.label_id === label.id)) return;
+    const qty = label.reorder_qty || 500;
+    const auto = autoSerialRange(label, qty);
     setItems((prev) => [
       ...prev,
       {
         label_id: label.id,
         label_name: label.name,
         label_sku: label.sku,
-        quantity: label.reorder_qty || 500,
+        quantity: qty,
         unit_cost: label.cost_per_unit || 0,
-        total_cost: (label.reorder_qty || 500) * (label.cost_per_unit || 0),
+        total_cost: qty * (label.cost_per_unit || 0),
+        ...auto,
       },
     ]);
   };
@@ -871,6 +881,10 @@ function ManualPODialog({ open, onClose, labels, suppliers = [], onCreate, isPen
         if (item.label_id !== labelId) return item;
         const updated = { ...item, [field]: Number(value) };
         updated.total_cost = updated.quantity * updated.unit_cost;
+        // Keep serial_end synced with quantity when start is set
+        if (field === "quantity" && updated.serial_start !== undefined) {
+          updated.serial_end = Number(updated.serial_start) + (Number(updated.quantity) || 0) - 1;
+        }
         return updated;
       })
     );
