@@ -102,6 +102,20 @@ export default function LabelPurchaseOrders() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: (id) => base44.entities.LabelPurchaseOrder.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["labelPurchaseOrders"] });
+      toast.success("Purchase order deleted");
+    },
+    onError: (err) => toast.error("Failed to delete: " + err.message),
+  });
+
+  const handleDelete = (po) => {
+    if (!confirm(`Delete PO ${po.po_number}? This cannot be undone.`)) return;
+    deleteMutation.mutate(po.id);
+  };
+
   const handleGenerateOrders = async () => {
     setIsGenerating(true);
     try {
@@ -431,6 +445,15 @@ export default function LabelPurchaseOrders() {
                               <Package className="w-4 h-4" />
                             </Button>
                           )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDelete(order)}
+                            className="text-zinc-500 hover:text-red-400"
+                            title="Delete PO"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
