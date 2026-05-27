@@ -608,7 +608,7 @@ function EditPODialog({ open, po, labels, suppliers = [], onClose, onSave, isPen
   const addLabel = (label) => {
     if (items.find(i => i.label_id === label.id)) return;
     const qty = label.reorder_qty || 500;
-    const auto = autoSerialRange(label, qty);
+    const auto = autoSerialRange(label, qty, new Date(), items);
     setItems(prev => [...prev, {
       label_id: label.id,
       label_name: label.name,
@@ -860,7 +860,7 @@ function ManualPODialog({ open, onClose, labels, suppliers = [], onCreate, isPen
   const addItem = (label) => {
     if (items.find((i) => i.label_id === label.id)) return;
     const qty = label.reorder_qty || 500;
-    const auto = autoSerialRange(label, qty);
+    const auto = autoSerialRange(label, qty, new Date(), items);
     setItems((prev) => [
       ...prev,
       {

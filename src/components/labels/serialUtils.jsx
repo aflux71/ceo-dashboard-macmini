@@ -29,9 +29,18 @@ export function nextAvailableStart(label, prefix) {
 
 // Build an auto-populated serial range for a label + quantity.
 // Uses julian-date prefix and the next sequential number for that prefix.
-export function autoSerialRange(label, quantity, date = new Date()) {
+// `draftItems` (optional) — items already added to the current PO draft. Their
+// existing ranges (same prefix) are considered so newly-added items continue
+// from the next available number, not collide with prior in-draft items.
+export function autoSerialRange(label, quantity, date = new Date(), draftItems = []) {
   const prefix = julianDatePrefix(date);
-  const start = nextAvailableStart(label, prefix);
+  let start = nextAvailableStart(label, prefix);
+  // Also bump past any in-draft items sharing the same prefix
+  for (const it of draftItems) {
+    if ((it.serial_prefix || "") !== prefix) continue;
+    const end = Number(it.serial_end);
+    if (!isNaN(end) && end + 1 > start) start = end + 1;
+  }
   const qty = Number(quantity) || 0;
   const end = qty > 0 ? start + qty - 1 : start;
   return { serial_prefix: prefix, serial_start: start, serial_end: end, serial_padding: 4 };
