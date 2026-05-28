@@ -220,6 +220,8 @@ router.get('/stats/ceo', (req, res) => {
 
     const s30 = db.prepare('SELECT COUNT(*) AS cnt, COALESCE(SUM(CAST(total_price AS REAL)),0) AS rev FROM orders WHERE created_at >= ?').get(d30);
     const sYTD = db.prepare('SELECT COUNT(*) AS cnt, COALESCE(SUM(CAST(total_price AS REAL)),0) AS rev FROM orders WHERE created_at >= ?').get(ytd);
+    const s30Retail = db.prepare("SELECT COUNT(*) AS cnt, COALESCE(SUM(CAST(total_price AS REAL)),0) AS rev FROM orders WHERE created_at >= ? AND location_name IN ('Queen Street','Flower Farm','Elora','Stratford','Bracebridge')").get(d30);
+    const sYTDRetail = db.prepare("SELECT COUNT(*) AS cnt, COALESCE(SUM(CAST(total_price AS REAL)),0) AS rev FROM orders WHERE created_at >= ? AND location_name IN ('Queen Street','Flower Farm','Elora','Stratford','Bracebridge')").get(ytd);
     const prods = db.prepare("SELECT COUNT(*) AS c FROM products WHERE status = 'active'").get();
     const inv = db.prepare('SELECT COALESCE(SUM(available),0) AS u FROM inventory').get();
     const unfCutoff = new Date(Date.now() - 14*86400000).toISOString();
@@ -232,10 +234,10 @@ router.get('/stats/ceo', (req, res) => {
     res.json({
       rev_30d: Math.round(s30.rev * 100) / 100,
       orders_30d: s30.cnt,
-      aov_30d: s30.cnt > 0 ? Math.round(s30.rev / s30.cnt * 100) / 100 : 0,
+      aov_30d: s30Retail.cnt > 0 ? Math.round(s30Retail.rev / s30Retail.cnt * 100) / 100 : 0,
       rev_ytd: Math.round(sYTD.rev * 100) / 100,
       orders_ytd: sYTD.cnt,
-      aov_ytd: sYTD.cnt > 0 ? Math.round(sYTD.rev / sYTD.cnt * 100) / 100 : 0,
+      aov_ytd: sYTDRetail.cnt > 0 ? Math.round(sYTDRetail.rev / sYTDRetail.cnt * 100) / 100 : 0,
       annual_run_rate: annualRunRate,
       active_products: prods.c,
       inventory_units: inv.u,
@@ -255,6 +257,8 @@ router.get('/stats/ceo', (req, res) => {
 
     const s30 = db.prepare('SELECT COUNT(*) AS cnt, COALESCE(SUM(CAST(total_price AS REAL)),0) AS rev FROM orders WHERE created_at >= ?').get(d30);
     const sYTD = db.prepare('SELECT COUNT(*) AS cnt, COALESCE(SUM(CAST(total_price AS REAL)),0) AS rev FROM orders WHERE created_at >= ?').get(ytd);
+    const s30Retail = db.prepare("SELECT COUNT(*) AS cnt, COALESCE(SUM(CAST(total_price AS REAL)),0) AS rev FROM orders WHERE created_at >= ? AND location_name IN ('Queen Street','Flower Farm','Elora','Stratford','Bracebridge')").get(d30);
+    const sYTDRetail = db.prepare("SELECT COUNT(*) AS cnt, COALESCE(SUM(CAST(total_price AS REAL)),0) AS rev FROM orders WHERE created_at >= ? AND location_name IN ('Queen Street','Flower Farm','Elora','Stratford','Bracebridge')").get(ytd);
     const prods = db.prepare("SELECT COUNT(*) AS c FROM products WHERE status = 'active'").get();
     const inv = db.prepare('SELECT COALESCE(SUM(available),0) AS u FROM inventory').get();
     const unfCutoff = new Date(Date.now() - 14*86400000).toISOString();
@@ -267,10 +271,10 @@ router.get('/stats/ceo', (req, res) => {
     res.json({
       rev_30d: Math.round(s30.rev * 100) / 100,
       orders_30d: s30.cnt,
-      aov_30d: s30.cnt > 0 ? Math.round(s30.rev / s30.cnt * 100) / 100 : 0,
+      aov_30d: s30Retail.cnt > 0 ? Math.round(s30Retail.rev / s30Retail.cnt * 100) / 100 : 0,
       rev_ytd: Math.round(sYTD.rev * 100) / 100,
       orders_ytd: sYTD.cnt,
-      aov_ytd: sYTD.cnt > 0 ? Math.round(sYTD.rev / sYTD.cnt * 100) / 100 : 0,
+      aov_ytd: sYTDRetail.cnt > 0 ? Math.round(sYTDRetail.rev / sYTDRetail.cnt * 100) / 100 : 0,
       annual_run_rate: annualRunRate,
       active_products: prods.c,
       inventory_units: inv.u,
