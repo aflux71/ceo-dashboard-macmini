@@ -1423,7 +1423,7 @@ function renderDashboard(stats, storeData, liveTasks) {
     <div class="kpi-grid">
       ${renderKPI('Revenue (30d)', fmt$(rev30d), 'YTD: ' + fmt$(revYTD), getStatus(revYTD, ytdTarget), null, revYTD / ytdTarget)}
       ${renderKPI('Orders (30d)', orders30d ? orders30d.toLocaleString() : '—', 'Unfulfilled: ' + (stats?.unfulfilled || 0), stats?.unfulfilled > 20 ? 'amber' : 'green', null, null)}
-      ${renderKPI('Avg Order Value', aov30d ? '$' + aov30d.toFixed(0) : '—', 'Target: $' + KPI_TARGETS.aov, getStatus(aov30d, KPI_TARGETS.aov), null, aov30d / KPI_TARGETS.aov)}
+      ${renderKPI('Avg Order Value', aov30d ? '$' + aov30d.toFixed(0) : '—', 'Retail only · Target: $' + KPI_TARGETS.aov, getStatus(aov30d, KPI_TARGETS.aov), null, aov30d / KPI_TARGETS.aov)}
       ${renderKPI('Active SKUs', stats?.active_products ? stats.active_products.toLocaleString() : '—', 'Target: 270 by EOY', 'amber', null, null)}
       ${renderKPI('Inventory Units', stats?.inventory_units ? stats.inventory_units.toLocaleString() : '—', 'Across 10 locations', 'neutral', null, null)}
     </div>
