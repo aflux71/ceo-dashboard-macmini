@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>neōb — Monthly Targets</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F7F5F0;
+    --surface: #FFFFFF;
+    --surface-warm: #FAF8F4;
+    --border: #E8E3D9;
+    --border-strong: #C9C0B0;
+    --text: #1A1714;
+    --text-2: #5C5650;
+    --text-3: #9C948A;
+    --lavender: #6B5B8F;
+    --lavender-light: #EEE9F5;
+    --lavender-mid: #C4B5E8;
+    --green: #2D6A4F;
+    --green-light: #E8F5EE;
+    --amber: #92400E;
+    --amber-light: #FEF3C7;
+    --red: #991B1B;
+    --red-light: #FEE2E2;
+    --shadow: 0 1px 3px rgba(26,23,20,0.06), 0 1px 2px rgba(26,23,20,0.04);
+    --shadow-md: 0 4px 12px rgba(26,23,20,0.08);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; }
+
+  .header {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 0 32px; height: 60px; display: flex; align-items: center;
+    justify-content: space-between; position: sticky; top: 0; z-index: 100;
+  }
+  .header-brand { display: flex; align-items: baseline; gap: 12px; }
+  .header-brand h1 { font-family: 'DM Serif Display', serif; font-size: 22px; color: var(--lavender); }
+  .header-brand span { font-size: 11px; font-weight: 500; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.1em; }
+  .header-nav { display: flex; gap: 8px; }
+  .nav-link {
+    padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 500;
+    color: var(--text-2); text-decoration: none; transition: all 0.15s;
+  }
+  .nav-link:hover { background: var(--bg); }
+  .nav-link.active { background: var(--lavender-light); color: var(--lavender); }
+  .header-right { display: flex; align-items: center; gap: 14px; }
+  .header-user { font-size: 12px; color: var(--text-3); font-family: 'DM Mono', monospace; }
+  .header-signout {
+    background: none; border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text-2); padding: 5px 10px; font-size: 11px; font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+  }
+  .header-signout:hover { border-color: var(--border-strong); }
+
+  .main { max-width: 1400px; margin: 0 auto; padding: 24px 32px; }
+
+  .page-head {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    margin-bottom: 18px; gap: 18px; flex-wrap: wrap;
+  }
+  .page-title { font-family: 'DM Serif Display', serif; font-size: 26px; }
+  .page-sub { font-size: 13px; color: var(--text-3); margin-top: 2px; }
+
+  .ctrl-group { display: flex; align-items: center; gap: 10px; }
+  .ctrl-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; color: var(--text-3); }
+  .ctrl-select, .ctrl-input {
+    padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--text);
+    background: var(--surface); outline: none;
+  }
+  .ctrl-select:focus, .ctrl-input:focus { border-color: var(--lavender-mid); }
+
+  .btn {
+    padding: 9px 16px; border-radius: 8px; border: none; font-family: 'DM Sans', sans-serif;
+    font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+  }
+  .btn-primary { background: var(--lavender); color: white; }
+  .btn-primary:hover { opacity: 0.9; }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-ghost { background: var(--surface); border: 1px solid var(--border); color: var(--text-2); }
+  .btn-ghost:hover { border-color: var(--border-strong); }
+
+  /* MULTIPLIERS ROW */
+  .multipliers {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px 18px; margin-bottom: 14px; box-shadow: var(--shadow);
+    display: grid; grid-template-columns: 1fr repeat(6, minmax(0, 1fr)); gap: 10px;
+    align-items: center;
+  }
+  .mult-heading {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+    font-weight: 600; color: var(--text-3);
+  }
+  .mult-cell { display: flex; flex-direction: column; gap: 4px; }
+  .mult-store { font-size: 11px; color: var(--text-2); font-weight: 500; }
+  .mult-input {
+    padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px;
+    font-family: 'DM Mono', monospace; font-size: 13px; color: var(--text);
+    background: var(--surface-warm); outline: none; width: 100%; text-align: center;
+  }
+  .mult-input:focus { border-color: var(--lavender-mid); background: var(--surface); }
+
+  /* GRID */
+  .grid-wrap {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    box-shadow: var(--shadow); overflow: hidden;
+  }
+  table.grid { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .grid thead th {
+    background: var(--surface-warm); border-bottom: 1px solid var(--border);
+    padding: 10px 8px; font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--text-2); text-align: center;
+  }
+  .grid thead th.date-col { text-align: left; padding-left: 16px; width: 90px; }
+  .grid tbody td {
+    border-bottom: 1px solid var(--bg); padding: 6px 6px; vertical-align: middle;
+  }
+  .grid tbody tr:hover { background: var(--surface-warm); }
+  .grid tbody tr.is-weekend td { background: rgba(238,233,245,0.18); }
+  .grid tbody tr.is-weekend:hover td { background: var(--lavender-light); }
+  .grid td.date-col {
+    text-align: left; padding-left: 16px; font-family: 'DM Mono', monospace;
+    color: var(--text-2); font-size: 12px;
+  }
+  .grid td.date-col .dow { color: var(--text-3); margin-left: 6px; font-size: 11px; }
+
+  .cell { text-align: center; position: relative; }
+  .cell-ly {
+    font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-3);
+    line-height: 1; margin-bottom: 3px;
+  }
+  .cell-target {
+    width: 100%; padding: 5px 4px; border: 1px solid transparent; border-radius: 5px;
+    font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600; color: var(--text);
+    background: transparent; text-align: center; outline: none;
+    -moz-appearance: textfield;
+  }
+  .cell-target::-webkit-outer-spin-button,
+  .cell-target::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .cell-target:hover { border-color: var(--border); background: var(--surface); }
+  .cell-target:focus { border-color: var(--lavender-mid); background: var(--surface); }
+  .cell.is-override .cell-target { color: var(--lavender); }
+  .cell-dot {
+    display: none; position: absolute; top: 2px; right: 6px;
+    width: 6px; height: 6px; border-radius: 50%; background: var(--lavender);
+  }
+  .cell.is-override .cell-dot { display: block; }
+
+  .grid tfoot td {
+    border-top: 2px solid var(--border); background: var(--surface-warm);
+    padding: 12px 8px; font-family: 'DM Mono', monospace; font-size: 13px;
+    font-weight: 600; text-align: center; color: var(--text);
+  }
+  .grid tfoot td.date-col {
+    font-family: 'DM Sans', sans-serif; font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--text-3); text-align: left; padding-left: 16px;
+  }
+  .grid tfoot .ly-row td { background: var(--surface); border-top: 1px solid var(--bg); }
+  .grid tfoot .ly-row td:not(.date-col) { color: var(--text-3); font-size: 11px; font-weight: 500; }
+  .grand-total {
+    margin-top: 14px; display: flex; justify-content: flex-end; align-items: baseline;
+    gap: 16px; padding: 14px 18px; background: var(--lavender-light); border-radius: 12px;
+  }
+  .grand-total-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+    font-weight: 600; color: var(--lavender);
+  }
+  .grand-total-val {
+    font-family: 'DM Serif Display', serif; font-size: 26px; color: var(--lavender); line-height: 1;
+  }
+  .grand-total-ly { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--text-3); }
+
+  /* PIN GATE */
+  .pin-gate {
+    position: fixed; inset: 0; background: var(--bg); z-index: 500;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .pin-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    padding: 32px 36px; box-shadow: var(--shadow-md); width: 340px; text-align: center;
+  }
+  .pin-card h2 { font-family: 'DM Serif Display', serif; font-size: 22px; color: var(--lavender); margin-bottom: 6px; }
+  .pin-card p { font-size: 12px; color: var(--text-3); margin-bottom: 18px; }
+  .pin-card input {
+    width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px;
+    font-family: 'DM Mono', monospace; font-size: 18px; text-align: center;
+    letter-spacing: 0.4em; outline: none; margin-bottom: 12px;
+  }
+  .pin-card input:focus { border-color: var(--lavender-mid); }
+  .pin-card button {
+    width: 100%; padding: 11px; background: var(--lavender); color: white;
+    border: none; border-radius: 8px; font-family: 'DM Sans', sans-serif;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  .pin-card button:hover { opacity: 0.9; }
+  .pin-error { color: var(--red); font-size: 12px; margin-top: 10px; min-height: 16px; }
+
+  .toast {
+    position: fixed; bottom: 24px; right: 24px; padding: 12px 18px;
+    border-radius: 10px; font-size: 13px; font-weight: 500; box-shadow: var(--shadow-md);
+    z-index: 400; opacity: 0; transition: opacity 0.2s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+  .toast.success { background: var(--green-light); color: var(--green); }
+  .toast.error { background: var(--red-light); color: var(--red); }
+  .toast.info { background: var(--lavender-light); color: var(--lavender); }
+
+  .loading { display: flex; align-items: center; justify-content: center; height: 200px; color: var(--text-3); gap: 10px; }
+  .spinner { width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--lavender); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-brand">
+    <h1>neōb</h1>
+    <span>Admin</span>
+  </div>
+  <div class="header-nav">
+    <a href="ceo.html" class="nav-link">Dashboard</a>
+    <a href="tasks.html" class="nav-link">Tasks</a>
+    <a href="targets.html" class="nav-link active">Targets</a>
+    <a href="staff.html" class="nav-link">Staff</a>
+  </div>
+  <div class="header-right">
+    <span class="header-user" id="headerUser">—</span>
+    <button class="header-signout" onclick="signOut()">Sign out</button>
+  </div>
+</header>
+
+<main class="main" id="mainContent" style="display:none">
+  <div class="page-head">
+    <div>
+      <div class="page-title">Monthly Revenue Targets</div>
+      <div class="page-sub">Last-year same-day baseline × per-store growth multiplier. Edit any cell to override.</div>
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">Month</span>
+      <select id="monthPicker" class="ctrl-select"></select>
+      <button class="btn btn-ghost" onclick="recalcAll()">Recalc all</button>
+      <button class="btn btn-primary" id="saveBtn" onclick="savePublish()">Save / Publish</button>
+    </div>
+  </div>
+
+  <div class="multipliers" id="multipliers">
+    <div class="mult-heading">Growth multipliers</div>
+  </div>
+
+  <div id="gridContainer">
+    <div class="loading"><div class="spinner"></div> Loading targets…</div>
+  </div>
+
+  <div class="grand-total" id="grandTotal" style="display:none">
+    <span class="grand-total-label">Month total</span>
+    <span class="grand-total-val" id="grandTotalVal">—</span>
+    <span class="grand-total-ly" id="grandTotalLy">LY —</span>
+  </div>
+</main>
+
+<div class="pin-gate" id="pinGate">
+  <div class="pin-card">
+    <h2>Admin Sign In</h2>
+    <p>Enter your admin PIN to access targets.</p>
+    <input id="pinInput" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="••••">
+    <button onclick="submitPin()">Enter</button>
+    <div id="pinError" class="pin-error"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = 'http://100.68.55.123:3001';
+const STORES = ['Queen Street', 'Flower Farm', 'Elora', 'Stratford', 'Bracebridge', 'Online/DTC'];
+const DEFAULT_MULT = 1.10;
+
+let state = {
+  year: null,
+  month: null,
+  multipliers: {},
+  cells: {}
+};
+
+// ── PIN GATE ────────────────────────────────────────────────────
+function showPinGate() {
+  document.getElementById('pinGate').style.display = 'flex';
+  document.getElementById('mainContent').style.display = 'none';
+  setTimeout(() => document.getElementById('pinInput').focus(), 50);
+}
+function hidePinGate() {
+  document.getElementById('pinGate').style.display = 'none';
+  document.getElementById('mainContent').style.display = 'block';
+  const name = sessionStorage.getItem('adminName') || '';
+  document.getElementById('headerUser').textContent = name;
+}
+async function submitPin() {
+  const pin = document.getElementById('pinInput').value.trim();
+  const err = document.getElementById('pinError');
+  err.textContent = '';
+  if (!pin) { err.textContent = 'Enter a PIN'; return; }
+  try {
+    const r = await fetch(API + '/api/admin-auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin })
+    });
+    if (!r.ok) {
+      err.textContent = 'Invalid PIN';
+      return;
+    }
+    const data = await r.json();
+    sessionStorage.setItem('adminPin', pin);
+    sessionStorage.setItem('adminName', data.name);
+    hidePinGate();
+    init();
+  } catch (e) {
+    err.textContent = 'Network error: ' + e.message;
+  }
+}
+function signOut() {
+  sessionStorage.removeItem('adminPin');
+  sessionStorage.removeItem('adminName');
+  document.getElementById('pinInput').value = '';
+  showPinGate();
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('pinGate').style.display !== 'none') {
+    submitPin();
+  }
+});
+
+async function adminFetch(path, opts = {}) {
+  const headers = Object.assign({}, opts.headers || {});
+  headers['X-Admin-Pin'] = sessionStorage.getItem('adminPin') || '';
+  if (opts.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
+  const r = await fetch(API + path, Object.assign({}, opts, { headers }));
+  if (r.status === 401) {
+    sessionStorage.removeItem('adminPin');
+    sessionStorage.removeItem('adminName');
+    showPinGate();
+    throw new Error('Authentication expired');
+  }
+  return r;
+}
+
+// ── MONTH PICKER ────────────────────────────────────────────────
+function buildMonthPicker() {
+  const sel = document.getElementById('monthPicker');
+  const now = new Date();
+  // Show 6 months back through 12 months forward
+  const options = [];
+  for (let offset = -6; offset <= 12; offset++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+    options.push({ year: d.getFullYear(), month: d.getMonth() + 1, label: d.toLocaleString('en-US', { month: 'long', year: 'numeric' }) });
+  }
+  sel.innerHTML = options.map(o =>
+    `<option value="${o.year}-${o.month}">${o.label}</option>`
+  ).join('');
+  // Default to next month
+  const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  sel.value = `${next.getFullYear()}-${next.getMonth() + 1}`;
+  sel.addEventListener('change', () => {
+    const [y, m] = sel.value.split('-').map(Number);
+    loadMonth(y, m);
+  });
+}
+
+// ── MULTIPLIERS ─────────────────────────────────────────────────
+function buildMultipliers() {
+  const container = document.getElementById('multipliers');
+  container.innerHTML = '<div class="mult-heading">Growth multipliers</div>' +
+    STORES.map(store => `
+      <div class="mult-cell">
+        <div class="mult-store">${store}</div>
+        <input class="mult-input" data-store="${store}" type="number" step="0.01" min="0" value="${DEFAULT_MULT.toFixed(2)}">
+      </div>`).join('');
+  container.querySelectorAll('.mult-input').forEach(inp => {
+    inp.addEventListener('change', e => {
+      const store = e.target.dataset.store;
+      const val = parseFloat(e.target.value);
+      if (!isFinite(val) || val < 0) {
+        e.target.value = state.multipliers[store].toFixed(2);
+        return;
+      }
+      state.multipliers[store] = val;
+      applyMultiplier(store);
+      renderGrid();
+    });
+  });
+  STORES.forEach(s => { state.multipliers[s] = DEFAULT_MULT; });
+}
+
+function applyMultiplier(store) {
+  // Re-compute target for cells that are NOT overridden
+  const m = state.multipliers[store];
+  const days = state.cells[store] || {};
+  for (const date of Object.keys(days)) {
+    const c = days[date];
+    if (!c.override) {
+      c.target = round2(c.ly * m);
+    }
+  }
+}
+
+function recalcAll() {
+  if (!confirm('Reset all overrides and recompute targets from multipliers?')) return;
+  for (const store of STORES) {
+    const days = state.cells[store] || {};
+    const m = state.multipliers[store];
+    for (const date of Object.keys(days)) {
+      days[date].override = false;
+      days[date].target = round2(days[date].ly * m);
+    }
+  }
+  renderGrid();
+  toast('Recalculated from multipliers', 'info');
+}
+
+// ── LOAD MONTH DATA ─────────────────────────────────────────────
+async function loadMonth(year, month) {
+  state.year = year;
+  state.month = month;
+  state.cells = {};
+  document.getElementById('gridContainer').innerHTML =
+    '<div class="loading"><div class="spinner"></div> Loading targets…</div>';
+  document.getElementById('grandTotal').style.display = 'none';
+
+  try {
+    const results = await Promise.all(STORES.map(store =>
+      adminFetch(`/api/targets/month?year=${year}&month=${month}&store=${encodeURIComponent(store)}`)
+        .then(r => r.json())
+        .then(d => ({ store, data: d }))
+    ));
+
+    for (const { store, data } of results) {
+      const days = {};
+      for (const row of data.rows) {
+        const hasOverride = row.existing_target !== null && row.existing_target !== undefined;
+        days[row.date] = {
+          ly: row.ly_revenue || 0,
+          target: hasOverride ? row.existing_target : round2((row.ly_revenue || 0) * state.multipliers[store]),
+          override: hasOverride
+        };
+      }
+      state.cells[store] = days;
+    }
+    renderGrid();
+  } catch (e) {
+    document.getElementById('gridContainer').innerHTML =
+      `<div class="loading" style="color:var(--red)">${e.message}</div>`;
+  }
+}
+
+// ── RENDER GRID ─────────────────────────────────────────────────
+function renderGrid() {
+  const dates = Object.keys(state.cells[STORES[0]] || {}).sort();
+  if (dates.length === 0) return;
+
+  const head = `<thead><tr>
+    <th class="date-col">Date</th>
+    ${STORES.map(s => `<th>${s}</th>`).join('')}
+  </tr></thead>`;
+
+  const body = '<tbody>' + dates.map(date => {
+    const d = new Date(date + 'T12:00:00');
+    const dow = d.toLocaleString('en-US', { weekday: 'short' });
+    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+    const dayLabel = d.getDate();
+    return `<tr class="${isWeekend ? 'is-weekend' : ''}">
+      <td class="date-col">${dayLabel}<span class="dow">${dow}</span></td>
+      ${STORES.map(store => {
+        const c = state.cells[store][date];
+        const overrideClass = c.override ? ' is-override' : '';
+        return `<td class="cell${overrideClass}" data-store="${store}" data-date="${date}">
+          <div class="cell-ly">$${fmt0(c.ly)}</div>
+          <input class="cell-target" type="number" step="any" min="0" value="${Math.round(c.target)}">
+          <span class="cell-dot"></span>
+        </td>`;
+      }).join('')}
+    </tr>`;
+  }).join('') + '</tbody>';
+
+  // Footer: per-store monthly totals + LY totals
+  const ftStoreTotals = STORES.map(store => sumStore(store, 'target'));
+  const ftLyTotals = STORES.map(store => sumStore(store, 'ly'));
+  const foot = `<tfoot>
+    <tr class="ly-row">
+      <td class="date-col">LY total</td>
+      ${ftLyTotals.map(v => `<td>$${fmt0(v)}</td>`).join('')}
+    </tr>
+    <tr>
+      <td class="date-col">Target total</td>
+      ${ftStoreTotals.map(v => `<td>$${fmt0(v)}</td>`).join('')}
+    </tr>
+  </tfoot>`;
+
+  document.getElementById('gridContainer').innerHTML =
+    `<div class="grid-wrap"><table class="grid">${head}${body}${foot}</table></div>`;
+
+  // Wire input handlers
+  document.querySelectorAll('.cell-target').forEach(inp => {
+    inp.addEventListener('change', onCellEdit);
+    inp.addEventListener('focus', e => e.target.select());
+  });
+
+  // Grand totals
+  const grandTarget = ftStoreTotals.reduce((s, v) => s + v, 0);
+  const grandLy = ftLyTotals.reduce((s, v) => s + v, 0);
+  document.getElementById('grandTotalVal').textContent = '$' + fmt0(grandTarget);
+  document.getElementById('grandTotalLy').textContent = 'LY $' + fmt0(grandLy);
+  document.getElementById('grandTotal').style.display = 'flex';
+}
+
+function onCellEdit(e) {
+  const td = e.target.closest('.cell');
+  const store = td.dataset.store;
+  const date = td.dataset.date;
+  const val = parseFloat(e.target.value);
+  if (!isFinite(val) || val < 0) {
+    e.target.value = Math.round(state.cells[store][date].target);
+    return;
+  }
+  state.cells[store][date].target = round2(val);
+  state.cells[store][date].override = true;
+  td.classList.add('is-override');
+  // Re-render footer totals (cheap: just recompute totals row + grand)
+  updateTotalsOnly();
+}
+
+function updateTotalsOnly() {
+  const tfoot = document.querySelector('.grid tfoot');
+  if (!tfoot) return;
+  const targetRow = tfoot.querySelectorAll('tr')[1];
+  const targetTds = targetRow.querySelectorAll('td:not(.date-col)');
+  let grand = 0;
+  STORES.forEach((store, i) => {
+    const v = sumStore(store, 'target');
+    targetTds[i].textContent = '$' + fmt0(v);
+    grand += v;
+  });
+  document.getElementById('grandTotalVal').textContent = '$' + fmt0(grand);
+}
+
+function sumStore(store, key) {
+  const days = state.cells[store] || {};
+  let s = 0;
+  for (const d of Object.values(days)) s += (d[key] || 0);
+  return s;
+}
+
+// ── SAVE ────────────────────────────────────────────────────────
+async function savePublish() {
+  const btn = document.getElementById('saveBtn');
+  const targets = [];
+  for (const store of STORES) {
+    const days = state.cells[store] || {};
+    for (const [date, c] of Object.entries(days)) {
+      if (c.target > 0) {
+        targets.push({ date, store, revenue_target: Math.round(c.target) });
+      }
+    }
+  }
+  if (targets.length === 0) { toast('Nothing to save', 'error'); return; }
+  if (!confirm(`Publish ${targets.length} targets for ${state.year}-${String(state.month).padStart(2, '0')}?`)) return;
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  try {
+    const r = await adminFetch('/api/targets/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ targets })
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Save failed');
+    toast(`Saved ${data.count} targets`, 'success');
+  } catch (e) {
+    toast('Save failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save / Publish';
+  }
+}
+
+// ── HELPERS ─────────────────────────────────────────────────────
+function round2(n) { return Math.round(n * 100) / 100; }
+function fmt0(n) { return Math.round(n || 0).toLocaleString('en-US'); }
+function toast(msg, kind) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (kind || 'info');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.className = 'toast ' + (kind || 'info'); }, 2600);
+}
+
+// ── INIT ────────────────────────────────────────────────────────
+async function init() {
+  buildMonthPicker();
+  buildMultipliers();
+  const [y, m] = document.getElementById('monthPicker').value.split('-').map(Number);
+  await loadMonth(y, m);
+}
+
+// On load: try cached PIN, otherwise show gate
+(async function bootstrap() {
+  const cachedPin = sessionStorage.getItem('adminPin');
+  if (!cachedPin) { showPinGate(); return; }
+  // Validate by hitting a gated endpoint
+  try {
+    const r = await fetch(API + '/api/admin-users', { headers: { 'X-Admin-Pin': cachedPin } });
+    if (!r.ok) { sessionStorage.removeItem('adminPin'); sessionStorage.removeItem('adminName'); showPinGate(); return; }
+    hidePinGate();
+    init();
+  } catch (e) {
+    showPinGate();
+  }
+})();
+</script>
+</body>
+</html>

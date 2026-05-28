@@ -36,3 +36,6 @@ data/
 
 # Backups
 server/sync/*.bak
+
+# Build prompts (local working docs)
+NEOB_*_BUILD_PROMPT.md

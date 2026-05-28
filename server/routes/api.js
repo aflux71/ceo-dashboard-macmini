@@ -1,4 +1,5 @@
 import express from 'express';
+import { randomInt } from 'node:crypto';
 import db from '../db/database.js';
 
 const router = express.Router();
@@ -545,6 +546,433 @@ router.delete('/tasks/:id', (req, res) => {
     db.prepare('DELETE FROM tasks WHERE id = ?').run(id);
     res.json({ ok: true, deleted: id });
   } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+
+// ── PORTAL SYNC API ───────────────────────────────────────────────
+// Replaces Base44 portalSync.ts — Cloudflare Store Portal talks to this
+// Auth: Bearer neob-portal-sync-2026
+
+const PORTAL_SYNC_KEY = 'neob-portal-sync-2026';
+
+function checkPortalAuth(req, res) {
+  const auth = req.headers['authorization'];
+  if (!auth || auth !== `Bearer ${PORTAL_SYNC_KEY}`) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return false;
+  }
+  return true;
+}
+
+// GET /api/portal-sync?action=targets&store=Queen Street&date=2026-05-25
+// GET /api/portal-sync?action=all_targets&date=2026-05-25
+router.get('/portal-sync', (req, res) => {
+  if (!checkPortalAuth(req, res)) return;
+  try {
+    const { action, store, date } = req.query;
+    const targetDate = date || new Date().toISOString().split('T')[0];
+
+    if (action === 'targets') {
+      if (!store) return res.status(400).json({ error: 'Missing store parameter' });
+
+      // Look for exact date first, then fall back to most recent target
+      let target = db.prepare(
+        'SELECT * FROM kpi_targets WHERE store_name = ? AND target_date = ?'
+      ).get(store, targetDate);
+
+      if (!target) {
+        target = db.prepare(
+          'SELECT * FROM kpi_targets WHERE store_name = ? ORDER BY target_date DESC LIMIT 1'
+        ).get(store);
+      }
+
+      if (target) {
+        return res.json({
+          target: {
+            store: target.store_name,
+            target_date: target.target_date,
+            revenue_target: target.revenue_target,
+            aov_target: target.aov_target,
+            bundle_target: target.bundle_target,
+            forty_target: target.forty_target
+          }
+        });
+      }
+      return res.json({ target: null });
+    }
+
+    if (action === 'all_targets') {
+      const targets = db.prepare(
+        'SELECT * FROM kpi_targets WHERE target_date = ? ORDER BY store_name'
+      ).all(targetDate);
+
+      // If no targets for today, get most recent per store
+      if (targets.length === 0) {
+        const stores = ['Queen Street', 'Flower Farm', 'Elora', 'Stratford', 'Bracebridge', 'Online/DTC'];
+        const latest = stores.map(s =>
+          db.prepare('SELECT * FROM kpi_targets WHERE store_name = ? ORDER BY target_date DESC LIMIT 1').get(s)
+        ).filter(Boolean);
+        return res.json({ targets: latest });
+      }
+
+      return res.json({ targets });
+    }
+
+    return res.status(400).json({ error: 'Invalid action. Use: targets, all_targets, submit' });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/portal-sync?action=submit
+router.post('/portal-sync', (req, res) => {
+  if (!checkPortalAuth(req, res)) return;
+  try {
+    const { action } = req.query;
+    if (action !== 'submit') return res.status(400).json({ error: 'Invalid action' });
+
+    const {
+      store, entry_date, revenue, transactions, aov,
+      bundle_pct, forty_compliance, soap_attach,
+      submitted_at, submitted_by, source, notes
+    } = req.body;
+
+    if (!store || !entry_date || revenue === undefined) {
+      return res.status(400).json({ error: 'Missing required fields: store, entry_date, revenue' });
+    }
+
+    // Upsert — one entry per store per day
+    db.prepare(`
+      INSERT INTO daily_kpi
+        (store_name, staff_name, entry_date, revenue, transactions, aov,
+         bundle_pct, forty_compliance, soap_attach, notes,
+         submitted_at, synced_from)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(store_name, entry_date) DO UPDATE SET
+        staff_name = excluded.staff_name,
+        revenue = excluded.revenue,
+        transactions = excluded.transactions,
+        aov = excluded.aov,
+        bundle_pct = excluded.bundle_pct,
+        forty_compliance = excluded.forty_compliance,
+        soap_attach = excluded.soap_attach,
+        notes = excluded.notes,
+        submitted_at = excluded.submitted_at
+    `).run(
+      store,
+      submitted_by || 'staff',
+      entry_date,
+      Number(revenue),
+      transactions ? Number(transactions) : null,
+      aov ? Number(aov) : null,
+      bundle_pct ? Number(bundle_pct) : null,
+      forty_compliance ? Number(forty_compliance) : null,
+      soap_attach ? Number(soap_attach) : null,
+      notes || null,
+      submitted_at || new Date().toISOString(),
+      source || 'portal'
+    );
+
+    // Log to console for visibility
+    console.log(`Portal entry: ${store} - ${entry_date} - $${revenue} (by ${submitted_by || 'staff'})`);
+
+    return res.json({
+      success: true,
+      message: `Entry saved for ${store} on ${entry_date}`,
+      store, entry_date, revenue: Number(revenue)
+    });
+  } catch(err) {
+    console.error('Portal sync error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/portal-sync/entries — view recent entries (CEO use)
+router.get('/portal-sync/entries', (req, res) => {
+  if (!checkPortalAuth(req, res)) return;
+  try {
+    const { store, days = 7 } = req.query;
+    const since = new Date(Date.now() - Number(days) * 86400000).toISOString().split('T')[0];
+    const query = store
+      ? 'SELECT * FROM daily_kpi WHERE store_name = ? AND entry_date >= ? ORDER BY entry_date DESC, store_name'
+      : 'SELECT * FROM daily_kpi WHERE entry_date >= ? ORDER BY entry_date DESC, store_name';
+    const rows = store
+      ? db.prepare(query).all(store, since)
+      : db.prepare(query).all(since);
+    res.json({ entries: rows });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── ADMIN AUTH + ADMIN-FACING ENDPOINTS ───────────────────────────
+// Backs /targets.html and /staff.html. PIN gate via X-Admin-Pin header
+// against admin_users table. /api/admin-auth/login is the only
+// endpoint that does not require the header (it accepts pin in body).
+
+if (!process.env.CF_API_TOKEN) {
+  console.warn('[admin] CF_API_TOKEN not set — /api/staff and /api/store-access will return 503 until configured in .env');
+}
+
+const ADMIN_STORES = ['Queen Street', 'Flower Farm', 'Elora', 'Stratford', 'Bracebridge', 'Online/DTC'];
+
+function checkAdminPin(req, res) {
+  const pin = req.headers['x-admin-pin'];
+  if (!pin) {
+    res.status(401).json({ error: 'Missing X-Admin-Pin header' });
+    return null;
+  }
+  const user = db.prepare(
+    'SELECT id, name, role FROM admin_users WHERE pin = ? AND is_active = 1'
+  ).get(String(pin));
+  if (!user) {
+    res.status(401).json({ error: 'Invalid admin PIN' });
+    return null;
+  }
+  return user;
+}
+
+async function d1Query(sql, params = []) {
+  if (!process.env.CF_API_TOKEN || !process.env.CF_ACCOUNT_ID || !process.env.CF_D1_DATABASE_ID) {
+    const err = new Error('Cloudflare D1 not configured (set CF_ACCOUNT_ID, CF_D1_DATABASE_ID, CF_API_TOKEN in .env)');
+    err.status = 503;
+    throw err;
+  }
+  const url = `https://api.cloudflare.com/client/v4/accounts/${process.env.CF_ACCOUNT_ID}/d1/database/${process.env.CF_D1_DATABASE_ID}/query`;
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${process.env.CF_API_TOKEN}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ sql, params })
+  });
+  const json = await resp.json().catch(() => ({}));
+  if (!resp.ok || !json.success) {
+    const err = new Error('D1 error: ' + JSON.stringify(json.errors || json.messages || { status: resp.status }));
+    err.status = 502;
+    throw err;
+  }
+  return json.result?.[0]?.results || [];
+}
+
+function sendError(res, err) {
+  const status = err.status || 500;
+  res.status(status).json({ error: err.message });
+}
+
+// — admin auth —
+router.post('/admin-auth/login', (req, res) => {
+  try {
+    const { pin } = req.body || {};
+    if (!pin) return res.status(400).json({ error: 'Missing pin' });
+    const user = db.prepare(
+      'SELECT name, role FROM admin_users WHERE pin = ? AND is_active = 1'
+    ).get(String(pin));
+    if (!user) return res.status(401).json({ error: 'Invalid PIN' });
+    res.json({ ok: true, name: user.name, role: user.role });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/admin-users', (req, res) => {
+  if (!checkAdminPin(req, res)) return;
+  try {
+    const rows = db.prepare(
+      'SELECT id, name, role, is_active, created_at FROM admin_users ORDER BY name'
+    ).all();
+    res.json({ users: rows });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// — targets —
+function pad2(n) { return String(n).padStart(2, '0'); }
+function daysInMonth(year, month) { return new Date(year, month, 0).getDate(); }
+
+function lyDailyRevenue(store, fromDate, toDate) {
+  if (store === 'Online/DTC') {
+    return db.prepare(`
+      SELECT DATE(created_at) AS day, ROUND(SUM(CAST(total_price AS REAL)), 2) AS revenue
+      FROM orders
+      WHERE source_name = 'web'
+        AND DATE(created_at) BETWEEN ? AND ?
+      GROUP BY DATE(created_at)
+    `).all(fromDate, toDate);
+  }
+  return db.prepare(`
+    SELECT DATE(created_at) AS day, ROUND(SUM(CAST(total_price AS REAL)), 2) AS revenue
+    FROM orders
+    WHERE source_name NOT IN (${EXCLUDED_SOURCES})
+      AND location_name = ?
+      AND DATE(created_at) BETWEEN ? AND ?
+    GROUP BY DATE(created_at)
+  `).all(store, fromDate, toDate);
+}
+
+router.get('/targets/month', (req, res) => {
+  if (!checkAdminPin(req, res)) return;
+  try {
+    const year = Number(req.query.year);
+    const month = Number(req.query.month);
+    const store = req.query.store;
+    if (!year || !month || !store) {
+      return res.status(400).json({ error: 'Missing year, month, or store' });
+    }
+    if (!ADMIN_STORES.includes(store)) {
+      return res.status(400).json({ error: 'Unknown store' });
+    }
+
+    const lyYear = year - 1;
+    const days = daysInMonth(year, month);
+    const monthStart = `${year}-${pad2(month)}-01`;
+    const monthEnd = `${year}-${pad2(month)}-${pad2(days)}`;
+    const lyStart = `${lyYear}-${pad2(month)}-01`;
+    const lyEnd = `${lyYear}-${pad2(month)}-${pad2(daysInMonth(lyYear, month))}`;
+
+    const lyRows = lyDailyRevenue(store, lyStart, lyEnd);
+    const lyMap = {};
+    for (const r of lyRows) lyMap[r.day] = r.revenue || 0;
+
+    const existing = db.prepare(
+      'SELECT target_date, revenue_target FROM kpi_targets WHERE store_name = ? AND target_date BETWEEN ? AND ?'
+    ).all(store, monthStart, monthEnd);
+    const existingMap = {};
+    for (const r of existing) existingMap[r.target_date] = r.revenue_target;
+
+    const rows = [];
+    for (let day = 1; day <= days; day++) {
+      const date = `${year}-${pad2(month)}-${pad2(day)}`;
+      const lyDate = `${lyYear}-${pad2(month)}-${pad2(day)}`;
+      rows.push({
+        date,
+        ly_date: lyDate,
+        ly_revenue: lyMap[lyDate] || 0,
+        existing_target: existingMap[date] ?? null
+      });
+    }
+    res.json({ store, year, month, rows });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/targets/ly-summary', (req, res) => {
+  if (!checkAdminPin(req, res)) return;
+  try {
+    const year = Number(req.query.year);
+    const month = Number(req.query.month);
+    if (!year || !month) return res.status(400).json({ error: 'Missing year or month' });
+    const lyYear = year - 1;
+    const lyStart = `${lyYear}-${pad2(month)}-01`;
+    const lyEnd = `${lyYear}-${pad2(month)}-${pad2(daysInMonth(lyYear, month))}`;
+
+    const stores = ADMIN_STORES.map(store => {
+      const rows = lyDailyRevenue(store, lyStart, lyEnd);
+      const total = rows.reduce((s, r) => s + (r.revenue || 0), 0);
+      return { store, ly_revenue: Math.round(total * 100) / 100 };
+    });
+    res.json({ year, month, ly_year: lyYear, stores });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/targets/bulk', (req, res) => {
+  if (!checkAdminPin(req, res)) return;
+  try {
+    const { targets } = req.body || {};
+    if (!Array.isArray(targets) || targets.length === 0) {
+      return res.status(400).json({ error: 'Missing targets array' });
+    }
+    const upsert = db.prepare(`
+      INSERT INTO kpi_targets (store_name, target_date, revenue_target, updated_at)
+      VALUES (?, ?, ?, datetime('now'))
+      ON CONFLICT(store_name, target_date) DO UPDATE SET
+        revenue_target = excluded.revenue_target,
+        updated_at = excluded.updated_at
+    `);
+    let count = 0;
+    const tx = db.transaction((rows) => {
+      for (const t of rows) {
+        if (!t.date || !t.store) continue;
+        if (t.revenue_target === undefined || t.revenue_target === null) continue;
+        upsert.run(t.store, t.date, Number(t.revenue_target));
+        count++;
+      }
+    });
+    tx(targets);
+    res.json({ ok: true, count });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// — staff (proxy to Cloudflare D1) —
+router.get('/staff', async (req, res) => {
+  if (!checkAdminPin(req, res)) return;
+  try {
+    const rows = await d1Query('SELECT * FROM staff ORDER BY name');
+    res.json({ staff: rows });
+  } catch (err) { sendError(res, err); }
+});
+
+router.post('/staff', async (req, res) => {
+  if (!checkAdminPin(req, res)) return;
+  try {
+    const { name, pin, store_name, role } = req.body || {};
+    if (!name || !pin) return res.status(400).json({ error: 'name and pin required' });
+    await d1Query(
+      "INSERT INTO staff (name, pin, store_name, role, is_active, created_at) VALUES (?, ?, ?, ?, 1, datetime('now'))",
+      [name, String(pin), store_name || null, role || 'staff']
+    );
+    res.json({ ok: true });
+  } catch (err) { sendError(res, err); }
+});
+
+router.patch('/staff/:id', async (req, res) => {
+  if (!checkAdminPin(req, res)) return;
+  try {
+    const fields = ['name', 'pin', 'store_name', 'role', 'is_active'];
+    const updates = [];
+    const params = [];
+    for (const f of fields) {
+      if (req.body[f] !== undefined) {
+        updates.push(`${f} = ?`);
+        params.push(f === 'pin' ? String(req.body[f]) : req.body[f]);
+      }
+    }
+    if (updates.length === 0) return res.json({ ok: true, noop: true });
+    params.push(req.params.id);
+    await d1Query(`UPDATE staff SET ${updates.join(', ')} WHERE id = ?`, params);
+    res.json({ ok: true });
+  } catch (err) { sendError(res, err); }
+});
+
+router.delete('/staff/:id', async (req, res) => {
+  if (!checkAdminPin(req, res)) return;
+  try {
+    await d1Query('UPDATE staff SET is_active = 0 WHERE id = ?', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { sendError(res, err); }
+});
+
+// — store access codes (D1) —
+// 7-char code: 4-letter colour + 3-digit number, e.g. BLUE742
+const COLOR_POOL = ['BLUE','GOLD','PINK','ROSE','SAGE','PLUM','MINT','RUBY','OPAL','NAVY','CLAY','SAND','LIME','TEAL','JADE','AQUA','IRIS','FERN','MOSS','LILY'];
+function newStoreCode() {
+  const color = COLOR_POOL[randomInt(0, COLOR_POOL.length)];
+  const num = randomInt(100, 1000);
+  return `${color}${num}`;
+}
+
+router.get('/store-access', async (req, res) => {
+  if (!checkAdminPin(req, res)) return;
+  try {
+    const rows = await d1Query('SELECT * FROM store_access ORDER BY store_name');
+    res.json({ access: rows });
+  } catch (err) { sendError(res, err); }
+});
+
+router.post('/store-access/:id/rotate', async (req, res) => {
+  if (!checkAdminPin(req, res)) return;
+  try {
+    const code = newStoreCode();
+    const expiresAt = new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0];
+    await d1Query(
+      'UPDATE store_access SET store_code = ?, code_expires_at = ? WHERE id = ?',
+      [code, expiresAt, req.params.id]
+    );
+    res.json({ ok: true, store_code: code, code_expires_at: expiresAt });
+  } catch (err) { sendError(res, err); }
 });
 
 export default router;

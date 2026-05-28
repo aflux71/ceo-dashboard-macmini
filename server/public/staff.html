@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>neōb — Staff</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F7F5F0;
+    --surface: #FFFFFF;
+    --surface-warm: #FAF8F4;
+    --border: #E8E3D9;
+    --border-strong: #C9C0B0;
+    --text: #1A1714;
+    --text-2: #5C5650;
+    --text-3: #9C948A;
+    --lavender: #6B5B8F;
+    --lavender-light: #EEE9F5;
+    --lavender-mid: #C4B5E8;
+    --green: #2D6A4F;
+    --green-light: #E8F5EE;
+    --amber: #92400E;
+    --amber-light: #FEF3C7;
+    --red: #991B1B;
+    --red-light: #FEE2E2;
+    --shadow: 0 1px 3px rgba(26,23,20,0.06), 0 1px 2px rgba(26,23,20,0.04);
+    --shadow-md: 0 4px 12px rgba(26,23,20,0.08);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; }
+
+  .header {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 0 32px; height: 60px; display: flex; align-items: center;
+    justify-content: space-between; position: sticky; top: 0; z-index: 100;
+  }
+  .header-brand { display: flex; align-items: baseline; gap: 12px; }
+  .header-brand h1 { font-family: 'DM Serif Display', serif; font-size: 22px; color: var(--lavender); }
+  .header-brand span { font-size: 11px; font-weight: 500; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.1em; }
+  .header-nav { display: flex; gap: 8px; }
+  .nav-link {
+    padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 500;
+    color: var(--text-2); text-decoration: none; transition: all 0.15s;
+  }
+  .nav-link:hover { background: var(--bg); }
+  .nav-link.active { background: var(--lavender-light); color: var(--lavender); }
+  .header-right { display: flex; align-items: center; gap: 14px; }
+  .header-user { font-size: 12px; color: var(--text-3); font-family: 'DM Mono', monospace; }
+  .header-signout {
+    background: none; border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text-2); padding: 5px 10px; font-size: 11px; font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+  }
+  .header-signout:hover { border-color: var(--border-strong); }
+
+  .main { max-width: 1200px; margin: 0 auto; padding: 24px 32px; }
+
+  .section { margin-bottom: 28px; }
+  .section-head {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    margin-bottom: 12px; gap: 16px;
+  }
+  .section-title { font-family: 'DM Serif Display', serif; font-size: 22px; }
+  .section-sub { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+
+  .btn {
+    padding: 9px 16px; border-radius: 8px; border: none; font-family: 'DM Sans', sans-serif;
+    font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+  }
+  .btn-primary { background: var(--lavender); color: white; }
+  .btn-primary:hover { opacity: 0.9; }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-ghost { background: var(--surface); border: 1px solid var(--border); color: var(--text-2); }
+  .btn-ghost:hover { border-color: var(--border-strong); }
+  .btn-sm { padding: 5px 10px; font-size: 11px; }
+  .btn-danger { background: none; border: 1px solid var(--red-light); color: var(--red); }
+  .btn-danger:hover { background: var(--red-light); }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    box-shadow: var(--shadow); overflow: hidden;
+  }
+  table.data { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .data thead th {
+    background: var(--surface-warm); border-bottom: 1px solid var(--border);
+    padding: 10px 12px; font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--text-2); text-align: left;
+  }
+  .data tbody td {
+    border-bottom: 1px solid var(--bg); padding: 10px 12px; vertical-align: middle;
+  }
+  .data tbody tr:last-child td { border-bottom: none; }
+  .data tbody tr:hover { background: var(--surface-warm); }
+  .data .col-actions { text-align: right; }
+  .data .col-pin { font-family: 'DM Mono', monospace; color: var(--text-3); letter-spacing: 0.2em; }
+  .data .col-code { font-family: 'DM Mono', monospace; font-weight: 600; color: var(--lavender); }
+  .data .col-name { font-weight: 500; }
+
+  .inline-select, .inline-input {
+    padding: 5px 8px; border: 1px solid transparent; border-radius: 6px;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--text);
+    background: transparent; outline: none; min-width: 120px;
+  }
+  .inline-select:hover, .inline-input:hover { border-color: var(--border); background: var(--surface-warm); }
+  .inline-select:focus, .inline-input:focus { border-color: var(--lavender-mid); background: var(--surface); }
+
+  .toggle {
+    position: relative; width: 36px; height: 20px;
+    background: var(--border); border-radius: 10px; cursor: pointer;
+    transition: background 0.15s; display: inline-block; vertical-align: middle;
+  }
+  .toggle::after {
+    content: ''; position: absolute; top: 2px; left: 2px;
+    width: 16px; height: 16px; background: white; border-radius: 50%;
+    transition: transform 0.15s; box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+  }
+  .toggle.on { background: var(--green); }
+  .toggle.on::after { transform: translateX(16px); }
+
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 10px;
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .badge.expired { background: var(--red-light); color: var(--red); }
+  .badge.expiring { background: var(--amber-light); color: var(--amber); }
+  .badge.active { background: var(--green-light); color: var(--green); }
+
+  .empty-state {
+    padding: 36px; text-align: center; color: var(--text-3); font-size: 13px;
+  }
+  .empty-state code {
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    background: var(--surface-warm); padding: 2px 6px; border-radius: 4px;
+  }
+
+  /* MODAL */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(26,23,20,0.4);
+    z-index: 200; align-items: center; justify-content: center;
+  }
+  .modal-overlay.visible { display: flex; }
+  .modal {
+    background: var(--surface); border-radius: 16px; width: 460px; max-width: 90vw;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  }
+  .modal-head { padding: 18px 22px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .modal-title { font-family: 'DM Serif Display', serif; font-size: 18px; }
+  .modal-close { background: none; border: none; font-size: 22px; cursor: pointer; color: var(--text-3); line-height: 1; }
+  .modal-body { padding: 22px; }
+  .form-group { margin-bottom: 14px; }
+  .form-group label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; color: var(--text-3); margin-bottom: 6px; }
+  .form-group input, .form-group select {
+    width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px;
+    font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--text); outline: none;
+  }
+  .form-group input:focus, .form-group select:focus { border-color: var(--lavender-mid); }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .modal-foot { padding: 14px 22px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+  .form-error { color: var(--red); font-size: 12px; min-height: 16px; margin-top: 4px; }
+
+  /* PIN GATE */
+  .pin-gate {
+    position: fixed; inset: 0; background: var(--bg); z-index: 500;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .pin-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    padding: 32px 36px; box-shadow: var(--shadow-md); width: 340px; text-align: center;
+  }
+  .pin-card h2 { font-family: 'DM Serif Display', serif; font-size: 22px; color: var(--lavender); margin-bottom: 6px; }
+  .pin-card p { font-size: 12px; color: var(--text-3); margin-bottom: 18px; }
+  .pin-card input {
+    width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px;
+    font-family: 'DM Mono', monospace; font-size: 18px; text-align: center;
+    letter-spacing: 0.4em; outline: none; margin-bottom: 12px;
+  }
+  .pin-card input:focus { border-color: var(--lavender-mid); }
+  .pin-card button {
+    width: 100%; padding: 11px; background: var(--lavender); color: white;
+    border: none; border-radius: 8px; font-family: 'DM Sans', sans-serif;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  .pin-card button:hover { opacity: 0.9; }
+  .pin-error { color: var(--red); font-size: 12px; margin-top: 10px; min-height: 16px; }
+
+  .toast {
+    position: fixed; bottom: 24px; right: 24px; padding: 12px 18px;
+    border-radius: 10px; font-size: 13px; font-weight: 500; box-shadow: var(--shadow-md);
+    z-index: 400; opacity: 0; transition: opacity 0.2s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+  .toast.success { background: var(--green-light); color: var(--green); }
+  .toast.error { background: var(--red-light); color: var(--red); }
+  .toast.info { background: var(--lavender-light); color: var(--lavender); }
+
+  .loading { display: flex; align-items: center; justify-content: center; height: 120px; color: var(--text-3); gap: 10px; }
+  .spinner { width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--lavender); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-brand">
+    <h1>neōb</h1>
+    <span>Admin</span>
+  </div>
+  <div class="header-nav">
+    <a href="ceo.html" class="nav-link">Dashboard</a>
+    <a href="tasks.html" class="nav-link">Tasks</a>
+    <a href="targets.html" class="nav-link">Targets</a>
+    <a href="staff.html" class="nav-link active">Staff</a>
+  </div>
+  <div class="header-right">
+    <span class="header-user" id="headerUser">—</span>
+    <button class="header-signout" onclick="signOut()">Sign out</button>
+  </div>
+</header>
+
+<main class="main" id="mainContent" style="display:none">
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Staff</div>
+        <div class="section-sub">Portal sign-in credentials. PIN + store assignment.</div>
+      </div>
+      <button class="btn btn-primary" onclick="openAddStaff()">+ Add Staff</button>
+    </div>
+    <div class="card" id="staffCard">
+      <div class="loading"><div class="spinner"></div> Loading staff…</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Store Access Codes</div>
+        <div class="section-sub">7-character codes for the store portal kiosks. Rotate every 90 days or on staff change.</div>
+      </div>
+    </div>
+    <div class="card" id="accessCard">
+      <div class="loading"><div class="spinner"></div> Loading store access…</div>
+    </div>
+  </div>
+</main>
+
+<!-- Add Staff Modal -->
+<div class="modal-overlay" id="addStaffModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">Add Staff</div>
+      <button class="modal-close" onclick="closeAddStaff()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Name</label>
+        <input id="nsName" type="text" autocomplete="off">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>PIN (4–8 digits)</label>
+          <input id="nsPin" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>Role</label>
+          <select id="nsRole">
+            <option value="staff">Staff</option>
+            <option value="manager">Manager</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Store</label>
+        <select id="nsStore">
+          <option value="">— Unassigned —</option>
+        </select>
+      </div>
+      <div class="form-error" id="nsError"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeAddStaff()">Cancel</button>
+      <button class="btn btn-primary" id="nsSaveBtn" onclick="saveNewStaff()">Add Staff</button>
+    </div>
+  </div>
+</div>
+
+<!-- PIN gate -->
+<div class="pin-gate" id="pinGate">
+  <div class="pin-card">
+    <h2>Admin Sign In</h2>
+    <p>Enter your admin PIN to access staff management.</p>
+    <input id="pinInput" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="••••">
+    <button onclick="submitPin()">Enter</button>
+    <div id="pinError" class="pin-error"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = 'http://100.68.55.123:3001';
+const STORES = ['Queen Street', 'Flower Farm', 'Elora', 'Stratford', 'Bracebridge', 'Online/DTC'];
+const ROLES = ['staff', 'manager', 'admin'];
+
+let staffRows = [];
+let accessRows = [];
+
+// ── PIN GATE ────────────────────────────────────────────────────
+function showPinGate() {
+  document.getElementById('pinGate').style.display = 'flex';
+  document.getElementById('mainContent').style.display = 'none';
+  setTimeout(() => document.getElementById('pinInput').focus(), 50);
+}
+function hidePinGate() {
+  document.getElementById('pinGate').style.display = 'none';
+  document.getElementById('mainContent').style.display = 'block';
+  document.getElementById('headerUser').textContent = sessionStorage.getItem('adminName') || '';
+}
+async function submitPin() {
+  const pin = document.getElementById('pinInput').value.trim();
+  const err = document.getElementById('pinError');
+  err.textContent = '';
+  if (!pin) { err.textContent = 'Enter a PIN'; return; }
+  try {
+    const r = await fetch(API + '/api/admin-auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin })
+    });
+    if (!r.ok) { err.textContent = 'Invalid PIN'; return; }
+    const data = await r.json();
+    sessionStorage.setItem('adminPin', pin);
+    sessionStorage.setItem('adminName', data.name);
+    hidePinGate();
+    init();
+  } catch (e) { err.textContent = 'Network error: ' + e.message; }
+}
+function signOut() {
+  sessionStorage.removeItem('adminPin');
+  sessionStorage.removeItem('adminName');
+  document.getElementById('pinInput').value = '';
+  showPinGate();
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('pinGate').style.display !== 'none') {
+    submitPin();
+  }
+});
+
+async function adminFetch(path, opts = {}) {
+  const headers = Object.assign({}, opts.headers || {});
+  headers['X-Admin-Pin'] = sessionStorage.getItem('adminPin') || '';
+  if (opts.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
+  const r = await fetch(API + path, Object.assign({}, opts, { headers }));
+  if (r.status === 401) {
+    sessionStorage.removeItem('adminPin');
+    sessionStorage.removeItem('adminName');
+    showPinGate();
+    throw new Error('Authentication expired');
+  }
+  return r;
+}
+
+// ── STAFF ───────────────────────────────────────────────────────
+async function loadStaff() {
+  const card = document.getElementById('staffCard');
+  card.innerHTML = '<div class="loading"><div class="spinner"></div> Loading staff…</div>';
+  try {
+    const r = await adminFetch('/api/staff');
+    const data = await r.json();
+    if (!r.ok) {
+      card.innerHTML = renderD1Error('staff', data.error || 'Unknown error');
+      return;
+    }
+    staffRows = data.staff || [];
+    renderStaff();
+  } catch (e) {
+    card.innerHTML = `<div class="empty-state" style="color:var(--red)">${e.message}</div>`;
+  }
+}
+
+function renderStaff() {
+  const card = document.getElementById('staffCard');
+  if (staffRows.length === 0) {
+    card.innerHTML = '<div class="empty-state">No staff yet. Click <strong>+ Add Staff</strong> to create the first account.</div>';
+    return;
+  }
+  const head = `<thead><tr>
+    <th>Name</th>
+    <th>PIN</th>
+    <th>Store</th>
+    <th>Role</th>
+    <th>Active</th>
+    <th>Last login</th>
+    <th class="col-actions">Actions</th>
+  </tr></thead>`;
+  const body = '<tbody>' + staffRows.map(s => {
+    const storeOptions = ['<option value="">—</option>']
+      .concat(STORES.map(st => `<option value="${esc(st)}" ${s.store_name === st ? 'selected' : ''}>${esc(st)}</option>`))
+      .join('');
+    const roleOptions = ROLES.map(r => `<option value="${r}" ${s.role === r ? 'selected' : ''}>${cap(r)}</option>`).join('');
+    const isOn = (s.is_active === 1 || s.is_active === true);
+    return `<tr data-id="${s.id}">
+      <td class="col-name">${esc(s.name || '')}</td>
+      <td class="col-pin">${'•'.repeat(String(s.pin || '').length || 4)}</td>
+      <td><select class="inline-select" data-field="store_name">${storeOptions}</select></td>
+      <td><select class="inline-select" data-field="role" style="min-width:90px">${roleOptions}</select></td>
+      <td><span class="toggle ${isOn ? 'on' : ''}" data-field="is_active"></span></td>
+      <td style="color:var(--text-3);font-family:'DM Mono',monospace;font-size:11px">${fmtDate(s.last_login)}</td>
+      <td class="col-actions">
+        <button class="btn btn-sm btn-danger" onclick="deleteStaff(${s.id})">Deactivate</button>
+      </td>
+    </tr>`;
+  }).join('') + '</tbody>';
+
+  card.innerHTML = `<table class="data">${head}${body}</table>`;
+
+  // Wire inline edits
+  card.querySelectorAll('select.inline-select').forEach(sel => {
+    sel.addEventListener('change', async e => {
+      const tr = e.target.closest('tr');
+      const id = tr.dataset.id;
+      const field = e.target.dataset.field;
+      const value = e.target.value || null;
+      await patchStaff(id, { [field]: value });
+    });
+  });
+  card.querySelectorAll('.toggle').forEach(t => {
+    t.addEventListener('click', async () => {
+      const tr = t.closest('tr');
+      const id = tr.dataset.id;
+      const newVal = t.classList.contains('on') ? 0 : 1;
+      t.classList.toggle('on');
+      await patchStaff(id, { is_active: newVal });
+    });
+  });
+}
+
+async function patchStaff(id, body) {
+  try {
+    const r = await adminFetch(`/api/staff/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Update failed');
+    toast('Saved', 'success');
+  } catch (e) {
+    toast('Update failed: ' + e.message, 'error');
+    loadStaff();
+  }
+}
+
+async function deleteStaff(id) {
+  if (!confirm('Deactivate this staff member? They will no longer be able to sign in.')) return;
+  try {
+    const r = await adminFetch(`/api/staff/${id}`, { method: 'DELETE' });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Delete failed');
+    toast('Deactivated', 'success');
+    loadStaff();
+  } catch (e) {
+    toast('Delete failed: ' + e.message, 'error');
+  }
+}
+
+// ── ADD STAFF MODAL ─────────────────────────────────────────────
+function openAddStaff() {
+  const storeSel = document.getElementById('nsStore');
+  storeSel.innerHTML = '<option value="">— Unassigned —</option>' +
+    STORES.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+  document.getElementById('nsName').value = '';
+  document.getElementById('nsPin').value = '';
+  document.getElementById('nsRole').value = 'staff';
+  document.getElementById('nsStore').value = '';
+  document.getElementById('nsError').textContent = '';
+  document.getElementById('addStaffModal').classList.add('visible');
+  setTimeout(() => document.getElementById('nsName').focus(), 50);
+}
+function closeAddStaff() {
+  document.getElementById('addStaffModal').classList.remove('visible');
+}
+async function saveNewStaff() {
+  const name = document.getElementById('nsName').value.trim();
+  const pin = document.getElementById('nsPin').value.trim();
+  const role = document.getElementById('nsRole').value;
+  const store_name = document.getElementById('nsStore').value || null;
+  const errEl = document.getElementById('nsError');
+  errEl.textContent = '';
+  if (!name) { errEl.textContent = 'Name is required'; return; }
+  if (!/^\d{4,8}$/.test(pin)) { errEl.textContent = 'PIN must be 4–8 digits'; return; }
+
+  const btn = document.getElementById('nsSaveBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const r = await adminFetch('/api/staff', {
+      method: 'POST',
+      body: JSON.stringify({ name, pin, role, store_name })
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Add failed');
+    closeAddStaff();
+    toast(`Added ${name}`, 'success');
+    loadStaff();
+  } catch (e) {
+    errEl.textContent = e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Add Staff';
+  }
+}
+
+// ── STORE ACCESS ────────────────────────────────────────────────
+async function loadAccess() {
+  const card = document.getElementById('accessCard');
+  card.innerHTML = '<div class="loading"><div class="spinner"></div> Loading store access…</div>';
+  try {
+    const r = await adminFetch('/api/store-access');
+    const data = await r.json();
+    if (!r.ok) {
+      card.innerHTML = renderD1Error('store_access', data.error || 'Unknown error');
+      return;
+    }
+    accessRows = data.access || [];
+    renderAccess();
+  } catch (e) {
+    card.innerHTML = `<div class="empty-state" style="color:var(--red)">${e.message}</div>`;
+  }
+}
+
+function renderAccess() {
+  const card = document.getElementById('accessCard');
+  if (accessRows.length === 0) {
+    card.innerHTML = '<div class="empty-state">No store access codes configured in D1 yet.</div>';
+    return;
+  }
+  const head = `<thead><tr>
+    <th>Store</th>
+    <th>Code</th>
+    <th>Expires</th>
+    <th>Status</th>
+    <th class="col-actions">Actions</th>
+  </tr></thead>`;
+  const body = '<tbody>' + accessRows.map(a => {
+    const status = accessStatus(a.code_expires_at, a.is_active);
+    return `<tr data-id="${a.id}">
+      <td class="col-name">${esc(a.store_name || '—')}</td>
+      <td class="col-code">${esc(a.store_code || '—')}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-2)">${esc(a.code_expires_at || '—')}</td>
+      <td><span class="badge ${status.cls}">${status.label}</span></td>
+      <td class="col-actions">
+        <button class="btn btn-sm btn-ghost" onclick="rotateCode(${a.id})">Rotate</button>
+      </td>
+    </tr>`;
+  }).join('') + '</tbody>';
+  card.innerHTML = `<table class="data">${head}${body}</table>`;
+}
+
+function accessStatus(expiresAt, isActive) {
+  if (isActive === 0 || isActive === false) return { cls: 'expired', label: 'Inactive' };
+  if (!expiresAt) return { cls: 'active', label: 'Active' };
+  const now = new Date();
+  const exp = new Date(expiresAt);
+  const days = Math.round((exp - now) / 86400000);
+  if (days < 0) return { cls: 'expired', label: 'Expired' };
+  if (days < 14) return { cls: 'expiring', label: `${days}d left` };
+  return { cls: 'active', label: 'Active' };
+}
+
+async function rotateCode(id) {
+  if (!confirm('Rotate this store code? The old code will stop working immediately.')) return;
+  try {
+    const r = await adminFetch(`/api/store-access/${id}/rotate`, { method: 'POST' });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Rotate failed');
+    toast(`New code: ${data.store_code}`, 'success');
+    loadAccess();
+  } catch (e) {
+    toast('Rotate failed: ' + e.message, 'error');
+  }
+}
+
+// ── HELPERS ─────────────────────────────────────────────────────
+function renderD1Error(table, msg) {
+  return `<div class="empty-state">
+    <div style="margin-bottom:10px"><strong>Can't reach Cloudflare D1 (${table})</strong></div>
+    <div style="margin-bottom:10px;color:var(--text-3)">${esc(msg)}</div>
+    <div style="font-size:11px;color:var(--text-3)">Add <code>CF_API_TOKEN</code> to <code>.env</code> and restart pm2.</div>
+  </div>`;
+}
+function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function cap(s) { return String(s || '').charAt(0).toUpperCase() + String(s || '').slice(1); }
+function fmtDate(iso) {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  } catch { return '—'; }
+}
+function toast(msg, kind) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (kind || 'info');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.className = 'toast ' + (kind || 'info'); }, 2600);
+}
+
+// ── INIT ────────────────────────────────────────────────────────
+async function init() {
+  await Promise.all([loadStaff(), loadAccess()]);
+}
+
+(async function bootstrap() {
+  const cachedPin = sessionStorage.getItem('adminPin');
+  if (!cachedPin) { showPinGate(); return; }
+  try {
+    const r = await fetch(API + '/api/admin-users', { headers: { 'X-Admin-Pin': cachedPin } });
+    if (!r.ok) { sessionStorage.removeItem('adminPin'); sessionStorage.removeItem('adminName'); showPinGate(); return; }
+    hidePinGate();
+    init();
+  } catch { showPinGate(); }
+})();
+</script>
+</body>
+</html>
