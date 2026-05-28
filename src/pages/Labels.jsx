@@ -45,8 +45,10 @@ import {
   ShoppingCart,
   Printer,
   Hash,
+  Settings,
 } from "lucide-react";
 import LabelSerials from "./LabelSerials";
+import AllSerialsSettings from "@/components/labels/AllSerialsSettings";
 
 export default function Labels() {
   const [search, setSearch] = useState("");
@@ -395,6 +397,9 @@ export default function Labels() {
           <TabsTrigger value="serials" className="data-[state=active]:bg-zinc-800 data-[state=active]:text-orange-400">
             <Hash className="w-4 h-4 mr-2" /> Serial Tracking
           </TabsTrigger>
+          <TabsTrigger value="settings" className="data-[state=active]:bg-zinc-800 data-[state=active]:text-orange-400">
+            <Settings className="w-4 h-4 mr-2" /> Settings
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="inventory" className="space-y-6 mt-0">
@@ -595,6 +600,10 @@ export default function Labels() {
         <TabsContent value="serials" className="mt-0">
           <LabelSerials />
         </TabsContent>
+
+        <TabsContent value="settings" className="mt-0">
+          <AllSerialsSettings />
+        </TabsContent>
       </Tabs>
     </div>
   );
@@ -679,6 +688,8 @@ function LabelDialog({ open, onClose, onSave, label, suppliers, recipes, isLoadi
     cost_per_unit: 0,
     notes: "",
     active: true,
+    print_on_demand: false,
+    seasonal: false,
   });
 
   React.useEffect(() => {
@@ -700,6 +711,8 @@ function LabelDialog({ open, onClose, onSave, label, suppliers, recipes, isLoadi
         cost_per_unit: 0,
         notes: "",
         active: true,
+        print_on_demand: false,
+        seasonal: false,
       });
     }
   }, [label, open]);
@@ -839,7 +852,28 @@ function LabelDialog({ open, onClose, onSave, label, suppliers, recipes, isLoadi
               className="bg-zinc-800 border-zinc-700"
             />
           </div>
-        </div>
+
+          <div className="space-y-3 pt-2">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.print_on_demand}
+                onChange={(e) => setFormData({ ...formData, print_on_demand: e.target.checked })}
+                className="w-4 h-4"
+              />
+              <span className="text-sm text-zinc-400">Print on Demand</span>
+            </label>
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.seasonal}
+                onChange={(e) => setFormData({ ...formData, seasonal: e.target.checked })}
+                className="w-4 h-4"
+              />
+              <span className="text-sm text-zinc-400">Seasonal</span>
+            </label>
+          </div>
+          </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} className="border-zinc-700">
             Cancel

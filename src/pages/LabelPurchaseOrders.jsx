@@ -47,7 +47,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import SerialRangeInputs from "@/components/labels/SerialRangeInputs";
 import ReceivePODialog from "@/components/labels/ReceivePODialog";
-import { formatSerialRange, rangeCount, validateRanges } from "@/components/labels/serialUtils";
+import { formatSerialRange, rangeCount, validateRanges, autoSerialRange } from "@/components/labels/serialUtils";
 
 const STATUS_CONFIG = {
   pending_approval: { label: "Pending Approval", variant: "amber", icon: Clock },
@@ -101,6 +101,20 @@ export default function LabelPurchaseOrders() {
       toast.success("Order updated");
     },
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id) => base44.entities.LabelPurchaseOrder.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["labelPurchaseOrders"] });
+      toast.success("Purchase order deleted");
+    },
+    onError: (err) => toast.error("Failed to delete: " + err.message),
+  });
+
+  const handleDelete = (po) => {
+    if (!confirm(`Delete PO ${po.po_number}? This cannot be undone.`)) return;
+    deleteMutation.mutate(po.id);
+  };
 
   const handleGenerateOrders = async () => {
     setIsGenerating(true);
@@ -431,6 +445,15 @@ export default function LabelPurchaseOrders() {
                               <Package className="w-4 h-4" />
                             </Button>
                           )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDelete(order)}
+                            className="text-zinc-500 hover:text-red-400"
+                            title="Delete PO"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -607,13 +630,16 @@ function EditPODialog({ open, po, labels, suppliers = [], onClose, onSave, isPen
 
   const addLabel = (label) => {
     if (items.find(i => i.label_id === label.id)) return;
+    const qty = label.reorder_qty || 500;
+    const auto = autoSerialRange(label, qty, new Date(), items);
     setItems(prev => [...prev, {
       label_id: label.id,
       label_name: label.name,
       label_sku: label.sku,
-      quantity: label.reorder_qty || 500,
+      quantity: qty,
       unit_cost: label.cost_per_unit || 0,
-      total_cost: (label.reorder_qty || 500) * (label.cost_per_unit || 0),
+      total_cost: qty * (label.cost_per_unit || 0),
+      ...auto,
     }]);
     setSearch("");
   };
@@ -852,15 +878,18 @@ function ManualPODialog({ open, onClose, labels, suppliers = [], onCreate, isPen
 
   const addItem = (label) => {
     if (items.find((i) => i.label_id === label.id)) return;
+    const qty = label.reorder_qty || 500;
+    const auto = autoSerialRange(label, qty, new Date(), items);
     setItems((prev) => [
       ...prev,
       {
         label_id: label.id,
         label_name: label.name,
         label_sku: label.sku,
-        quantity: label.reorder_qty || 500,
+        quantity: qty,
         unit_cost: label.cost_per_unit || 0,
-        total_cost: (label.reorder_qty || 500) * (label.cost_per_unit || 0),
+        total_cost: qty * (label.cost_per_unit || 0),
+        ...auto,
       },
     ]);
   };
@@ -887,6 +916,15 @@ function ManualPODialog({ open, onClose, labels, suppliers = [], onCreate, isPen
   const total = items.reduce((sum, i) => sum + (i.total_cost || 0), 0);
 
   const handleCreate = () => {
+    if (!supplierName) {
+      toast.error("Please select a supplier");
+      return;
+    }
+    const supplier = suppliers.find((s) => s.name === supplierName);
+    if (!supplier) {
+      toast.error("Selected supplier not found — please pick from the list");
+      return;
+    }
     const err = validateRanges(items);
     if (err) {
       toast.error(err.message);
@@ -895,6 +933,7 @@ function ManualPODialog({ open, onClose, labels, suppliers = [], onCreate, isPen
     const poNumber = `LPO-${Date.now().toString().slice(-6)}`;
     onCreate({
       po_number: poNumber,
+      supplier_id: supplier.id,
       supplier_name: supplierName,
       status: "pending_approval",
       expected_delivery_date: expectedDate || null,

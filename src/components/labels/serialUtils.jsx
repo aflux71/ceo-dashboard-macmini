@@ -2,6 +2,54 @@
 // A serial range is defined by: prefix (string, optional), start (number), end (number), padding (number).
 // Display format: `${prefix}${String(n).padStart(padding, '0')}`
 
+// Returns a Julian-date prefix in the format YYDDD- (e.g. 26147- for May 27, 2026).
+// Used as the default serial prefix when adding a label to a new PO.
+export function julianDatePrefix(date = new Date()) {
+  const yy = String(date.getFullYear()).slice(-2);
+  const start = new Date(date.getFullYear(), 0, 0);
+  const diff = date - start;
+  const day = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const ddd = String(day).padStart(3, "0");
+  return `${yy}${ddd}-`;
+}
+
+// Compute the next available start number for a label based on its existing
+// serial_ranges. Returns 1 if no prior ranges exist (per-prefix scoped if a
+// prefix is supplied; otherwise scoped to the overall max + 1).
+export function nextAvailableStart(label, prefix) {
+  const ranges = (label?.serial_ranges || []).filter((r) =>
+    prefix === undefined ? true : (r.serial_prefix || "") === (prefix || "")
+  );
+  if (ranges.length === 0) return 1;
+  const maxEnd = Math.max(
+    ...ranges.map((r) => Number(r.serial_end || 0)).filter((n) => !isNaN(n))
+  );
+  return (maxEnd || 0) + 1;
+}
+
+// Build an auto-populated serial "batch number" for a label.
+// Model: one serial number identifies an entire batch/line (not per unit).
+// All units of that line share the same number, e.g. 26165-001.
+// The next label line in the same PO becomes 26165-002, etc.
+// `draftItems` (optional) — items already added to the current PO draft.
+// Their numbers (same prefix) are considered so the new line gets the next
+// available sequential number across BOTH historical and in-draft usage.
+export function autoSerialRange(label, _quantity, date = new Date(), draftItems = []) {
+  const prefix = julianDatePrefix(date);
+  let nextNum = nextAvailableStart(label, prefix);
+  for (const it of draftItems) {
+    if ((it.serial_prefix || "") !== prefix) continue;
+    const n = Number(it.serial_start);
+    if (!isNaN(n) && n + 1 > nextNum) nextNum = n + 1;
+  }
+  return {
+    serial_prefix: prefix,
+    serial_start: nextNum,
+    serial_end: nextNum, // single batch number — start == end
+    serial_padding: 3,
+  };
+}
+
 export function formatSerial(prefix, n, padding = 4) {
   if (n === undefined || n === null || isNaN(n)) return "";
   const padded = String(Number(n)).padStart(Number(padding) || 0, "0");
@@ -9,7 +57,11 @@ export function formatSerial(prefix, n, padding = 4) {
 }
 
 export function formatSerialRange(prefix, start, end, padding = 4) {
-  if (start === undefined || end === undefined || start === null || end === null) return "";
+  if (start === undefined || start === null) return "";
+  // When start == end (the common batch-number case), just show the single number.
+  if (end === undefined || end === null || Number(end) === Number(start)) {
+    return formatSerial(prefix, start, padding);
+  }
   return `${formatSerial(prefix, start, padding)} – ${formatSerial(prefix, end, padding)}`;
 }
 
