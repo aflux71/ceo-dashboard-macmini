@@ -70,6 +70,7 @@ import LiquidBatches from './pages/LiquidBatches';
 import LowConsumables from './pages/LowConsumables';
 import MasterExclusionList from './pages/MasterExclusionList';
 import MeasurementSettings from './pages/MeasurementSettings';
+import ProductCosting from './pages/ProductCosting';
 import ProductionEntry from './pages/ProductionEntry';
 import ProductionPlanning from './pages/ProductionPlanning';
 import ProductionQueue from './pages/ProductionQueue';
@@ -113,6 +114,7 @@ export const PAGES = {
     "LowConsumables": LowConsumables,
     "MasterExclusionList": MasterExclusionList,
     "MeasurementSettings": MeasurementSettings,
+    "ProductCosting": ProductCosting,
     "ProductionEntry": ProductionEntry,
     "ProductionPlanning": ProductionPlanning,
     "ProductionQueue": ProductionQueue,

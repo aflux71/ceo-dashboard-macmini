@@ -1,0 +1,162 @@
+{
+  "name": "ProductCostingPlan",
+  "type": "object",
+  "properties": {
+    "plan_name": {
+      "type": "string",
+      "description": "Name for this costing plan (e.g., 'New Lemon Verbena Body Lotion')"
+    },
+    "product_name": {
+      "type": "string",
+      "description": "Name of the new product"
+    },
+    "sku": {
+      "type": "string",
+      "description": "Planned SKU for the new product"
+    },
+    "recipe_id": {
+      "type": "string",
+      "description": "ID of the linked Recipe entity (if an existing recipe is being used as a base)"
+    },
+    "batch_size": {
+      "type": "number",
+      "description": "Planned batch size for production",
+      "minimum": 1
+    },
+    "batch_unit": {
+      "type": "string",
+      "enum": [
+        "units",
+        "litres",
+        "kg"
+      ],
+      "description": "Unit of measure for the batch size"
+    },
+    "raw_materials_override": {
+      "type": "array",
+      "description": "Override or add raw materials, especially for new materials not in Inventory",
+      "items": {
+        "type": "object",
+        "properties": {
+          "material_sku": {
+            "type": "string"
+          },
+          "material_name": {
+            "type": "string"
+          },
+          "quantity_per_batch": {
+            "type": "number"
+          },
+          "unit_of_measure": {
+            "type": "string"
+          },
+          "cost_per_unit_override": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "material_name",
+          "quantity_per_batch",
+          "unit_of_measure"
+        ]
+      }
+    },
+    "packaging_override": {
+      "type": "array",
+      "description": "Override or add packaging items, especially for new packaging not in Inventory",
+      "items": {
+        "type": "object",
+        "properties": {
+          "packaging_sku": {
+            "type": "string"
+          },
+          "packaging_name": {
+            "type": "string"
+          },
+          "quantity_per_unit": {
+            "type": "number"
+          },
+          "cost_per_unit_override": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "packaging_name",
+          "quantity_per_unit"
+        ]
+      }
+    },
+    "custom_overheads": {
+      "type": "array",
+      "description": "Custom overhead components for this plan (e.g., Hydro, Rent, Insurance)",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "cost_per_batch": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "cost_per_batch"
+        ]
+      }
+    },
+    "labor_hours_per_batch": {
+      "type": "number",
+      "description": "Estimated labor hours required per batch (overrides Recipe if set)"
+    },
+    "labor_cost_per_hour": {
+      "type": "number",
+      "description": "Custom labor cost per hour for this plan, overrides Recipe default"
+    },
+    "shipping_cost_per_unit_override": {
+      "type": "number",
+      "description": "Custom average shipping cost per unit for this plan"
+    },
+    "other_variable_cost_per_unit_override": {
+      "type": "number",
+      "description": "Any other per-unit variable costs (royalties, fees) for this plan"
+    },
+    "target_gp_percentage": {
+      "type": "number",
+      "description": "Target Gross Profit percentage for this product"
+    },
+    "wholesale_markup_percentage": {
+      "type": "number",
+      "description": "Markup percentage for wholesale pricing"
+    },
+    "private_brand_markup_percentage": {
+      "type": "number",
+      "description": "Markup percentage for private brand pricing"
+    },
+    "retail_markup_percentage": {
+      "type": "number",
+      "description": "Markup percentage for retail pricing"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Any additional notes for this costing plan"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "finalized",
+        "archived"
+      ],
+      "default": "draft",
+      "description": "Status of the costing plan"
+    }
+  },
+  "required": [
+    "plan_name",
+    "product_name",
+    "sku",
+    "batch_size",
+    "batch_unit"
+  ]
+}
