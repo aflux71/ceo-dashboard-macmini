@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import db from './db/database.js';
 import dotenv from 'dotenv';
+import { logUsage } from './usage.js';
 
 dotenv.config();
 
@@ -183,6 +184,8 @@ export async function askAssistant(userMessage, history = []) {
       tools: TOOLS,
       messages
     });
+
+    logUsage({ feature: 'production_assistant', model: MODEL, response });
 
     messages.push({ role: 'assistant', content: response.content });
 

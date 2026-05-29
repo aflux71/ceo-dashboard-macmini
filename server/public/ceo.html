@@ -306,7 +306,7 @@
   /* KPI ROW */
   .kpi-grid {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(6, 1fr);
     gap: 12px;
     margin-bottom: 20px;
   }
@@ -880,7 +880,6 @@
       gap: 10px;
     }
     .kpi-card { padding: 14px 16px; border-radius: 10px; }
-    .kpi-card:nth-child(5) { grid-column: 1 / -1; }
     .kpi-label { font-size: 9px; margin-bottom: 8px; }
     .kpi-value { font-size: 2rem; }
 
@@ -1000,6 +999,8 @@
     <a href="tasks.html" class="nav-link" style="padding:6px 14px;border-radius:8px;font-size:13px;font-weight:500;text-decoration:none;color:var(--text-2)">Tasks</a>
     <a href="targets.html" class="nav-link" style="padding:6px 14px;border-radius:8px;font-size:13px;font-weight:500;text-decoration:none;color:var(--text-2)">Targets</a>
     <a href="staff.html" class="nav-link" style="padding:6px 14px;border-radius:8px;font-size:13px;font-weight:500;text-decoration:none;color:var(--text-2)">Staff</a>
+    <a href="ask.html" class="nav-link" style="padding:6px 14px;border-radius:8px;font-size:13px;font-weight:500;text-decoration:none;color:var(--text-2)">Ask</a>
+    <a href="usage.html" class="nav-link" style="padding:6px 14px;border-radius:8px;font-size:13px;font-weight:500;text-decoration:none;color:var(--text-2)">Usage</a>
   </div>
   <div class="header-right">
     <span class="header-date" id="headerDate">—</span>
@@ -1192,6 +1193,26 @@ function yearProgress() {
 }
 
 // ── FETCH DATA ─────────────────────────────────────────────────────
+async function fetchUsageMtd() {
+  try {
+    const pin = sessionStorage.getItem('adminPin');
+    if (!pin) return null;
+    const r = await fetch(API + '/api/usage/mtd', { headers: { 'X-Admin-Pin': pin } });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch { return null; }
+}
+
+async function fetchUsageToday() {
+  try {
+    const pin = sessionStorage.getItem('adminPin');
+    if (!pin) return null;
+    const r = await fetch(API + '/api/usage/today', { headers: { 'X-Admin-Pin': pin } });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch { return null; }
+}
+
 async function fetchStats() {
   try {
     const r = await fetch(API + '/api/stats/ceo');
@@ -1257,7 +1278,7 @@ function buildStoreRows(rows) {
 }
 
 // ── RENDER ─────────────────────────────────────────────────────────
-function renderDashboard(stats, storeData, liveTasks) {
+function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday) {
   const now = new Date();
   const yearPct = yearProgress();
   const yearTarget2026 = ANNUAL_TARGETS[2026];
@@ -1426,6 +1447,20 @@ function renderDashboard(stats, storeData, liveTasks) {
       ${renderKPI('Avg Order Value', aov30d ? '$' + aov30d.toFixed(0) : '—', 'Retail only · Target: $' + KPI_TARGETS.aov, getStatus(aov30d, KPI_TARGETS.aov), null, aov30d / KPI_TARGETS.aov)}
       ${renderKPI('Active SKUs', stats?.active_products ? stats.active_products.toLocaleString() : '—', 'Target: 270 by EOY', 'amber', null, null)}
       ${renderKPI('Inventory Units', stats?.inventory_units ? stats.inventory_units.toLocaleString() : '—', 'Across 10 locations', 'neutral', null, null)}
+      ${(function() {
+        if (!usageMtd) return renderKPI('API Spend (MTD)', '—', 'Sign in for admin access', 'neutral', null, null);
+        const mtdCents = usageMtd.total_cents || 0;
+        const todayCents = usageToday?.total_cents || 0;
+        const day = new Date().getDate();
+        const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+        const runRateCents = day > 0 ? Math.round((mtdCents / day) * daysInMonth) : 0;
+        return renderKPI(
+          'API Spend (MTD)',
+          '$' + (mtdCents / 100).toFixed(2),
+          'Today: $' + (todayCents / 100).toFixed(2) + ' · Run rate: $' + (runRateCents / 100).toFixed(2) + '/mo',
+          'amber', null, null
+        );
+      })()}
     </div>
 
     <!-- BOTTOM GRID -->
@@ -1604,8 +1639,11 @@ async function loadAll(period) {
   const btn = document.getElementById('refreshBtn');
   if (btn) btn.classList.add('spinning');
 
-  const [stats, storeData, liveTasks] = await Promise.all([fetchStats(), fetchStoreData(currentPeriod), fetchTasks()]);
-  renderDashboard(stats, storeData, liveTasks);
+  const [stats, storeData, liveTasks, usageMtd, usageToday] = await Promise.all([
+    fetchStats(), fetchStoreData(currentPeriod), fetchTasks(),
+    fetchUsageMtd(), fetchUsageToday()
+  ]);
+  renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday);
 
   if (btn) btn.classList.remove('spinning');
 }

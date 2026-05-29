@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import apiRoutes from './routes/api.js';
 import { startScheduler } from './scheduler.js';
+import { loadKnowledge } from './knowledge.js';
 
 dotenv.config();
 
@@ -29,4 +30,5 @@ app.use('/api', apiRoutes);
 app.listen(PORT, () => {
   console.log(`neōb Production Assistant running on port ${PORT}`);
   startScheduler();
+  loadKnowledge().catch(err => console.error('[knowledge] boot load failed:', err.message));
 });

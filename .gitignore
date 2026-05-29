@@ -36,6 +36,12 @@ data/
 
 # Backups
 server/sync/*.bak
+backups/
 
 # Build prompts (local working docs)
 NEOB_*_BUILD_PROMPT.md
+MOBILE_REBUILD.md
+
+# Growth Plan knowledge base — PDFs and upload cache stay local
+knowledge/growth-plan/*.pdf
+knowledge/growth-plan/.uploads.json

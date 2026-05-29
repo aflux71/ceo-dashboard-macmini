@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>neōb — API Usage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F7F5F0;
+    --surface: #FFFFFF;
+    --surface-warm: #FAF8F4;
+    --border: #E8E3D9;
+    --border-strong: #C9C0B0;
+    --text: #1A1714;
+    --text-2: #5C5650;
+    --text-3: #9C948A;
+    --lavender: #6B5B8F;
+    --lavender-light: #EEE9F5;
+    --lavender-mid: #C4B5E8;
+    --green: #2D6A4F;
+    --green-light: #E8F5EE;
+    --amber: #92400E;
+    --amber-light: #FEF3C7;
+    --red: #991B1B;
+    --red-light: #FEE2E2;
+    --shadow: 0 1px 3px rgba(26,23,20,0.06), 0 1px 2px rgba(26,23,20,0.04);
+    --shadow-md: 0 4px 12px rgba(26,23,20,0.08);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; }
+
+  .header {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 0 32px; height: 60px; display: flex; align-items: center;
+    justify-content: space-between; position: sticky; top: 0; z-index: 100;
+  }
+  .header-brand { display: flex; align-items: baseline; gap: 12px; }
+  .header-brand h1 { font-family: 'DM Serif Display', serif; font-size: 22px; color: var(--lavender); }
+  .header-brand span { font-size: 11px; font-weight: 500; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.1em; }
+  .header-nav { display: flex; gap: 8px; }
+  .nav-link {
+    padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 500;
+    color: var(--text-2); text-decoration: none; transition: all 0.15s;
+  }
+  .nav-link:hover { background: var(--bg); }
+  .nav-link.active { background: var(--lavender-light); color: var(--lavender); }
+  .header-right { display: flex; align-items: center; gap: 14px; }
+  .header-user { font-size: 12px; color: var(--text-3); font-family: 'DM Mono', monospace; }
+  .header-signout {
+    background: none; border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text-2); padding: 5px 10px; font-size: 11px; cursor: pointer;
+  }
+  .header-signout:hover { border-color: var(--border-strong); }
+
+  .main { max-width: 1100px; margin: 0 auto; padding: 24px 32px; }
+  .page-head { margin-bottom: 18px; }
+  .page-title { font-family: 'DM Serif Display', serif; font-size: 26px; }
+  .page-sub { font-size: 13px; color: var(--text-3); margin-top: 2px; }
+
+  .summary-row {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px;
+  }
+  .summary-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px 22px; box-shadow: var(--shadow);
+  }
+  .summary-card .label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; color: var(--text-3); margin-bottom: 8px; }
+  .summary-card .value { font-family: 'DM Serif Display', serif; font-size: 30px; line-height: 1; color: var(--text); }
+  .summary-card .sub { font-size: 11px; color: var(--text-3); margin-top: 6px; font-family: 'DM Mono', monospace; }
+  .summary-card.amber .value { color: var(--amber); }
+  .summary-card.lavender .value { color: var(--lavender); }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    box-shadow: var(--shadow); overflow: hidden;
+  }
+  .section-title {
+    padding: 16px 22px; border-bottom: 1px solid var(--border);
+    font-family: 'DM Serif Display', serif; font-size: 16px;
+  }
+  table.data { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .data thead th {
+    background: var(--surface-warm); border-bottom: 1px solid var(--border);
+    padding: 10px 14px; font-size: 10px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--text-3); text-align: left; white-space: nowrap;
+  }
+  .data thead th.num { text-align: right; }
+  .data tbody td { border-bottom: 1px solid var(--bg); padding: 11px 14px; vertical-align: middle; }
+  .data tbody tr:last-child td { border-bottom: none; }
+  .data tbody tr:hover { background: var(--surface-warm); }
+  .data td.num { text-align: right; font-family: 'DM Mono', monospace; }
+  .data td.date { font-family: 'DM Mono', monospace; color: var(--text-2); }
+  .feature-tag {
+    display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 10px;
+    font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 4px;
+  }
+  .feature-tag.rag_bot { background: var(--lavender-light); color: var(--lavender); }
+  .feature-tag.production_assistant { background: var(--green-light); color: var(--green); }
+  .feature-tag.other { background: var(--bg); color: var(--text-3); }
+
+  .empty-state { padding: 36px; text-align: center; color: var(--text-3); font-size: 13px; }
+
+  /* PIN GATE */
+  .pin-gate {
+    position: fixed; inset: 0; background: var(--bg); z-index: 500;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .pin-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    padding: 32px 36px; box-shadow: var(--shadow-md); width: 340px; text-align: center;
+  }
+  .pin-card h2 { font-family: 'DM Serif Display', serif; font-size: 22px; color: var(--lavender); margin-bottom: 6px; }
+  .pin-card p { font-size: 12px; color: var(--text-3); margin-bottom: 18px; }
+  .pin-card input {
+    width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px;
+    font-family: 'DM Mono', monospace; font-size: 18px; text-align: center;
+    letter-spacing: 0.4em; outline: none; margin-bottom: 12px;
+  }
+  .pin-card input:focus { border-color: var(--lavender-mid); }
+  .pin-card button {
+    width: 100%; padding: 11px; background: var(--lavender); color: white;
+    border: none; border-radius: 8px; font-family: 'DM Sans', sans-serif;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  .pin-card button:hover { opacity: 0.9; }
+  .pin-error { color: var(--red); font-size: 12px; margin-top: 10px; min-height: 16px; }
+
+  .loading { display: flex; align-items: center; justify-content: center; height: 120px; color: var(--text-3); gap: 10px; }
+  .spinner { width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--lavender); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 767px) {
+    .main { padding: 16px; }
+    .summary-row { grid-template-columns: 1fr; gap: 10px; }
+    .data { display: block; overflow-x: auto; }
+  }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-brand">
+    <h1>neōb</h1>
+    <span>Admin · Usage</span>
+  </div>
+  <div class="header-nav">
+    <a href="ceo.html" class="nav-link">Dashboard</a>
+    <a href="tasks.html" class="nav-link">Tasks</a>
+    <a href="targets.html" class="nav-link">Targets</a>
+    <a href="staff.html" class="nav-link">Staff</a>
+    <a href="ask.html" class="nav-link">Ask</a>
+    <a href="usage.html" class="nav-link active">Usage</a>
+  </div>
+  <div class="header-right">
+    <span class="header-user" id="headerUser">—</span>
+    <button class="header-signout" onclick="signOut()">Sign out</button>
+  </div>
+</header>
+
+<main class="main" id="mainContent" style="display:none">
+  <div class="page-head">
+    <div class="page-title">API Usage</div>
+    <div class="page-sub">Anthropic API spend across the RAG bot and Production Assistant.</div>
+  </div>
+
+  <div class="summary-row">
+    <div class="summary-card lavender">
+      <div class="label">Month to date</div>
+      <div class="value" id="mtdVal">—</div>
+      <div class="sub" id="mtdSub">—</div>
+    </div>
+    <div class="summary-card amber">
+      <div class="label">Today</div>
+      <div class="value" id="todayVal">—</div>
+      <div class="sub" id="todaySub">—</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Projected monthly</div>
+      <div class="value" id="runRateVal">—</div>
+      <div class="sub">at current pace</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-title">Last 30 Days</div>
+    <div id="dailyTableWrap">
+      <div class="loading"><div class="spinner"></div> Loading…</div>
+    </div>
+  </div>
+</main>
+
+<div class="pin-gate" id="pinGate">
+  <div class="pin-card">
+    <h2>Admin Sign In</h2>
+    <p>Enter your admin PIN to view API usage.</p>
+    <input id="pinInput" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="••••">
+    <button onclick="submitPin()">Enter</button>
+    <div id="pinError" class="pin-error"></div>
+  </div>
+</div>
+
+<script>
+const API = 'http://100.68.55.123:3001';
+
+function showPinGate() {
+  document.getElementById('pinGate').style.display = 'flex';
+  document.getElementById('mainContent').style.display = 'none';
+  setTimeout(() => document.getElementById('pinInput').focus(), 50);
+}
+function hidePinGate() {
+  document.getElementById('pinGate').style.display = 'none';
+  document.getElementById('mainContent').style.display = 'block';
+  document.getElementById('headerUser').textContent = sessionStorage.getItem('adminName') || '';
+}
+async function submitPin() {
+  const pin = document.getElementById('pinInput').value.trim();
+  const err = document.getElementById('pinError');
+  err.textContent = '';
+  if (!pin) { err.textContent = 'Enter a PIN'; return; }
+  try {
+    const r = await fetch(API + '/api/admin-auth/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin })
+    });
+    if (!r.ok) { err.textContent = 'Invalid PIN'; return; }
+    const data = await r.json();
+    sessionStorage.setItem('adminPin', pin);
+    sessionStorage.setItem('adminName', data.name);
+    hidePinGate();
+    init();
+  } catch (e) { err.textContent = 'Network error: ' + e.message; }
+}
+function signOut() {
+  sessionStorage.removeItem('adminPin');
+  sessionStorage.removeItem('adminName');
+  document.getElementById('pinInput').value = '';
+  showPinGate();
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('pinGate').style.display !== 'none') submitPin();
+});
+
+async function adminFetch(path, opts = {}) {
+  const headers = Object.assign({}, opts.headers || {});
+  headers['X-Admin-Pin'] = sessionStorage.getItem('adminPin') || '';
+  const r = await fetch(API + path, Object.assign({}, opts, { headers }));
+  if (r.status === 401) {
+    sessionStorage.removeItem('adminPin');
+    sessionStorage.removeItem('adminName');
+    showPinGate();
+    throw new Error('Authentication expired');
+  }
+  return r;
+}
+
+function fmtFeatureSummary(by_feature) {
+  const entries = Object.entries(by_feature || {});
+  if (entries.length === 0) return '—';
+  return entries.map(([f, v]) => `${prettyFeature(f)} $${(v.cost_cents / 100).toFixed(2)}`).join(' · ');
+}
+
+function prettyFeature(f) {
+  if (f === 'rag_bot') return 'Ask';
+  if (f === 'production_assistant') return 'Assistant';
+  return f;
+}
+
+function renderDailyTable(daily) {
+  const wrap = document.getElementById('dailyTableWrap');
+  if (!daily || daily.length === 0) {
+    wrap.innerHTML = '<div class="empty-state">No API usage recorded yet.</div>';
+    return;
+  }
+  const head = `<thead><tr>
+    <th>Date</th>
+    <th class="num">Total</th>
+    <th class="num">Queries</th>
+    <th>Breakdown</th>
+  </tr></thead>`;
+  const body = '<tbody>' + daily.map(d => {
+    const tags = Object.entries(d.by_feature || {}).map(([f, v]) =>
+      `<span class="feature-tag ${esc(f)}">${esc(prettyFeature(f))} · $${(v.cost_cents/100).toFixed(2)} · ${v.query_count}q</span>`
+    ).join(' ');
+    return `<tr>
+      <td class="date">${esc(d.date)}</td>
+      <td class="num">$${(d.total_cents / 100).toFixed(2)}</td>
+      <td class="num">${d.query_count}</td>
+      <td>${tags || '<span style="color:var(--text-3)">—</span>'}</td>
+    </tr>`;
+  }).join('') + '</tbody>';
+  wrap.innerHTML = `<table class="data">${head}${body}</table>`;
+}
+
+function projectMonthly(mtdCents) {
+  const now = new Date();
+  const dayOfMonth = now.getDate();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  if (dayOfMonth === 0) return 0;
+  return Math.round((mtdCents / dayOfMonth) * daysInMonth);
+}
+
+async function init() {
+  try {
+    const [mtdR, todayR, dailyR] = await Promise.all([
+      adminFetch('/api/usage/mtd').then(r => r.json()),
+      adminFetch('/api/usage/today').then(r => r.json()),
+      adminFetch('/api/usage/daily?days=30').then(r => r.json())
+    ]);
+
+    const mtdCents = mtdR.total_cents || 0;
+    const todayCents = todayR.total_cents || 0;
+    document.getElementById('mtdVal').textContent = '$' + (mtdCents / 100).toFixed(2);
+    document.getElementById('mtdSub').textContent = `${mtdR.query_count || 0} queries · ${fmtFeatureSummary(mtdR.by_feature)}`;
+    document.getElementById('todayVal').textContent = '$' + (todayCents / 100).toFixed(2);
+    document.getElementById('todaySub').textContent = `${todayR.query_count || 0} queries · ${fmtFeatureSummary(todayR.by_feature)}`;
+    document.getElementById('runRateVal').textContent = '$' + (projectMonthly(mtdCents) / 100).toFixed(2);
+    renderDailyTable(dailyR.daily || []);
+  } catch (e) {
+    document.getElementById('dailyTableWrap').innerHTML =
+      `<div class="empty-state" style="color:var(--red)">${esc(e.message)}</div>`;
+  }
+}
+
+function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+(async function bootstrap() {
+  const cachedPin = sessionStorage.getItem('adminPin');
+  if (!cachedPin) { showPinGate(); return; }
+  try {
+    const r = await fetch(API + '/api/admin-users', { headers: { 'X-Admin-Pin': cachedPin } });
+    if (!r.ok) { sessionStorage.removeItem('adminPin'); sessionStorage.removeItem('adminName'); showPinGate(); return; }
+    hidePinGate();
+    init();
+  } catch { showPinGate(); }
+})();
+</script>
+</body>
+</html>

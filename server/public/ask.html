@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>neōb — Ask the Growth Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F7F5F0;
+    --surface: #FFFFFF;
+    --surface-warm: #FAF8F4;
+    --border: #E8E3D9;
+    --border-strong: #C9C0B0;
+    --text: #1A1714;
+    --text-2: #5C5650;
+    --text-3: #9C948A;
+    --lavender: #6B5B8F;
+    --lavender-light: #EEE9F5;
+    --lavender-mid: #C4B5E8;
+    --green: #2D6A4F;
+    --green-light: #E8F5EE;
+    --amber: #92400E;
+    --amber-light: #FEF3C7;
+    --red: #991B1B;
+    --red-light: #FEE2E2;
+    --shadow: 0 1px 3px rgba(26,23,20,0.06), 0 1px 2px rgba(26,23,20,0.04);
+    --shadow-md: 0 4px 12px rgba(26,23,20,0.08);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
+
+  .header {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 0 24px; height: 60px; display: flex; align-items: center;
+    justify-content: space-between; position: sticky; top: 0; z-index: 100;
+  }
+  .header-brand { display: flex; align-items: baseline; gap: 12px; }
+  .header-brand h1 { font-family: 'DM Serif Display', serif; font-size: 22px; color: var(--lavender); }
+  .header-brand span { font-size: 11px; font-weight: 500; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.1em; }
+  .header-nav { display: flex; gap: 8px; }
+  .nav-link {
+    padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 500;
+    color: var(--text-2); text-decoration: none; transition: all 0.15s;
+  }
+  .nav-link:hover { background: var(--bg); }
+  .nav-link.active { background: var(--lavender-light); color: var(--lavender); }
+  .header-right { display: flex; align-items: center; gap: 14px; }
+  .header-user { font-size: 12px; color: var(--text-3); font-family: 'DM Mono', monospace; }
+  .header-signout {
+    background: none; border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text-2); padding: 5px 10px; font-size: 11px; cursor: pointer;
+  }
+  .header-signout:hover { border-color: var(--border-strong); }
+
+  /* LAYOUT */
+  .app {
+    display: grid; grid-template-columns: 280px 1fr;
+    height: calc(100vh - 60px);
+  }
+
+  /* SIDEBAR */
+  .sidebar {
+    background: var(--surface); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .sidebar-head {
+    padding: 18px 20px 12px; border-bottom: 1px solid var(--border);
+  }
+  .sidebar-title {
+    font-family: 'DM Serif Display', serif; font-size: 16px; margin-bottom: 4px;
+  }
+  .sidebar-sub {
+    font-size: 11px; color: var(--text-3);
+  }
+  .sidebar-list { flex: 1; overflow-y: auto; padding: 6px 0; }
+  .doc-item {
+    padding: 10px 20px; border-bottom: 1px solid var(--bg);
+    font-size: 12px; display: flex; justify-content: space-between; gap: 8px;
+  }
+  .doc-item:last-child { border-bottom: none; }
+  .doc-name { color: var(--text-2); flex: 1; min-width: 0; word-break: break-all; }
+  .doc-size { color: var(--text-3); font-family: 'DM Mono', monospace; font-size: 10px; flex-shrink: 0; }
+  .sidebar-foot {
+    border-top: 1px solid var(--border); padding: 12px 20px;
+    background: var(--surface-warm); font-size: 11px; color: var(--text-3);
+  }
+  .sidebar-foot .row {
+    display: flex; justify-content: space-between; margin-bottom: 6px;
+  }
+  .sidebar-foot .row:last-child { margin-bottom: 0; }
+  .sidebar-foot .label { color: var(--text-3); }
+  .sidebar-foot .val { color: var(--text-2); font-family: 'DM Mono', monospace; }
+  .sidebar-foot .val.high { color: var(--red); }
+  .sidebar-foot .val.mid { color: var(--amber); }
+  .reload-btn {
+    width: 100%; padding: 8px; background: none; border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text-2); font-size: 12px; cursor: pointer;
+    font-family: 'DM Sans', sans-serif; margin-top: 10px;
+  }
+  .reload-btn:hover { border-color: var(--border-strong); }
+  .reload-btn:disabled { opacity: 0.4; cursor: wait; }
+
+  .sidebar-empty {
+    padding: 24px 20px; text-align: center; color: var(--text-3);
+    font-size: 12px; line-height: 1.5;
+  }
+  .sidebar-empty code {
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    background: var(--surface-warm); padding: 2px 6px; border-radius: 4px;
+    display: inline-block; margin-top: 6px;
+  }
+
+  /* MAIN CONVERSATION AREA */
+  .conv {
+    display: flex; flex-direction: column; overflow: hidden;
+    background: var(--bg);
+  }
+  .conv-head {
+    padding: 14px 24px; border-bottom: 1px solid var(--border);
+    background: var(--surface); display: flex; justify-content: space-between; align-items: center;
+  }
+  .conv-title { font-family: 'DM Serif Display', serif; font-size: 18px; }
+  .conv-actions { display: flex; gap: 8px; }
+  .btn {
+    padding: 7px 14px; border-radius: 8px; border: none; font-family: 'DM Sans', sans-serif;
+    font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s;
+  }
+  .btn-primary { background: var(--lavender); color: white; padding: 9px 18px; font-size: 13px; font-weight: 600; }
+  .btn-primary:hover { opacity: 0.9; }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-ghost { background: var(--surface); border: 1px solid var(--border); color: var(--text-2); }
+  .btn-ghost:hover { border-color: var(--border-strong); }
+  .sidebar-toggle {
+    display: none;
+    background: none; border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px 10px; font-size: 12px; color: var(--text-2); cursor: pointer;
+  }
+
+  /* Hidden on desktop so it doesn't occupy a grid cell in .app */
+  .sidebar-backdrop { display: none; }
+
+  .conv-scroll { flex: 1; overflow-y: auto; padding: 24px; }
+  .messages { max-width: 760px; margin: 0 auto; }
+
+  .empty-state {
+    text-align: center; padding: 60px 20px; color: var(--text-2);
+  }
+  .empty-state h2 {
+    font-family: 'DM Serif Display', serif; font-size: 28px; color: var(--text);
+    margin-bottom: 8px;
+  }
+  .empty-state p {
+    color: var(--text-3); font-size: 14px; margin-bottom: 28px;
+  }
+  .chips { display: flex; flex-direction: column; gap: 8px; max-width: 460px; margin: 0 auto; }
+  .chip {
+    padding: 12px 16px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; font-size: 13px; color: var(--text-2); cursor: pointer;
+    text-align: left; font-family: 'DM Sans', sans-serif; transition: all 0.15s;
+  }
+  .chip:hover { border-color: var(--lavender-mid); color: var(--lavender); background: var(--surface-warm); }
+
+  .msg { margin-bottom: 20px; }
+  .msg-role {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
+    font-weight: 600; color: var(--text-3); margin-bottom: 6px;
+  }
+  .msg.user .msg-role { color: var(--lavender); }
+  .msg-body {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 18px; font-size: 14px; line-height: 1.55; white-space: pre-wrap;
+    color: var(--text);
+  }
+  .msg.user .msg-body {
+    background: var(--lavender-light); border-color: var(--lavender-mid); color: var(--text);
+  }
+  .msg.assistant .msg-body { box-shadow: var(--shadow); }
+  .msg.error .msg-body { background: var(--red-light); border-color: var(--red-light); color: var(--red); }
+
+  .msg-sources {
+    margin-top: 10px; padding: 12px 16px; background: var(--surface-warm);
+    border: 1px solid var(--border); border-radius: 8px; font-size: 12px;
+  }
+  .msg-sources-label {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
+    font-weight: 600; color: var(--text-3); margin-bottom: 8px;
+  }
+  .source-item { margin-bottom: 6px; }
+  .source-item:last-child { margin-bottom: 0; }
+  .source-name { font-weight: 500; color: var(--text-2); word-break: break-all; }
+  .source-pages { color: var(--text-3); font-family: 'DM Mono', monospace; font-size: 11px; margin-left: 6px; }
+  .source-toggle {
+    background: none; border: none; color: var(--lavender); font-size: 11px;
+    cursor: pointer; padding: 2px 6px; margin-left: 6px; font-family: 'DM Sans', sans-serif;
+  }
+  .source-toggle:hover { text-decoration: underline; }
+  .source-quotes {
+    display: none; margin-top: 6px; padding: 8px 12px; background: var(--surface);
+    border-left: 2px solid var(--lavender-mid); font-size: 11px; color: var(--text-2);
+    font-family: 'DM Mono', monospace; white-space: pre-wrap; line-height: 1.5;
+    max-height: 200px; overflow-y: auto;
+  }
+  .source-quotes.visible { display: block; }
+
+  .thinking {
+    display: flex; align-items: center; gap: 8px; color: var(--text-3);
+    font-size: 13px; font-style: italic;
+  }
+  .thinking-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--lavender);
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  .thinking-dot:nth-child(2) { animation-delay: 0.2s; }
+  .thinking-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes pulse {
+    0%, 80%, 100% { opacity: 0.3; transform: scale(0.9); }
+    40% { opacity: 1; transform: scale(1.1); }
+  }
+
+  /* INPUT BAR */
+  .input-bar {
+    border-top: 1px solid var(--border); background: var(--surface);
+    padding: 14px 24px;
+  }
+  .input-wrap {
+    max-width: 760px; margin: 0 auto;
+    display: flex; gap: 10px; align-items: flex-end;
+  }
+  .input-area {
+    flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: 10px;
+    font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--text);
+    background: var(--bg); outline: none; resize: none; min-height: 44px; max-height: 200px;
+    line-height: 1.5;
+  }
+  .input-area:focus { border-color: var(--lavender-mid); background: var(--surface); }
+
+  /* PIN GATE */
+  .pin-gate {
+    position: fixed; inset: 0; background: var(--bg); z-index: 500;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .pin-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    padding: 32px 36px; box-shadow: var(--shadow-md); width: 340px; text-align: center;
+  }
+  .pin-card h2 { font-family: 'DM Serif Display', serif; font-size: 22px; color: var(--lavender); margin-bottom: 6px; }
+  .pin-card p { font-size: 12px; color: var(--text-3); margin-bottom: 18px; }
+  .pin-card input {
+    width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px;
+    font-family: 'DM Mono', monospace; font-size: 18px; text-align: center;
+    letter-spacing: 0.4em; outline: none; margin-bottom: 12px;
+  }
+  .pin-card input:focus { border-color: var(--lavender-mid); }
+  .pin-card button {
+    width: 100%; padding: 11px; background: var(--lavender); color: white;
+    border: none; border-radius: 8px; font-family: 'DM Sans', sans-serif;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  .pin-card button:hover { opacity: 0.9; }
+  .pin-error { color: var(--red); font-size: 12px; margin-top: 10px; min-height: 16px; }
+
+  /* MOBILE */
+  @media (max-width: 767px) {
+    .header { padding: 0 14px; }
+    .header-brand span { display: none; }
+    .header-nav { display: none; }
+    .header-user { display: none; }
+    .app { grid-template-columns: 1fr; }
+    .sidebar {
+      position: fixed; top: 60px; left: 0; bottom: 0; width: 280px; z-index: 50;
+      transform: translateX(-100%); transition: transform 0.2s;
+      border-right: 1px solid var(--border); box-shadow: 4px 0 12px rgba(0,0,0,0.05);
+    }
+    .sidebar.open { transform: translateX(0); }
+    .sidebar-backdrop {
+      position: fixed; inset: 60px 0 0 0; background: rgba(0,0,0,0.3); z-index: 40;
+    }
+    .sidebar-backdrop.visible { display: block; }
+    .sidebar-toggle { display: inline-flex; align-items: center; gap: 6px; }
+    .conv-head { padding: 12px 14px; }
+    .conv-title { font-size: 16px; }
+    .conv-scroll { padding: 16px 14px; }
+    .input-bar { padding: 12px 14px; }
+    .empty-state { padding: 36px 16px; }
+    .empty-state h2 { font-size: 22px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-brand">
+    <h1>neōb</h1>
+    <span>Admin · Ask</span>
+  </div>
+  <div class="header-nav">
+    <a href="ceo.html" class="nav-link">Dashboard</a>
+    <a href="tasks.html" class="nav-link">Tasks</a>
+    <a href="targets.html" class="nav-link">Targets</a>
+    <a href="staff.html" class="nav-link">Staff</a>
+    <a href="ask.html" class="nav-link active">Ask</a>
+    <a href="usage.html" class="nav-link">Usage</a>
+  </div>
+  <div class="header-right">
+    <span class="header-user" id="headerUser">—</span>
+    <button class="header-signout" onclick="signOut()">Sign out</button>
+  </div>
+</header>
+
+<div class="app" id="app" style="display:none">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-head">
+      <div class="sidebar-title">Knowledge Base</div>
+      <div class="sidebar-sub" id="kbSub">—</div>
+    </div>
+    <div class="sidebar-list" id="docList">
+      <div class="sidebar-empty">Loading…</div>
+    </div>
+    <div class="sidebar-foot">
+      <div class="row"><span class="label">Today's spend</span><span class="val" id="todayCost">—</span></div>
+      <div class="row"><span class="label">Daily cap</span><span class="val">$5.00</span></div>
+      <button class="reload-btn" id="reloadBtn" onclick="reloadKnowledge()">↻ Reload docs</button>
+    </div>
+  </aside>
+  <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeSidebar()"></div>
+
+  <section class="conv">
+    <div class="conv-head">
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="sidebar-toggle" onclick="openSidebar()">☰ KB</button>
+        <div class="conv-title">Growth Plan Q&amp;A</div>
+      </div>
+      <div class="conv-actions">
+        <button class="btn btn-ghost" onclick="newConversation()">New conversation</button>
+      </div>
+    </div>
+    <div class="conv-scroll" id="convScroll">
+      <div class="messages" id="messages"></div>
+    </div>
+    <div class="input-bar">
+      <div class="input-wrap">
+        <textarea id="input" class="input-area" placeholder="Ask about the growth plan…" rows="1"></textarea>
+        <button class="btn btn-primary" id="sendBtn" onclick="sendMessage()">Send</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- PIN gate -->
+<div class="pin-gate" id="pinGate">
+  <div class="pin-card">
+    <h2>Admin Sign In</h2>
+    <p>Enter your admin PIN to ask the growth plan bot.</p>
+    <input id="pinInput" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="••••">
+    <button onclick="submitPin()">Enter</button>
+    <div id="pinError" class="pin-error"></div>
+  </div>
+</div>
+
+<script>
+const API = 'http://100.68.55.123:3001';
+
+const EXAMPLES = [
+  "What's the $40 minimum transaction protocol?",
+  "What are the Q2 SKU rationalization targets?",
+  "How should staff handle bundle objections?"
+];
+
+let history = []; // [{role, content}] sent to /api/ask
+let knowledgeDocs = [];
+let isSending = false;
+
+// ── PIN GATE ────────────────────────────────────────────────────
+function showPinGate() {
+  document.getElementById('pinGate').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+  setTimeout(() => document.getElementById('pinInput').focus(), 50);
+}
+function hidePinGate() {
+  document.getElementById('pinGate').style.display = 'none';
+  document.getElementById('app').style.display = 'grid';
+  document.getElementById('headerUser').textContent = sessionStorage.getItem('adminName') || '';
+}
+async function submitPin() {
+  const pin = document.getElementById('pinInput').value.trim();
+  const err = document.getElementById('pinError');
+  err.textContent = '';
+  if (!pin) { err.textContent = 'Enter a PIN'; return; }
+  try {
+    const r = await fetch(API + '/api/admin-auth/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin })
+    });
+    if (!r.ok) { err.textContent = 'Invalid PIN'; return; }
+    const data = await r.json();
+    sessionStorage.setItem('adminPin', pin);
+    sessionStorage.setItem('adminName', data.name);
+    hidePinGate();
+    init();
+  } catch (e) { err.textContent = 'Network error: ' + e.message; }
+}
+function signOut() {
+  sessionStorage.removeItem('adminPin');
+  sessionStorage.removeItem('adminName');
+  document.getElementById('pinInput').value = '';
+  showPinGate();
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('pinGate').style.display !== 'none') {
+    submitPin();
+  }
+});
+
+async function adminFetch(path, opts = {}) {
+  const headers = Object.assign({}, opts.headers || {});
+  headers['X-Admin-Pin'] = sessionStorage.getItem('adminPin') || '';
+  if (opts.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
+  const r = await fetch(API + path, Object.assign({}, opts, { headers }));
+  if (r.status === 401) {
+    sessionStorage.removeItem('adminPin');
+    sessionStorage.removeItem('adminName');
+    showPinGate();
+    throw new Error('Authentication expired');
+  }
+  return r;
+}
+
+// ── SIDEBAR ─────────────────────────────────────────────────────
+function openSidebar() {
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sidebarBackdrop').classList.add('visible');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarBackdrop').classList.remove('visible');
+}
+
+async function loadKnowledge() {
+  try {
+    const r = await adminFetch('/api/knowledge/status');
+    const data = await r.json();
+    knowledgeDocs = data.loaded_documents || [];
+    const list = document.getElementById('docList');
+    if (knowledgeDocs.length === 0) {
+      list.innerHTML = `<div class="sidebar-empty">
+        No documents indexed yet.<br>
+        Add PDFs to <code>knowledge/growth-plan/</code> then click Reload below.
+      </div>`;
+    } else {
+      list.innerHTML = knowledgeDocs.map(d => `
+        <div class="doc-item">
+          <span class="doc-name">${esc(d.filename)}</span>
+          <span class="doc-size">${fmtKb(d.size_bytes)}</span>
+        </div>
+      `).join('');
+    }
+    document.getElementById('kbSub').textContent =
+      knowledgeDocs.length === 0
+        ? 'No documents'
+        : `${knowledgeDocs.length} docs · ${fmtKb(data.total_size_bytes)}`;
+  } catch (e) {
+    document.getElementById('docList').innerHTML =
+      `<div class="sidebar-empty" style="color:var(--red)">${esc(e.message)}</div>`;
+  }
+}
+
+async function reloadKnowledge() {
+  const btn = document.getElementById('reloadBtn');
+  btn.disabled = true;
+  btn.textContent = '↻ Reloading…';
+  try {
+    const r = await adminFetch('/api/knowledge/reload', { method: 'POST' });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Reload failed');
+    await loadKnowledge();
+  } catch (e) {
+    alert('Reload failed: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '↻ Reload docs';
+  }
+}
+
+async function loadTodayCost() {
+  try {
+    const r = await adminFetch('/api/usage/today');
+    const data = await r.json();
+    setTodayCost(data.total_cents || 0);
+  } catch {
+    document.getElementById('todayCost').textContent = '—';
+  }
+}
+
+function setTodayCost(cents) {
+  const el = document.getElementById('todayCost');
+  el.textContent = '$' + (cents / 100).toFixed(2);
+  el.classList.remove('high', 'mid');
+  if (cents >= 400) el.classList.add('high');
+  else if (cents >= 250) el.classList.add('mid');
+}
+
+// ── CONVERSATION ────────────────────────────────────────────────
+function renderEmpty() {
+  document.getElementById('messages').innerHTML = `
+    <div class="empty-state">
+      <h2>Ask about the growth plan</h2>
+      <p>The bot answers from your indexed documents with page-level citations.</p>
+      <div class="chips">
+        ${EXAMPLES.map(q => `<button class="chip" onclick="useExample(${JSON.stringify(q).replace(/"/g, '&quot;')})">${esc(q)}</button>`).join('')}
+      </div>
+    </div>`;
+}
+
+function useExample(q) {
+  document.getElementById('input').value = q;
+  document.getElementById('input').focus();
+  sendMessage();
+}
+
+function newConversation() {
+  if (history.length > 0 && !confirm('Clear current conversation?')) return;
+  history = [];
+  renderEmpty();
+}
+
+function renderMessages() {
+  const wrap = document.getElementById('messages');
+  if (history.length === 0) {
+    renderEmpty();
+    return;
+  }
+  wrap.innerHTML = history.map((m, idx) => renderMessage(m, idx)).join('');
+  // Scroll to bottom
+  const scroller = document.getElementById('convScroll');
+  scroller.scrollTop = scroller.scrollHeight;
+}
+
+function renderMessage(m, idx) {
+  if (m.role === 'thinking') {
+    return `<div class="msg assistant">
+      <div class="msg-role">Assistant</div>
+      <div class="msg-body">
+        <div class="thinking">
+          <span class="thinking-dot"></span>
+          <span class="thinking-dot"></span>
+          <span class="thinking-dot"></span>
+          Thinking…
+        </div>
+      </div>
+    </div>`;
+  }
+  if (m.role === 'error') {
+    return `<div class="msg error">
+      <div class="msg-role">Error</div>
+      <div class="msg-body">${esc(m.content)}</div>
+    </div>`;
+  }
+  const roleLabel = m.role === 'user' ? 'You' : 'Assistant';
+  let sourcesHtml = '';
+  if (m.role === 'assistant' && m.sources && m.sources.length) {
+    sourcesHtml = renderSources(m.sources, idx);
+  }
+  return `<div class="msg ${m.role}">
+    <div class="msg-role">${roleLabel}</div>
+    <div class="msg-body">${esc(m.content)}</div>
+    ${sourcesHtml}
+  </div>`;
+}
+
+function renderSources(sources, idx) {
+  const items = sources.map((s, i) => {
+    const pageList = (s.citations || [])
+      .map(c => (c.start_page && c.end_page && c.start_page !== c.end_page)
+        ? `p.${c.start_page}–${c.end_page}`
+        : (c.start_page ? `p.${c.start_page}` : ''))
+      .filter(Boolean);
+    const pageStr = pageList.length ? `<span class="source-pages">${pageList.join(', ')}</span>` : '';
+    const hasQuotes = (s.citations || []).some(c => c.quote);
+    const toggleId = `q_${idx}_${i}`;
+    const toggle = hasQuotes
+      ? `<button class="source-toggle" onclick="toggleQuote('${toggleId}')">show passage</button>`
+      : '';
+    const quotesHtml = hasQuotes
+      ? `<div class="source-quotes" id="${toggleId}">${(s.citations || [])
+          .filter(c => c.quote)
+          .map(c => esc(c.quote.trim()))
+          .join('\n\n——\n\n')}</div>`
+      : '';
+    return `<div class="source-item">
+      <span class="source-name">${esc(s.filename)}</span>${pageStr}${toggle}
+      ${quotesHtml}
+    </div>`;
+  }).join('');
+  return `<div class="msg-sources">
+    <div class="msg-sources-label">Sources</div>
+    ${items}
+  </div>`;
+}
+
+function toggleQuote(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.toggle('visible');
+  // Also toggle the button text
+  const btn = el?.previousElementSibling;
+  if (btn?.classList.contains('source-toggle')) {
+    btn.textContent = el.classList.contains('visible') ? 'hide passage' : 'show passage';
+  }
+}
+
+async function sendMessage() {
+  if (isSending) return;
+  const input = document.getElementById('input');
+  const question = input.value.trim();
+  if (!question) return;
+  input.value = '';
+  autoresize();
+  isSending = true;
+  document.getElementById('sendBtn').disabled = true;
+
+  history.push({ role: 'user', content: question });
+  history.push({ role: 'thinking', content: '' });
+  renderMessages();
+
+  try {
+    const sendHistory = history
+      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .slice(0, -1)  // exclude the user message we just pushed (sent as `question`)
+      .map(m => ({ role: m.role, content: m.content }));
+
+    const r = await adminFetch('/api/ask', {
+      method: 'POST',
+      body: JSON.stringify({ question, history: sendHistory })
+    });
+    const data = await r.json();
+    // Remove the thinking placeholder
+    history = history.filter(m => m.role !== 'thinking');
+
+    if (!r.ok) {
+      history.push({ role: 'error', content: data.error || 'Request failed' });
+    } else {
+      history.push({
+        role: 'assistant',
+        content: data.answer || '',
+        sources: data.sources || []
+      });
+      if (typeof data.today_cents_after === 'number') setTodayCost(data.today_cents_after);
+    }
+  } catch (e) {
+    history = history.filter(m => m.role !== 'thinking');
+    history.push({ role: 'error', content: e.message });
+  } finally {
+    isSending = false;
+    document.getElementById('sendBtn').disabled = false;
+    renderMessages();
+    input.focus();
+  }
+}
+
+// Input behavior
+function autoresize() {
+  const ta = document.getElementById('input');
+  ta.style.height = 'auto';
+  ta.style.height = Math.min(ta.scrollHeight, 200) + 'px';
+}
+document.addEventListener('DOMContentLoaded', () => {
+  const ta = document.getElementById('input');
+  if (!ta) return;
+  ta.addEventListener('input', autoresize);
+  ta.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+});
+
+// ── HELPERS ─────────────────────────────────────────────────────
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+function fmtKb(b) {
+  if (!b) return '0 KB';
+  if (b < 1024) return b + ' B';
+  return (b / 1024).toFixed(1) + ' KB';
+}
+
+// ── INIT ────────────────────────────────────────────────────────
+async function init() {
+  renderEmpty();
+  await Promise.all([loadKnowledge(), loadTodayCost()]);
+}
+
+(async function bootstrap() {
+  const cachedPin = sessionStorage.getItem('adminPin');
+  if (!cachedPin) { showPinGate(); return; }
+  try {
+    const r = await fetch(API + '/api/admin-users', { headers: { 'X-Admin-Pin': cachedPin } });
+    if (!r.ok) { sessionStorage.removeItem('adminPin'); sessionStorage.removeItem('adminName'); showPinGate(); return; }
+    hidePinGate();
+    init();
+  } catch { showPinGate(); }
+})();
+</script>
+</body>
+</html>

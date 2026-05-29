@@ -1,6 +1,9 @@
 import express from 'express';
 import { randomInt } from 'node:crypto';
+import Anthropic from '@anthropic-ai/sdk';
 import db from '../db/database.js';
+import { loadKnowledge, getLoadedDocs, getKnowledgeStatus } from '../knowledge.js';
+import { logUsage } from '../usage.js';
 
 const router = express.Router();
 
@@ -977,6 +980,227 @@ router.post('/store-access/:id/rotate', async (req, res) => {
     );
     res.json({ ok: true, store_code: code, code_expires_at: expiresAt });
   } catch (err) { sendError(res, err); }
+});
+
+// — API usage / spend tracking —
+
+function summarizeUsage(whereClause, ...params) {
+  const total = db.prepare(
+    `SELECT COALESCE(SUM(cost_cents),0) AS c, COUNT(*) AS n FROM api_usage WHERE ${whereClause}`
+  ).get(...params);
+  const byFeatureRows = db.prepare(
+    `SELECT feature, COALESCE(SUM(cost_cents),0) AS c, COUNT(*) AS n FROM api_usage WHERE ${whereClause} GROUP BY feature`
+  ).all(...params);
+  const by_feature = {};
+  for (const r of byFeatureRows) by_feature[r.feature] = { cost_cents: r.c, query_count: r.n };
+  return { total_cents: total.c, query_count: total.n, by_feature };
+}
+
+router.get('/usage/today', (req, res) => {
+  if (!checkAdminPin(req, res)) return;
+  try {
+    res.json(summarizeUsage("date(timestamp) = date('now')"));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/usage/mtd', (req, res) => {
+  if (!checkAdminPin(req, res)) return;
+  try {
+    res.json(summarizeUsage("strftime('%Y-%m', timestamp) = strftime('%Y-%m', 'now')"));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// — RAG Q&A bot —
+
+const RAG_MODEL = 'claude-sonnet-4-6';
+const RAG_DAILY_CAP_CENTS = 500; // $5/day
+const RAG_FEATURE = 'rag_bot';
+
+let ragClient = null;
+function getRagClient() {
+  if (ragClient) return ragClient;
+  const apiKey = process.env.ANTHROPIC_KEY_PRODUCTION;
+  if (!apiKey) return null;
+  ragClient = new Anthropic({ apiKey });
+  return ragClient;
+}
+
+const RAG_SYSTEM_PROMPT = `You are the neōb Growth Plan assistant. You have access to the company's growth plan documents.
+Answer questions strictly from these documents. If the documents don't contain the answer, say so directly.
+When citing information, mention which document it came from (e.g., "According to Section C, the $40 rule...").
+Be concise. Use plain prose. Avoid bullet lists unless the document itself uses them.`;
+
+function todayRagCostCents() {
+  const row = db.prepare(
+    "SELECT COALESCE(SUM(cost_cents),0) AS c FROM api_usage WHERE feature = ? AND date(timestamp) = date('now')"
+  ).get(RAG_FEATURE);
+  return row?.c || 0;
+}
+
+router.get('/knowledge/status', (req, res) => {
+  if (!checkAdminPin(req, res)) return;
+  try {
+    res.json(getKnowledgeStatus());
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/knowledge/reload', async (req, res) => {
+  if (!checkAdminPin(req, res)) return;
+  try {
+    await loadKnowledge();
+    res.json(getKnowledgeStatus());
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/ask', async (req, res) => {
+  if (!checkAdminPin(req, res)) return;
+  try {
+    const { question, history } = req.body || {};
+    if (!question || typeof question !== 'string') {
+      return res.status(400).json({ error: 'Missing question' });
+    }
+
+    const todayCents = todayRagCostCents();
+    if (todayCents >= RAG_DAILY_CAP_CENTS) {
+      return res.status(429).json({
+        error: `Daily $${(RAG_DAILY_CAP_CENTS / 100).toFixed(2)} cap reached ($${(todayCents / 100).toFixed(2)} used today). Resets at midnight.`,
+        today_cents: todayCents,
+        cap_cents: RAG_DAILY_CAP_CENTS
+      });
+    }
+
+    const docs = getLoadedDocs();
+    if (docs.length === 0) {
+      return res.status(503).json({
+        error: 'No documents indexed yet. Add PDFs to knowledge/growth-plan/ and POST /api/knowledge/reload.'
+      });
+    }
+
+    const client = getRagClient();
+    if (!client) {
+      return res.status(503).json({ error: 'ANTHROPIC_KEY_PRODUCTION not set' });
+    }
+
+    // Build document blocks. Cache_control on the last one caches the prefix.
+    const docBlocks = docs.map((doc, i) => {
+      const block = {
+        type: 'document',
+        source: { type: 'file', file_id: doc.file_id },
+        title: doc.filename,
+        citations: { enabled: true }
+      };
+      if (i === docs.length - 1) block.cache_control = { type: 'ephemeral', ttl: '1h' };
+      return block;
+    });
+
+    // Reconstruct conversation: documents always sit in the first user message
+    // so the prefix is stable across turns and the cache hits.
+    let messages;
+    const hist = Array.isArray(history) ? history : [];
+    if (hist.length === 0) {
+      messages = [{ role: 'user', content: [...docBlocks, { type: 'text', text: question }] }];
+    } else {
+      const firstUserIdx = hist.findIndex(m => m.role === 'user');
+      if (firstUserIdx === -1) {
+        messages = [{ role: 'user', content: [...docBlocks, { type: 'text', text: question }] }];
+      } else {
+        const firstUser = hist[firstUserIdx];
+        const firstUserText = typeof firstUser.content === 'string' ? firstUser.content : '[prior context]';
+        messages = [
+          { role: 'user', content: [...docBlocks, { type: 'text', text: firstUserText }] },
+          ...hist.slice(firstUserIdx + 1),
+          { role: 'user', content: question }
+        ];
+      }
+    }
+
+    const response = await client.beta.messages.create({
+      model: RAG_MODEL,
+      max_tokens: 2048,
+      system: RAG_SYSTEM_PROMPT,
+      messages,
+      betas: ['files-api-2025-04-14']
+    });
+
+    logUsage({ feature: RAG_FEATURE, model: RAG_MODEL, response });
+
+    // Extract answer text and group citations by filename (page-level)
+    const textParts = [];
+    const sourceMap = new Map(); // filename -> { filename, citations: [{start_page, end_page, quote}] }
+    for (const block of response.content || []) {
+      if (block.type === 'text') {
+        textParts.push(block.text || '');
+        for (const cit of block.citations || []) {
+          let filename = cit.document_title;
+          if (!filename && typeof cit.document_index === 'number' && docs[cit.document_index]) {
+            filename = docs[cit.document_index].filename;
+          }
+          if (!filename) continue;
+          if (!sourceMap.has(filename)) sourceMap.set(filename, { filename, citations: [] });
+          const entry = sourceMap.get(filename);
+          const dup = entry.citations.find(c =>
+            c.start_page === cit.start_page_number &&
+            c.end_page === cit.end_page_number &&
+            c.quote === cit.cited_text
+          );
+          if (!dup) {
+            entry.citations.push({
+              start_page: cit.start_page_number ?? null,
+              end_page: cit.end_page_number ?? null,
+              quote: cit.cited_text || ''
+            });
+          }
+        }
+      }
+    }
+    const answer = textParts.join('\n').trim();
+
+    // Fallback: if no structured citations, scan answer text for filename mentions
+    if (sourceMap.size === 0) {
+      for (const doc of docs) {
+        const base = doc.filename.replace(/\.pdf$/i, '');
+        if (answer.includes(base)) {
+          sourceMap.set(doc.filename, { filename: doc.filename, citations: [] });
+        }
+      }
+    }
+
+    res.json({
+      answer,
+      sources: Array.from(sourceMap.values()),
+      usage: response.usage,
+      today_cents_after: todayRagCostCents()
+    });
+  } catch (err) {
+    console.error('[ask] error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/usage/daily', (req, res) => {
+  if (!checkAdminPin(req, res)) return;
+  try {
+    const days = Math.min(Math.max(Number(req.query.days || 30), 1), 365);
+    const rows = db.prepare(`
+      SELECT date(timestamp) AS day, feature,
+             COALESCE(SUM(cost_cents), 0) AS c,
+             COUNT(*) AS n
+      FROM api_usage
+      WHERE date(timestamp) >= date('now', ?)
+      GROUP BY date(timestamp), feature
+      ORDER BY day DESC, feature
+    `).all(`-${days - 1} days`);
+
+    const byDay = {};
+    for (const r of rows) {
+      if (!byDay[r.day]) byDay[r.day] = { date: r.day, total_cents: 0, query_count: 0, by_feature: {} };
+      byDay[r.day].by_feature[r.feature] = { cost_cents: r.c, query_count: r.n };
+      byDay[r.day].total_cents += r.c;
+      byDay[r.day].query_count += r.n;
+    }
+    const daily = Object.values(byDay).sort((a, b) => b.date.localeCompare(a.date));
+    res.json({ days, daily });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 export default router;
