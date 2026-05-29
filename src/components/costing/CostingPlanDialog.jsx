@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -9,6 +8,9 @@ import { base44 } from "@/api/base44Client";
 import { calculateCosting } from "./costingEngine";
 import CostBreakdownPanel from "./CostBreakdownPanel";
 import LineItemEditor from "./LineItemEditor";
+import InventoryPickerDialog from "./InventoryPickerDialog";
+import { Button } from "@/components/ui/button";
+import { PackageSearch } from "lucide-react";
 
 const EMPTY = {
   plan_name: "",
@@ -37,6 +39,7 @@ export default function CostingPlanDialog({ open, onOpenChange, plan, onSaved })
   const [recipes, setRecipes] = useState([]);
   const [inventory, setInventory] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(null); // 'material' | 'packaging' | null
 
   useEffect(() => {
     if (!open) return;
@@ -172,7 +175,12 @@ export default function CostingPlanDialog({ open, onOpenChange, plan, onSaved })
                 <TabsTrigger value="pricing">Pricing</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="materials" className="pt-4">
+              <TabsContent value="materials" className="pt-4 space-y-2">
+                <div className="flex justify-end">
+                  <Button type="button" size="sm" variant="outline" onClick={() => setPickerOpen("material")} className="h-7">
+                    <PackageSearch className="w-3.5 h-3.5 mr-1" /> Pick from Inventory
+                  </Button>
+                </div>
                 <LineItemEditor
                   title="Raw Materials (per batch)"
                   items={form.raw_materials_override}
@@ -188,7 +196,12 @@ export default function CostingPlanDialog({ open, onOpenChange, plan, onSaved })
                 <p className="text-xs text-zinc-500 mt-2">Leave Cost/Unit Override blank to pull from Inventory by SKU.</p>
               </TabsContent>
 
-              <TabsContent value="packaging" className="pt-4">
+              <TabsContent value="packaging" className="pt-4 space-y-2">
+                <div className="flex justify-end">
+                  <Button type="button" size="sm" variant="outline" onClick={() => setPickerOpen("packaging")} className="h-7">
+                    <PackageSearch className="w-3.5 h-3.5 mr-1" /> Pick from Inventory
+                  </Button>
+                </div>
                 <LineItemEditor
                   title="Packaging (per finished unit)"
                   items={form.packaging_override}
@@ -268,6 +281,44 @@ export default function CostingPlanDialog({ open, onOpenChange, plan, onSaved })
             </div>
           </div>
         </div>
+
+        <InventoryPickerDialog
+          open={pickerOpen === "material"}
+          onOpenChange={(o) => !o && setPickerOpen(null)}
+          inventory={inventory}
+          filterTypes={["raw_material"]}
+          onPick={(item) => {
+            const next = [
+              ...(form.raw_materials_override || []),
+              {
+                material_sku: item.sku,
+                material_name: item.name,
+                quantity_per_batch: "",
+                unit_of_measure: item.unit || "",
+                cost_per_unit_override: "",
+              },
+            ];
+            set("raw_materials_override", next);
+          }}
+        />
+        <InventoryPickerDialog
+          open={pickerOpen === "packaging"}
+          onOpenChange={(o) => !o && setPickerOpen(null)}
+          inventory={inventory}
+          filterTypes={["packaging"]}
+          onPick={(item) => {
+            const next = [
+              ...(form.packaging_override || []),
+              {
+                packaging_sku: item.sku,
+                packaging_name: item.name,
+                quantity_per_unit: "",
+                cost_per_unit_override: "",
+              },
+            ];
+            set("packaging_override", next);
+          }}
+        />
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
