@@ -100,7 +100,39 @@ export default function SKUDeduplication() {
   const handleApprove = (record) => {
     updateMutation.mutate(
       { id: record.id, data: { status: "approved", reviewed_by: user?.full_name || user?.email || "Unknown", reviewed_at: new Date().toISOString() } },
-      { onSuccess: () => toast.success(`Approved: ${record.alias_sku} → ${record.primary_sku}`) }
+      {
+        onSuccess: async () => {
+          toast.success(`Approved: ${record.alias_sku} → ${record.primary_sku}`);
+          // Auto-merge underlying Inventory records (if both exist)
+          try {
+            const [keeperItems, removedItems] = await Promise.all([
+              base44.entities.Inventory.filter({ sku: record.primary_sku }),
+              base44.entities.Inventory.filter({ sku: record.alias_sku }),
+            ]);
+            const keeper = keeperItems?.[0];
+            const removed = removedItems?.[0];
+            if (!keeper && !removed) return; // nothing to merge
+            if (!keeper || !removed) {
+              toast(`Alias approved. Only one inventory record exists (${keeper?.sku || removed?.sku}) — nothing to merge.`, { icon: "ℹ️" });
+              return;
+            }
+            if (keeper.id === removed.id) return;
+            const res = await base44.functions.invoke("mergeTwoInventoryItems", {
+              keep_id: keeper.id,
+              remove_id: removed.id,
+            });
+            if (res?.data?.success) {
+              toast.success(`Inventory merged: ${record.alias_sku} → ${record.primary_sku} (qty ${res.data.merged_quantity})`);
+              queryClient.invalidateQueries({ queryKey: ["inventory"] });
+            } else {
+              toast.error(`Inventory merge failed: ${res?.data?.error || "Unknown error"}`);
+            }
+          } catch (err) {
+            console.error("Inventory auto-merge failed:", err);
+            toast.error(`Inventory auto-merge failed: ${err?.message || "Unknown error"}`);
+          }
+        },
+      }
     );
   };
 
