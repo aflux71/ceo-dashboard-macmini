@@ -12,7 +12,7 @@ import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
-import { Plus, Search, Loader2, GitMerge, RefreshCw } from "lucide-react";
+import { Plus, Search, Loader2, GitMerge, RefreshCw, Boxes } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,7 @@ export default function SKUDeduplication() {
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [prefill, setPrefill] = useState(null);
   const [detecting, setDetecting] = useState(false);
+  const [mergingAll, setMergingAll] = useState(false);
   const [user, setUser] = useState(null);
 
   React.useEffect(() => { base44.auth.me().then(setUser).catch(() => {}); }, []);
@@ -143,6 +144,39 @@ export default function SKUDeduplication() {
     );
   };
 
+  const handleMergeAllInventory = async () => {
+    if (!confirm("Merge underlying Inventory records for ALL approved aliases? This will sum quantities, merge lots, and delete alias inventory records.")) return;
+    setMergingAll(true);
+    let totalMerged = 0;
+    let totalSkipped = 0;
+    let totalFailed = 0;
+    let total = 0;
+    try {
+      let skip = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const res = await base44.functions.invoke("mergeAllApprovedAliasInventory", { limit: 10, skip });
+        const d = res?.data;
+        if (!d?.success) {
+          toast.error(`Merge stopped: ${d?.error || "Unknown error"}`);
+          break;
+        }
+        total = d.total_approved_aliases;
+        totalMerged += d.merged;
+        totalSkipped += d.skipped_no_pair;
+        totalFailed += d.failed;
+        hasMore = d.has_more;
+        skip = d.next_skip;
+        toast(`Progress: ${skip}/${total} processed (${totalMerged} merged)`, { icon: "⏳" });
+      }
+      toast.success(`Done. Merged ${totalMerged}/${total} (${totalSkipped} had no pair, ${totalFailed} failed)`);
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+    } catch (err) {
+      toast.error(`Merge failed: ${err?.message || "Unknown error"}`);
+    }
+    setMergingAll(false);
+  };
+
   const handleAutoDetect = async () => {
     setDetecting(true);
     const summaries = await base44.entities.DemandSummary.list("-created_date", 2000);
@@ -204,6 +238,10 @@ export default function SKUDeduplication() {
           <Button variant="outline" onClick={handleAutoDetect} disabled={detecting} className="border-zinc-700 text-zinc-300 hover:text-zinc-100">
             {detecting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
             Auto-Detect Duplicates
+          </Button>
+          <Button variant="outline" onClick={handleMergeAllInventory} disabled={mergingAll} className="border-zinc-700 text-zinc-300 hover:text-zinc-100">
+            {mergingAll ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Boxes className="w-4 h-4 mr-2" />}
+            Merge All Approved Inventory
           </Button>
           <Button onClick={() => { setPrefill(null); setAddModalOpen(true); }} className="bg-orange-600 hover:bg-orange-700 text-white">
             <Plus className="w-4 h-4 mr-2" />Add Alias Pair
