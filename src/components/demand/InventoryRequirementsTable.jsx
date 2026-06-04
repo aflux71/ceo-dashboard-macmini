@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Search, ClipboardList, Eye, Send, CheckCircle2, AlertCircle, Clock } from "lucide-react";
+import { Search, ClipboardList, Eye, Send, CheckCircle2, AlertCircle, Clock, Trash2 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { URGENCY_COLORS, URGENCY_LABELS, formatNumber, getCategories } from "@/components/demand/demandHelpers";
 import { sortPlanItems } from "@/components/demand/demandEngine";
@@ -42,6 +42,9 @@ export default function InventoryRequirementsTable({
   const [pushing, setPushing] = useState(false);
   const [pushSuccess, setPushSuccess] = useState(null);
   const [pushError, setPushError] = useState(null);
+  const [excludeItem, setExcludeItem] = useState(null);
+  const [excluding, setExcluding] = useState(false);
+  const [locallyExcluded, setLocallyExcluded] = useState(new Set());
   const queryClient = useQueryClient();
 
   const openPush = (item) => {
@@ -55,6 +58,39 @@ export default function InventoryRequirementsTable({
     setPushQty("");
     setPushing(false);
     setPushError(null);
+  };
+
+  const confirmExclude = async () => {
+    if (!excludeItem) return;
+    setExcluding(true);
+    try {
+      const existing = await base44.entities.MasterExclusion.filter({ sku: excludeItem.sku });
+      if (existing && existing.length > 0) {
+        await base44.entities.MasterExclusion.update(existing[0].id, {
+          scope: "demand_planner",
+          product_name: excludeItem.product,
+          reason: "Removed from Inventory Requirements",
+        });
+      } else {
+        await base44.entities.MasterExclusion.create({
+          sku: excludeItem.sku,
+          product_name: excludeItem.product,
+          scope: "demand_planner",
+          reason: "Removed from Inventory Requirements",
+        });
+      }
+      setLocallyExcluded((prev) => {
+        const next = new Set(prev);
+        next.add(excludeItem.sku);
+        return next;
+      });
+      queryClient.invalidateQueries({ queryKey: ["master_exclusions"] });
+      setExcludeItem(null);
+    } catch (err) {
+      console.error("Failed to exclude SKU:", err);
+    } finally {
+      setExcluding(false);
+    }
   };
 
   const submitPush = async () => {
@@ -110,9 +146,12 @@ export default function InventoryRequirementsTable({
     if (urgencyFilter !== "All") {
       items = items.filter(i => i.urgency === urgencyFilter);
     }
+    if (locallyExcluded.size > 0) {
+      items = items.filter(i => !locallyExcluded.has(i.sku));
+    }
 
     return sortPlanItems(items, sortBy);
-  }, [plan, search, catFilter, urgencyFilter, sortBy]);
+  }, [plan, search, catFilter, urgencyFilter, sortBy, locallyExcluded]);
 
   const now = new Date();
   const forecastMonthHeaders = [];
@@ -214,6 +253,7 @@ export default function InventoryRequirementsTable({
               <th className="px-3 py-2 text-right text-zinc-500 font-medium text-xs uppercase w-20">Cover</th>
               <th className="px-3 py-2 text-right text-zinc-500 font-medium text-xs uppercase w-32">Status</th>
               <th className="px-3 py-2 text-right text-zinc-500 font-medium text-xs uppercase w-28">Action</th>
+              <th className="px-3 py-2 text-right text-zinc-500 font-medium text-xs uppercase w-12"></th>
             </tr>
           </thead>
           <tbody>
@@ -304,6 +344,15 @@ export default function InventoryRequirementsTable({
                             </Button>
                           </div>
                         </td>
+                        <td className="px-3 py-2 text-right">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setExcludeItem(item); }}
+                            className="p-1.5 rounded-md text-zinc-600 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                            title="Remove from plan (adds to Master Exclusion List)"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
                       </>
                     );
                   })()}
@@ -313,6 +362,38 @@ export default function InventoryRequirementsTable({
           </tbody>
         </table>
       </div>
+
+      {/* Exclude confirmation dialog */}
+      <Dialog open={!!excludeItem} onOpenChange={(open) => !open && setExcludeItem(null)}>
+        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-zinc-100">
+              <Trash2 className="w-4 h-4 text-red-400" />
+              Remove from Plan
+            </DialogTitle>
+          </DialogHeader>
+          {excludeItem && (
+            <div className="space-y-3">
+              <div className="bg-zinc-800/50 border border-zinc-700 rounded-lg p-3">
+                <p className="text-sm font-medium text-zinc-100">{excludeItem.product}</p>
+                <p className="text-xs text-zinc-500 font-mono mt-0.5">{excludeItem.sku}</p>
+              </div>
+              <p className="text-sm text-zinc-400">
+                This will add the SKU to the <span className="text-zinc-200 font-medium">Master Exclusion List</span> and hide it from the Demand Planner and Inventory Requirements. You can restore it later from <span className="text-zinc-200">Settings → Master Exclusion List</span>.
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExcludeItem(null)} className="bg-zinc-800 border-zinc-700 text-zinc-200 hover:bg-zinc-700">
+              Cancel
+            </Button>
+            <Button onClick={confirmExclude} disabled={excluding} className="bg-red-500 hover:bg-red-600 text-white">
+              <Trash2 className="w-4 h-4 mr-2" />
+              {excluding ? "Removing..." : "Remove"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Push to Production Request dialog */}
       <Dialog open={!!pushItem} onOpenChange={(open) => !open && closePush()}>
