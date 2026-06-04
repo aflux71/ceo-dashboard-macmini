@@ -4,7 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import {
   Plus, Package, Loader2, AlertTriangle, CheckCircle2, Clock, Eye, EyeOff,
-  Timer, Send, Building2, MapPin, RotateCcw, ExternalLink, Hammer, ShoppingCart, FileText, Search, ChevronDown, Printer, Hash, Pencil
+  Timer, Send, Building2, MapPin, RotateCcw, ExternalLink, Hammer, ShoppingCart, FileText, Search, ChevronDown, Printer, Hash, Pencil, Trash2
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -125,6 +125,17 @@ export default function WipCopackTab() {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["planning_copack_orders"] }); toast.success("Status updated"); },
     onError: (err) => toast.error(`Failed to update: ${err?.message || String(err)}`),
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id) => base44.entities.CopackOrder.delete(id),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["planning_copack_orders"] }); toast.success("Co-pack order deleted"); },
+    onError: (err) => toast.error(`Failed to delete: ${err?.message || String(err)}`),
+  });
+
+  const handleDelete = (order) => {
+    if (!confirm(`Delete co-pack order for "${order.product_name}" (${order.quantity?.toLocaleString()} units)?\n\nThis cannot be undone.`)) return;
+    deleteMutation.mutate(order.id);
+  };
 
   const handleCreate = () => {
     if (!form.product_name || !form.sku || !form.quantity || !form.co_packer_name) { toast.error("Product name, SKU, quantity, and co-packer are required"); return; }
@@ -315,6 +326,9 @@ export default function WipCopackTab() {
                             )}
                             <Button size="sm" variant="outline" onClick={() => handlePrintTraveller(order)} className="w-full text-xs border-zinc-700 text-zinc-300 hover:bg-zinc-800">
                               <Printer className="w-3 h-3 mr-1.5" />Print Traveller
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => handleDelete(order)} disabled={deleteMutation.isPending} className="w-full text-xs border-red-500/30 text-red-400 hover:bg-red-500/10">
+                              <Trash2 className="w-3 h-3 mr-1.5" />Delete
                             </Button>
                           </CardContent>
                         </Card>
