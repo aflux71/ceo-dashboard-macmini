@@ -2,6 +2,7 @@ import axios from 'axios';
 import db from '../db/database.js';
 import dotenv from 'dotenv';
 import { syncInventory } from './inventory.js';
+import { ensureBundleSchema } from '../db/schema.js';
 
 dotenv.config();
 
@@ -108,27 +109,102 @@ export async function syncProducts() {
   return synced;
 }
 
+// ── Bundle detection ─────────────────────────────────────────────
+// neōb bundles are marked by dedicated product tags set in Shopify admin,
+// with the sales channel encoded in the tag itself:
+//   "neob-bundle-pos" → POS bundle   (is_bundle_pos)
+//   "neob-bundle-dtc" → DTC bundle   (is_bundle_dtc)
+// The map is built by reading product tags straight from the Shopify API
+// (not the local products table) so newly-tagged products are picked up
+// even when the local products mirror hasn't re-synced yet. Each order is
+// then flagged by matching its line-item product IDs against this map.
+const BUNDLE_TAG_POS = 'neob-bundle-pos';
+const BUNDLE_TAG_DTC = 'neob-bundle-dtc';
+
+async function buildBundleTagMap() {
+  const map = new Map();
+  let url = `${SHOPIFY_URL}/products.json?limit=250&fields=id,tags`;
+
+  while (url) {
+    const res = await getWithRetry(url);
+    for (const p of res.data.products) {
+      const tagList = (p.tags || '').split(',').map(t => t.trim());
+      const pos = tagList.includes(BUNDLE_TAG_POS);
+      const dtc = tagList.includes(BUNDLE_TAG_DTC);
+      if (pos || dtc) map.set(String(p.id), { pos, dtc });
+    }
+    url = nextPageUrl(res.headers['link']);
+    if (url) await sleep(600);
+  }
+  return map;
+}
+
 const ORDER_INSERT_SQL = `
   INSERT OR REPLACE INTO orders
   (id, order_number, email, financial_status, fulfillment_status,
    total_price, currency, location_id, location_name, source_name,
+   tags, is_bundle_pos, is_bundle_dtc,
    created_at, updated_at, synced_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
 `;
 
-function insertOrders(orders) {
+const LINE_ITEM_INSERT_SQL = `
+  INSERT OR REPLACE INTO order_line_items
+  (id, order_id, product_id, variant_id, title, sku, quantity, price, synced_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+`;
+
+// Flag an order by matching its line-item product IDs against the bundle map.
+// pos/dtc are independent flags (a product carries at most one bundle tag, but
+// an order could in principle contain both kinds of line item).
+function detectBundles(order, bundleMap) {
+  let isBundlePos = 0;
+  let isBundleDtc = 0;
+  const lineItems = Array.isArray(order.line_items) ? order.line_items : [];
+  for (const li of lineItems) {
+    const pid = li.product_id != null ? String(li.product_id) : null;
+    const b = pid ? bundleMap.get(pid) : null;
+    if (b) {
+      if (b.pos) isBundlePos = 1;
+      if (b.dtc) isBundleDtc = 1;
+    }
+  }
+  return { isBundlePos, isBundleDtc };
+}
+
+function insertOrders(orders, bundleMap) {
   const insert = db.prepare(ORDER_INSERT_SQL);
+  const insertLineItem = db.prepare(LINE_ITEM_INSERT_SQL);
+  const deleteLineItems = db.prepare(`DELETE FROM order_line_items WHERE order_id = ?`);
+
   const insertMany = db.transaction((items) => {
     for (const o of items) {
+      const orderId = String(o.id);
       const { locationId, sourceName } = resolveOrderLocation(o);
       const locName = locationName(locationId, sourceName);
+      const { isBundlePos, isBundleDtc } = detectBundles(o, bundleMap);
+
       insert.run(
-        String(o.id), String(o.order_number), o.email,
+        orderId, String(o.order_number), o.email,
         o.financial_status, o.fulfillment_status,
         o.total_price, o.currency,
         locationId, locName, sourceName,
+        o.tags || null, isBundlePos, isBundleDtc,
         o.created_at, o.updated_at
       );
+
+      // Replace line items wholesale so re-syncs stay correct if lines change.
+      deleteLineItems.run(orderId);
+      const lineItems = Array.isArray(o.line_items) ? o.line_items : [];
+      for (const li of lineItems) {
+        insertLineItem.run(
+          String(li.id), orderId,
+          li.product_id != null ? String(li.product_id) : null,
+          li.variant_id != null ? String(li.variant_id) : null,
+          li.title, li.sku,
+          li.quantity, li.price
+        );
+      }
     }
   });
   insertMany(orders);
@@ -140,6 +216,9 @@ const ORDER_HISTORY_FLOOR = '2024-01-01T00:00:00Z';
 
 export async function syncOrders() {
   console.log('Syncing orders (full history from ' + ORDER_HISTORY_FLOOR + ') with location data...');
+  ensureBundleSchema();
+  const bundleMap = await buildBundleTagMap();
+  console.log(`  bundle tag map: ${bundleMap.size} bundle products`);
   let synced = 0;
   const createdMin = ORDER_HISTORY_FLOOR;
   let url = `${SHOPIFY_URL}/orders.json?limit=250&status=any&created_at_min=${createdMin}`;
@@ -148,7 +227,7 @@ export async function syncOrders() {
   while (url) {
     const res = await getWithRetry(url);
     const orders = res.data.orders;
-    insertOrders(orders);
+    insertOrders(orders, bundleMap);
     synced += orders.length;
     page++;
     if (page % 10 === 0) console.log(`  ...${synced} orders`);
@@ -164,6 +243,9 @@ export async function syncOrders() {
 
 export async function syncOrdersIncremental(hoursBack = 48) {
   console.log(`Syncing orders updated in last ${hoursBack}h...`);
+  ensureBundleSchema();
+  const bundleMap = await buildBundleTagMap();
+  console.log(`  bundle tag map: ${bundleMap.size} bundle products`);
   let synced = 0;
   const since = new Date();
   since.setHours(since.getHours() - hoursBack);
@@ -173,7 +255,7 @@ export async function syncOrdersIncremental(hoursBack = 48) {
   while (url) {
     const res = await getWithRetry(url);
     const orders = res.data.orders;
-    insertOrders(orders);
+    insertOrders(orders, bundleMap);
     synced += orders.length;
     url = nextPageUrl(res.headers['link']);
     if (url) await sleep(600);
