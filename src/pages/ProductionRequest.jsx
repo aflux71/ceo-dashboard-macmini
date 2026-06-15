@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
-import { Search, X, Package, CheckCircle2, ClipboardList, Send, Trash2, Clock, Pencil, Check } from "lucide-react";
+import { Search, X, Package, CheckCircle2, ClipboardList, Send, Trash2, Clock, Pencil, Check, Printer, ArrowUpDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function ProductionRequest() {
   const [search, setSearch] = useState("");
@@ -13,6 +14,7 @@ export default function ProductionRequest() {
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [editQty, setEditQty] = useState("");
+  const [sortBy, setSortBy] = useState("newest");
   const queryClient = useQueryClient();
 
   const { data: recipes = [] } = useQuery({
@@ -170,6 +172,76 @@ export default function ProductionRequest() {
     setEditingId(null);
     setEditQty("");
     queryClient.invalidateQueries({ queryKey: ["production_requests_pending"] });
+  };
+
+  const sortedPendingRequests = useMemo(() => {
+    const arr = [...pendingRequests];
+    switch (sortBy) {
+      case "name":
+        return arr.sort((a, b) => (a.product_name || a.sku || "").localeCompare(b.product_name || b.sku || ""));
+      case "sku":
+        return arr.sort((a, b) => (a.sku || "").localeCompare(b.sku || ""));
+      case "qty_desc":
+        return arr.sort((a, b) => (b.quantity_needed || 0) - (a.quantity_needed || 0));
+      case "qty_asc":
+        return arr.sort((a, b) => (a.quantity_needed || 0) - (b.quantity_needed || 0));
+      case "oldest":
+        return arr.sort((a, b) => new Date(a.created_date || 0) - new Date(b.created_date || 0));
+      case "newest":
+      default:
+        return arr.sort((a, b) => new Date(b.created_date || 0) - new Date(a.created_date || 0));
+    }
+  }, [pendingRequests, sortBy]);
+
+  const handlePrint = () => {
+    if (!sortedPendingRequests.length) return;
+    const today = new Date().toLocaleString();
+    const rows = sortedPendingRequests.map((r, idx) => `
+      <tr>
+        <td style="text-align:center;">${idx + 1}</td>
+        <td style="text-align:center;"><input type="checkbox" style="width:18px;height:18px;"/></td>
+        <td>${r.product_name || r.sku || ""}</td>
+        <td style="font-family:monospace;">${r.sku || ""}</td>
+        <td style="text-align:center;font-weight:600;">${r.quantity_needed ?? ""}</td>
+        <td style="text-align:center;">${r.created_date ? new Date(r.created_date).toLocaleDateString() : ""}</td>
+        <td></td>
+      </tr>
+    `).join("");
+
+    const html = `<!DOCTYPE html><html><head><title>Production Requests</title>
+      <style>
+        @page { size: letter; margin: 0.5in; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #111; padding: 16px; }
+        h1 { font-size: 22px; margin: 0 0 4px; }
+        .meta { color: #555; font-size: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; vertical-align: middle; }
+        th { background: #f3f4f6; font-weight: 600; }
+        tr:nth-child(even) td { background: #fafafa; }
+      </style></head><body>
+        <h1>Production Requests</h1>
+        <div class="meta">
+          <span><strong>Date:</strong> ${today}</span>
+          <span><strong>Total:</strong> ${sortedPendingRequests.length} requests</span>
+        </div>
+        <table>
+          <thead><tr>
+            <th style="width:30px;">#</th>
+            <th style="width:30px;">✓</th>
+            <th>Product</th>
+            <th style="width:140px;">SKU</th>
+            <th style="width:60px;">Qty</th>
+            <th style="width:90px;">Requested</th>
+            <th style="width:120px;">Notes</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </body></html>`;
+
+    const w = window.open("", "_blank");
+    w.document.write(html);
+    w.document.close();
+    w.onload = () => w.print();
   };
 
   const sourceColors = {
@@ -338,11 +410,41 @@ export default function ProductionRequest() {
 
       {/* Submitted / Pending Requests */}
       <div className="space-y-2 pt-4 border-t border-zinc-800">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
             <Clock className="w-4 h-4" />
             Submitted Requests {pendingRequests.length > 0 && `(${pendingRequests.length})`}
           </h2>
+          {pendingRequests.length > 0 && (
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 text-xs text-zinc-500">
+                <ArrowUpDown className="w-3.5 h-3.5" />
+                <span>Sort</span>
+              </div>
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="w-44 h-8 bg-zinc-800 border-zinc-700 text-zinc-200 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-zinc-800 border-zinc-700 text-zinc-200">
+                  <SelectItem value="newest">Newest first</SelectItem>
+                  <SelectItem value="oldest">Oldest first</SelectItem>
+                  <SelectItem value="name">Product name (A→Z)</SelectItem>
+                  <SelectItem value="sku">SKU (A→Z)</SelectItem>
+                  <SelectItem value="qty_desc">Quantity (high→low)</SelectItem>
+                  <SelectItem value="qty_asc">Quantity (low→high)</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handlePrint}
+                className="h-8 bg-zinc-800 border-zinc-700 text-zinc-200 hover:bg-orange-500/10 hover:text-orange-400 hover:border-orange-500/30"
+              >
+                <Printer className="w-3.5 h-3.5 mr-1.5" />
+                Print
+              </Button>
+            </div>
+          )}
         </div>
 
         {loadingPending ? (
@@ -354,10 +456,10 @@ export default function ProductionRequest() {
           </div>
         ) : (
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
-            {pendingRequests.map((req, i) => (
+            {sortedPendingRequests.map((req, i) => (
               <div
                 key={req.id}
-                className={`flex items-center gap-4 px-4 py-3 ${i < pendingRequests.length - 1 ? "border-b border-zinc-800/50" : ""}`}
+                className={`flex items-center gap-4 px-4 py-3 ${i < sortedPendingRequests.length - 1 ? "border-b border-zinc-800/50" : ""}`}
               >
                 <div className="p-1.5 rounded-md bg-amber-500/10">
                   <Package className="w-4 h-4 text-amber-400" />
