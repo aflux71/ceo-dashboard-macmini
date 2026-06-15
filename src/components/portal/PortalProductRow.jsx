@@ -2,9 +2,9 @@ import React from "react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, Minus } from "lucide-react";
+import { Plus, Minus, Flame, Snowflake, Wand2 } from "lucide-react";
 
-export default function PortalProductRow({ product, quantity, onChange, stock }) {
+export default function PortalProductRow({ product, quantity, onChange, stock, suggestion }) {
   const hasStock = typeof stock === "number";
   const stockColor = !hasStock
     ? "text-zinc-600"
@@ -15,11 +15,16 @@ export default function PortalProductRow({ product, quantity, onChange, stock })
         : "text-green-400";
 
   const current = Number(quantity) || 0;
+  const suggestedQty = suggestion?.suggested ?? null;
+  const hasSuggestion = typeof suggestedQty === "number" && suggestedQty > 0;
 
   const increment = () => onChange(product.id, String(current + 1));
   const decrement = () => {
     const next = Math.max(0, current - 1);
     onChange(product.id, next === 0 ? "" : String(next));
+  };
+  const applySuggestion = () => {
+    if (hasSuggestion) onChange(product.id, String(suggestedQty));
   };
 
   return (
@@ -40,6 +45,23 @@ export default function PortalProductRow({ product, quantity, onChange, stock })
       </td>
       <td className={`px-3 py-2 text-right text-sm font-semibold ${stockColor}`}>
         {hasStock ? stock : "—"}
+      </td>
+      <td className="px-3 py-2 text-right">
+        {hasSuggestion ? (
+          <button
+            type="button"
+            onClick={applySuggestion}
+            title="Apply suggested quantity"
+            className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-sm font-semibold text-white transition-colors"
+          >
+            {suggestion?.isPeak && <Flame className="w-3.5 h-3.5 text-orange-400" />}
+            {suggestion?.isSlow && <Snowflake className="w-3.5 h-3.5 text-blue-400" />}
+            <span>{suggestedQty}</span>
+            <Wand2 className="w-3 h-3 text-zinc-400" />
+          </button>
+        ) : (
+          <span className="text-zinc-600 text-sm">—</span>
+        )}
       </td>
       <td className="px-3 py-2 text-right">
         <div className="flex items-center justify-end gap-1">

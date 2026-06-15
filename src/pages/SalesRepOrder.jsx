@@ -8,6 +8,7 @@ import { Search, ShoppingCart, CheckCircle2, Store, UserCircle2, Phone, Mail, Ar
 import PortalProductRow from "@/components/portal/PortalProductRow";
 import OrderReviewDialog from "@/components/portal/OrderReviewDialog";
 import StorePickerDialog from "@/components/portal-admin/StorePickerDialog";
+import { calculateSuggestedQty } from "@/utils/suggestedOrderEngine";
 
 export default function SalesRepOrder() {
   const [user, setUser] = useState(null);
@@ -16,6 +17,8 @@ export default function SalesRepOrder() {
 
   const [products, setProducts] = useState([]);
   const [stockBySku, setStockBySku] = useState({});
+  const [reorderPointBySku, setReorderPointBySku] = useState({});
+  const [demandBySku, setDemandBySku] = useState({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
@@ -36,16 +39,27 @@ export default function SalesRepOrder() {
   useEffect(() => {
     (async () => {
       try {
-        const [all, inv] = await Promise.all([
+        const [all, inv, demand] = await Promise.all([
           base44.entities.PortalProduct.filter({ portal_hidden: false }, "display_order", 500),
-          base44.entities.Inventory.filter({ type: "finished_product" }, "name", 5000)
+          base44.entities.Inventory.filter({ type: "finished_product" }, "name", 5000),
+          base44.entities.DemandSummary.list("-updatedAt", 5000)
         ]);
         setProducts(all || []);
-        const map = {};
+        const stockMap = {};
+        const reorderMap = {};
         (inv || []).forEach((i) => {
-          if (i.sku) map[String(i.sku).toLowerCase()] = Math.max(0, Number(i.quantity) || 0);
+          if (!i.sku) return;
+          const key = String(i.sku).toLowerCase();
+          stockMap[key] = Math.max(0, Number(i.quantity) || 0);
+          if (i.reorder_point != null) reorderMap[key] = Number(i.reorder_point) || 0;
         });
-        setStockBySku(map);
+        setStockBySku(stockMap);
+        setReorderPointBySku(reorderMap);
+        const demandMap = {};
+        (demand || []).forEach((d) => {
+          if (d.sku) demandMap[String(d.sku).toLowerCase()] = d;
+        });
+        setDemandBySku(demandMap);
       } catch {
         setProducts([]);
       } finally {
@@ -106,6 +120,26 @@ export default function SalesRepOrder() {
       return (p.name || "").toLowerCase().includes(q) || (p.sku || "").toLowerCase().includes(q);
     });
   }, [products, search, activeCategory]);
+
+  // Compute suggested order qty per product for the currently selected store
+  const suggestionsBySku = useMemo(() => {
+    if (!store) return {};
+    const map = {};
+    products.forEach((p) => {
+      const skuKey = String(p.sku || "").toLowerCase();
+      const reorderPoint = reorderPointBySku[skuKey];
+      const currentStock = stockBySku[skuKey];
+      const demandSummary = demandBySku[skuKey];
+      if (reorderPoint == null && !demandSummary) return;
+      map[skuKey] = calculateSuggestedQty({
+        reorderPoint,
+        currentStock,
+        demandSummary,
+        storeName: store.store_name
+      });
+    });
+    return map;
+  }, [products, store, reorderPointBySku, stockBySku, demandBySku]);
 
   const handleQtyChange = (id, value) => {
     const n = parseInt(value, 10);
@@ -401,19 +435,24 @@ export default function SalesRepOrder() {
                   <th className="px-3 py-2 text-left">SKU</th>
                   <th className="px-3 py-2 text-left">Category</th>
                   <th className="px-3 py-2 text-right w-28">neōb HQ Stock</th>
+                  <th className="px-3 py-2 text-right w-28">Suggested</th>
                   <th className="px-3 py-2 text-right w-44">Quantity</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((p) => (
-                  <PortalProductRow
-                    key={p.id}
-                    product={p}
-                    quantity={quantities[p.id]}
-                    onChange={handleQtyChange}
-                    stock={stockBySku[String(p.sku || "").toLowerCase()]}
-                  />
-                ))}
+                {filtered.map((p) => {
+                  const skuKey = String(p.sku || "").toLowerCase();
+                  return (
+                    <PortalProductRow
+                      key={p.id}
+                      product={p}
+                      quantity={quantities[p.id]}
+                      onChange={handleQtyChange}
+                      stock={stockBySku[skuKey]}
+                      suggestion={suggestionsBySku[skuKey]}
+                    />
+                  );
+                })}
               </tbody>
             </table>
           </div>
