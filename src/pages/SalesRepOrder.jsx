@@ -8,7 +8,7 @@ import { Search, ShoppingCart, CheckCircle2, Store, UserCircle2, Phone, Mail, Ar
 import PortalProductRow from "@/components/portal/PortalProductRow";
 import OrderReviewDialog from "@/components/portal/OrderReviewDialog";
 import StorePickerDialog from "@/components/portal-admin/StorePickerDialog";
-import { calculateSuggestedQty } from "@/utils/suggestedOrderEngine";
+import { calculateSuggestedQty, parseStockByLocation } from "@/utils/suggestedOrderEngine";
 
 export default function SalesRepOrder() {
   const [user, setUser] = useState(null);
@@ -18,6 +18,7 @@ export default function SalesRepOrder() {
   const [products, setProducts] = useState([]);
   const [stockBySku, setStockBySku] = useState({});
   const [reorderPointBySku, setReorderPointBySku] = useState({});
+  const [shelfStockBySku, setShelfStockBySku] = useState({}); // { sku: { "neob Queen Street": 12, ... } }
   const [demandBySku, setDemandBySku] = useState({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -47,14 +48,18 @@ export default function SalesRepOrder() {
         setProducts(all || []);
         const stockMap = {};
         const reorderMap = {};
+        const shelfMap = {};
         (inv || []).forEach((i) => {
           if (!i.sku) return;
           const key = String(i.sku).toLowerCase();
           stockMap[key] = Math.max(0, Number(i.quantity) || 0);
           if (i.reorder_point != null) reorderMap[key] = Number(i.reorder_point) || 0;
+          const perLocation = parseStockByLocation(i.notes);
+          if (Object.keys(perLocation).length > 0) shelfMap[key] = perLocation;
         });
         setStockBySku(stockMap);
         setReorderPointBySku(reorderMap);
+        setShelfStockBySku(shelfMap);
         const demandMap = {};
         (demand || []).forEach((d) => {
           if (d.sku) demandMap[String(d.sku).toLowerCase()] = d;
@@ -130,16 +135,18 @@ export default function SalesRepOrder() {
       const reorderPoint = reorderPointBySku[skuKey];
       const currentStock = stockBySku[skuKey];
       const demandSummary = demandBySku[skuKey];
+      const shelf = shelfStockBySku[skuKey]?.[store.store_name];
       if (reorderPoint == null && !demandSummary) return;
       map[skuKey] = calculateSuggestedQty({
         reorderPoint,
         currentStock,
+        storeShelfStock: typeof shelf === "number" ? shelf : undefined,
         demandSummary,
         storeName: store.store_name
       });
     });
     return map;
-  }, [products, store, reorderPointBySku, stockBySku, demandBySku]);
+  }, [products, store, reorderPointBySku, stockBySku, shelfStockBySku, demandBySku]);
 
   const handleQtyChange = (id, value) => {
     const n = parseInt(value, 10);
@@ -435,6 +442,7 @@ export default function SalesRepOrder() {
                   <th className="px-3 py-2 text-left">SKU</th>
                   <th className="px-3 py-2 text-left">Category</th>
                   <th className="px-3 py-2 text-right w-28">neōb HQ Stock</th>
+                  <th className="px-3 py-2 text-right w-28">Your Shelf</th>
                   <th className="px-3 py-2 text-right w-28">Suggested</th>
                   <th className="px-3 py-2 text-right w-44">Quantity</th>
                 </tr>
@@ -442,6 +450,7 @@ export default function SalesRepOrder() {
               <tbody>
                 {filtered.map((p) => {
                   const skuKey = String(p.sku || "").toLowerCase();
+                  const shelf = shelfStockBySku[skuKey]?.[store?.store_name];
                   return (
                     <PortalProductRow
                       key={p.id}
@@ -449,6 +458,7 @@ export default function SalesRepOrder() {
                       quantity={quantities[p.id]}
                       onChange={handleQtyChange}
                       stock={stockBySku[skuKey]}
+                      shelfStock={typeof shelf === "number" ? shelf : undefined}
                       suggestion={suggestionsBySku[skuKey]}
                     />
                   );

@@ -1,61 +1,59 @@
-// Calculates suggested order quantities for a store using:
-//   1. Manual Par: Inventory.reorder_point - Inventory.quantity (HQ stock)
-//   2. Seasonality: current month sales vs avg monthly sales for that store
+// Suggested order quantity engine.
 //
-// Inputs:
-//   demandSummary: a DemandSummary record { byLocation, monthly, avgMonthly }
-//   storeName:     the active store name (must match a key in byLocation)
+// Priority for the "base gap" (how many units a store needs):
+//   1. Manual Par: Inventory.reorder_point - storeShelfStock (most accurate)
+//   2. Forecast:   DemandSummary.avgMonthly * storeShare       (when par is missing)
 //
-// Returns: { multiplier, isPeak, currentMonthQty, storeMonthlyAvg }
+// Then a seasonal multiplier (peak/slow) is applied based on the SKU's
+// historical monthly pattern.
 
-const PEAK_THRESHOLD = 1.2; // 20% above avg = peak
+const PEAK_THRESHOLD = 1.2;
 const PEAK_MULTIPLIER = 1.5;
-const SLOW_THRESHOLD = 0.6; // 40% below avg = slow
+const SLOW_THRESHOLD = 0.6;
 const SLOW_MULTIPLIER = 0.75;
+
+// Tag used by syncShopifyInventory to embed per-location stock in Inventory.notes
+const STOCK_TAG_RE = /<!--SHOPIFY_STOCK:([\s\S]*?):END-->/;
 
 function parseJSON(value, fallback) {
   if (!value) return fallback;
   if (typeof value === "object") return value;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return fallback;
-  }
+  try { return JSON.parse(value); } catch { return fallback; }
 }
 
-// Returns YYYY-MM for current month
 function currentMonthKey() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-// Looks up sales for a specific store in DemandSummary.byLocation.
-// byLocation is { "store name": total_units_in_period }.
+// Extracts the per-location stock map embedded in Inventory.notes by the Shopify sync.
+// Returns { "neob Queen Street": 12, "neob HQ": 80, ... } or {} if none present.
+export function parseStockByLocation(notes) {
+  if (!notes) return {};
+  const match = String(notes).match(STOCK_TAG_RE);
+  if (!match) return {};
+  const data = parseJSON(match[1], null);
+  return data?.byLocation || {};
+}
+
 function getStoreShareOfSales(demandSummary, storeName) {
   const byLocation = parseJSON(demandSummary?.byLocation, {});
   const total = Object.values(byLocation).reduce((a, b) => a + (Number(b) || 0), 0);
   if (total <= 0) return 0;
-  const storeQty = Number(byLocation[storeName] || 0);
-  return storeQty / total;
+  return (Number(byLocation[storeName]) || 0) / total;
 }
 
-// Estimates whether the current month is a "peak" period for this SKU overall,
-// based on the monthly history vs the average. Returns a multiplier to apply to
-// the base suggested quantity.
 export function getSeasonalMultiplier(demandSummary) {
   if (!demandSummary) return { multiplier: 1, isPeak: false, isSlow: false };
-
   const monthly = parseJSON(demandSummary.monthly, {});
   const avgMonthly = Number(demandSummary.avgMonthly) || 0;
   if (avgMonthly <= 0) return { multiplier: 1, isPeak: false, isSlow: false };
 
-  // monthly can be either { "2026-04": 2, ... } or [7, 11, 4, ...]
   let currentMonthQty = 0;
   if (Array.isArray(monthly)) {
     currentMonthQty = Number(monthly[new Date().getMonth()]) || 0;
   } else {
     currentMonthQty = Number(monthly[currentMonthKey()]) || 0;
-    // Fallback: use the most recent month with data if current is empty
     if (currentMonthQty === 0) {
       const sortedKeys = Object.keys(monthly).sort().reverse();
       if (sortedKeys.length > 0) currentMonthQty = Number(monthly[sortedKeys[0]]) || 0;
@@ -63,52 +61,68 @@ export function getSeasonalMultiplier(demandSummary) {
   }
 
   const ratio = currentMonthQty / avgMonthly;
-  if (ratio >= PEAK_THRESHOLD) {
-    return { multiplier: PEAK_MULTIPLIER, isPeak: true, isSlow: false, ratio };
-  }
-  if (ratio <= SLOW_THRESHOLD) {
-    return { multiplier: SLOW_MULTIPLIER, isPeak: false, isSlow: true, ratio };
-  }
+  if (ratio >= PEAK_THRESHOLD) return { multiplier: PEAK_MULTIPLIER, isPeak: true, isSlow: false, ratio };
+  if (ratio <= SLOW_THRESHOLD) return { multiplier: SLOW_MULTIPLIER, isPeak: false, isSlow: true, ratio };
   return { multiplier: 1, isPeak: false, isSlow: false, ratio };
 }
 
-// Main entry: combines manual par + seasonality to suggest an order qty for one product.
+// Main entry.
 //
 // Inputs:
-//   reorderPoint:  Inventory.reorder_point (manual par target)
-//   currentStock:  current HQ stock (or store-specific if available)
-//   demandSummary: DemandSummary record for this SKU (optional)
-//   storeName:     store placing the order (used to scale by historical share)
+//   reorderPoint:       Inventory.reorder_point (manual par target, optional)
+//   currentStock:       HQ stock (used for fallback context)
+//   storeShelfStock:    On-shelf qty at the ordering store, from Shopify per-location sync (optional)
+//   demandSummary:      DemandSummary record for this SKU (optional)
+//   storeName:          store placing the order
 //
-// Returns: { suggested, isPeak, isSlow, basePar, seasonal }
-export function calculateSuggestedQty({ reorderPoint, currentStock, demandSummary, storeName }) {
+// Returns: { suggested, isPeak, isSlow, basis: 'par' | 'forecast' | 'none', ... }
+export function calculateSuggestedQty({
+  reorderPoint,
+  currentStock,
+  storeShelfStock,
+  demandSummary,
+  storeName,
+}) {
   const par = Number(reorderPoint) || 0;
-  const stock = Number(currentStock) || 0;
+  const shelf = Number(storeShelfStock) || 0;
+  const hasShelf = typeof storeShelfStock === "number";
 
-  // Base par-driven gap (how far below par are we, HQ-wide)
-  const baseGap = Math.max(0, par - stock);
-
-  // If we have store-level history, scale the suggestion by this store's
-  // historical share of total sales for the SKU. That way, a small store
-  // doesn't get suggested the same qty as a flagship store.
+  // Store's share of total SKU sales (used to scale par and forecast for this store)
   let storeShare = 1;
   if (demandSummary && storeName) {
     const share = getStoreShareOfSales(demandSummary, storeName);
-    // Only apply share if we have meaningful history; otherwise default to 1
     if (share > 0) storeShare = share;
   }
 
-  const seasonal = getSeasonalMultiplier(demandSummary);
+  // ---- Base gap calculation ----
+  let baseGap = 0;
+  let basis = 'none';
 
-  const raw = baseGap * storeShare * seasonal.multiplier;
-  const suggested = Math.max(0, Math.round(raw));
+  if (par > 0) {
+    // Par-based: prefer store shelf stock if we have it; otherwise use HQ stock context
+    const stockForPar = hasShelf ? shelf : (Number(currentStock) || 0);
+    baseGap = Math.max(0, par - stockForPar);
+    // Only scale par by storeShare when par is HQ-level (no shelf stock).
+    if (!hasShelf) baseGap = baseGap * storeShare;
+    basis = 'par';
+  } else if (demandSummary?.avgMonthly) {
+    // Forecast-based fill-in: one month of demand for this store, minus what's on shelf
+    const forecastedMonthly = Number(demandSummary.avgMonthly) * storeShare;
+    baseGap = Math.max(0, forecastedMonthly - shelf);
+    basis = 'forecast';
+  }
+
+  const seasonal = getSeasonalMultiplier(demandSummary);
+  const suggested = Math.max(0, Math.round(baseGap * seasonal.multiplier));
 
   return {
     suggested,
     isPeak: seasonal.isPeak,
     isSlow: seasonal.isSlow,
+    basis,
     basePar: par,
     storeShare,
-    seasonalMultiplier: seasonal.multiplier
+    storeShelfStock: hasShelf ? shelf : null,
+    seasonalMultiplier: seasonal.multiplier,
   };
 }

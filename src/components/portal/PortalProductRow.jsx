@@ -4,13 +4,21 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Plus, Minus, Flame, Snowflake, Wand2 } from "lucide-react";
 
-export default function PortalProductRow({ product, quantity, onChange, stock, suggestion }) {
+export default function PortalProductRow({ product, quantity, onChange, stock, shelfStock, suggestion }) {
   const hasStock = typeof stock === "number";
   const stockColor = !hasStock
     ? "text-zinc-600"
     : stock <= 0
       ? "text-red-400"
       : stock < 10
+        ? "text-amber-400"
+        : "text-green-400";
+  const hasShelf = typeof shelfStock === "number";
+  const shelfColor = !hasShelf
+    ? "text-zinc-600"
+    : shelfStock <= 0
+      ? "text-red-400"
+      : shelfStock < 5
         ? "text-amber-400"
         : "text-green-400";
 
@@ -45,6 +53,9 @@ export default function PortalProductRow({ product, quantity, onChange, stock, s
       </td>
       <td className={`px-3 py-2 text-right text-sm font-semibold ${stockColor}`}>
         {hasStock ? stock : "—"}
+      </td>
+      <td className={`px-3 py-2 text-right text-sm font-semibold ${shelfColor}`}>
+        {hasShelf ? shelfStock : "—"}
       </td>
       <td className="px-3 py-2 text-right">
         {hasSuggestion ? (

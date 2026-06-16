@@ -1,6 +1,22 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+// Map of Shopify location name -> canonical Base44 store name used in the portal & DemandSummary.byLocation.
+// Keys are matched case-insensitively against the Shopify location.name.
+const LOCATION_MAP = {
+  'neob hq': 'neob HQ',
+  'neob e-commerce': 'neob E-Commerce',
+  'ecommerce warehouse': 'neob E-Commerce',
+  'neob bracebridge': 'neob Bracebridge',
+  'neob elora': 'neob Elora',
+  'neob flower farm': 'neob Flower Farm',
+  'neob queen street': 'neob Queen Street',
+  'neob stratford': 'neob Stratford',
+};
+
+// The "primary" location whose quantity goes into Inventory.quantity (used as HQ stock).
+const PRIMARY_LOCATION = 'neob HQ';
 
 Deno.serve(async (req) => {
   const startTime = Date.now();
@@ -20,28 +36,34 @@ Deno.serve(async (req) => {
 
     const headers = { 'X-Shopify-Access-Token': token };
 
-    // Step 1: Find neob HQ location
+    // Step 1: Fetch ALL locations and map them to canonical names
     const locRes = await fetch(`https://${store}/admin/api/2026-01/locations.json`, { headers });
     const locData = await locRes.json();
     const locations = locData.locations || [];
 
-    const hqLocation = locations.find(l => l.name === 'neob HQ')
-      || locations.find(l => l.name?.toLowerCase().includes('neob hq'))
-      || locations.find(l => l.name?.toLowerCase().includes('hq'));
-
-    const locationLog = locations.map(l => ({ id: l.id, name: l.name, active: l.active }));
-
-    if (!hqLocation) {
-      return Response.json({
-        error: 'Could not find neob HQ location in Shopify',
-        available_locations: locationLog,
-      }, { status: 400 });
+    // locationIdToName: shopify location id -> canonical Base44 store name
+    const locationIdToName = {};
+    const matchedLocations = [];
+    for (const loc of locations) {
+      const key = (loc.name || '').trim().toLowerCase();
+      const canonical = LOCATION_MAP[key];
+      if (canonical) {
+        locationIdToName[String(loc.id)] = canonical;
+        matchedLocations.push({ id: loc.id, shopify_name: loc.name, canonical });
+      }
     }
 
-    const hqLocationId = hqLocation.id;
+    const hqEntry = matchedLocations.find(l => l.canonical === PRIMARY_LOCATION);
+    if (!hqEntry) {
+      return Response.json({
+        error: `Could not find "${PRIMARY_LOCATION}" location in Shopify`,
+        available_locations: locations.map(l => ({ id: l.id, name: l.name })),
+      }, { status: 400 });
+    }
+    const allLocationIds = Object.keys(locationIdToName);
 
     // Step 2: Fetch all active product variants
-    let allVariants = [];
+    const allVariants = [];
     let url = `https://${store}/admin/api/2026-01/products.json?limit=250&fields=id,title,status,variants`;
 
     while (url) {
@@ -56,8 +78,6 @@ Deno.serve(async (req) => {
         if (product.status !== 'active') continue;
         for (const variant of product.variants) {
           if (!variant.sku || !variant.sku.trim()) continue;
-          // Use barcode as SKU if available (matches ShopifySaleRecord format from POS),
-          // otherwise fall back to Shopify variant SKU
           const barcode = variant.barcode ? variant.barcode.trim() : null;
           const variantSku = variant.sku.trim();
           allVariants.push({
@@ -78,13 +98,15 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Step 3: Fetch inventory levels at neob HQ
+    // Step 3: Fetch inventory levels for ALL mapped locations
+    // levelsByItem: inventory_item_id -> { [canonical location name]: qty }
+    const levelsByItem = {};
     const inventoryItemIds = allVariants.map(v => v.inventory_item_id);
-    const quantityMap = {};
+    const locationIdsParam = allLocationIds.join(',');
 
     for (let i = 0; i < inventoryItemIds.length; i += 50) {
       const batch = inventoryItemIds.slice(i, i + 50);
-      const levelsUrl = `https://${store}/admin/api/2026-01/inventory_levels.json?inventory_item_ids=${batch.join(',')}&location_ids=${hqLocationId}&limit=250`;
+      const levelsUrl = `https://${store}/admin/api/2026-01/inventory_levels.json?inventory_item_ids=${batch.join(',')}&location_ids=${locationIdsParam}&limit=250`;
       const res = await fetch(levelsUrl, { headers });
       if (!res.ok) {
         console.error(`Inventory levels fetch failed: ${res.status} for batch starting at ${i}`);
@@ -92,18 +114,17 @@ Deno.serve(async (req) => {
       }
       const data = await res.json();
       for (const level of data.inventory_levels || []) {
-        const id = String(level.inventory_item_id);
-        if (String(level.location_id) === String(hqLocationId)) {
-          quantityMap[id] = (level.available || 0);
-        }
+        const itemId = String(level.inventory_item_id);
+        const locName = locationIdToName[String(level.location_id)];
+        if (!locName) continue;
+        if (!levelsByItem[itemId]) levelsByItem[itemId] = {};
+        levelsByItem[itemId][locName] = Number(level.available) || 0;
       }
-      // Respect Shopify rate limits
       if (i + 50 < inventoryItemIds.length) await sleep(500);
     }
-    console.log(`Fetched inventory levels for ${Object.keys(quantityMap).length} items at neob HQ (location ${hqLocationId})`);
-    console.log(`Total variants: ${allVariants.length}, Items with levels: ${Object.keys(quantityMap).length}`);
+    console.log(`Fetched per-location inventory for ${Object.keys(levelsByItem).length} items across ${allLocationIds.length} locations`);
 
-    // Step 4: Get ALL existing inventory records (paginated)
+    // Step 4: Load existing Inventory records
     const existingInventory = [];
     let invSkip = 0;
     const invPageSize = 200;
@@ -115,17 +136,13 @@ Deno.serve(async (req) => {
       invSkip += invPageSize;
       await sleep(300);
     }
-    console.log(`Loaded ${existingInventory.length} existing inventory records`);
-    
-    // Build lookup maps by both barcode and variant SKU
     const inventoryBySku = {};
     for (const item of existingInventory) {
       if (item.sku) inventoryBySku[item.sku.trim()] = item;
-      // Also index by supplier_sku if present (used to store variant_sku)
       if (item.supplier_sku) inventoryBySku[item.supplier_sku.trim()] = item;
     }
 
-    // Step 5: Load approved SKU mappings for alias resolution
+    // Step 5: Load approved SKU mappings
     const skuMappings = [];
     let mapSkip = 0;
     while (true) {
@@ -137,47 +154,58 @@ Deno.serve(async (req) => {
       if (batch.length < 100) break;
       mapSkip += 100;
     }
-    // Build lookup: old_sku -> new_sku and new_sku -> old_sku (bidirectional)
     const skuAliasMap = {};
     for (const m of skuMappings) {
       if (m.old_sku) skuAliasMap[m.old_sku.trim()] = m.new_sku?.trim();
       if (m.new_sku) skuAliasMap[m.new_sku.trim()] = m.old_sku?.trim();
     }
-    console.log(`Loaded ${skuMappings.length} approved SKU mappings`);
 
     const now = new Date().toISOString();
     let updated = 0;
     let created = 0;
     let migrated = 0;
-
-    // Separate into creates and updates
     const toCreate = [];
     const toUpdate = [];
-
     let skipped = 0;
+
+    // Helper to merge per-location stock into Inventory.notes (preserves any user notes)
+    const STOCK_TAG_START = '<!--SHOPIFY_STOCK:';
+    const STOCK_TAG_END = ':END-->';
+    const buildNotes = (existingNotes, perLocation) => {
+      const userNotes = (existingNotes || '').replace(
+        new RegExp(`${STOCK_TAG_START}[\\s\\S]*?${STOCK_TAG_END}`),
+        ''
+      ).trim();
+      const payload = JSON.stringify({ updatedAt: now, byLocation: perLocation });
+      return `${userNotes ? userNotes + '\n\n' : ''}${STOCK_TAG_START}${payload}${STOCK_TAG_END}`;
+    };
+
     for (const variant of allVariants) {
-      const quantity = quantityMap[variant.inventory_item_id] ?? 0;
-      // Look up by barcode SKU first, then variant SKU, then check SKU alias mappings
+      const perLocation = levelsByItem[variant.inventory_item_id] || {};
+      const primaryQty = Number(perLocation[PRIMARY_LOCATION] || 0);
+
       let existing = inventoryBySku[variant.sku] || inventoryBySku[variant.variant_sku];
-      
-      // If not found directly, check approved SKU mappings (alias table)
       if (!existing) {
         const aliasedSku = skuAliasMap[variant.sku] || skuAliasMap[variant.variant_sku];
-        if (aliasedSku) {
-          existing = inventoryBySku[aliasedSku];
-          if (existing) {
-            console.log(`SKU alias match: ${variant.sku} -> ${aliasedSku} (record ${existing.id})`);
-          }
-        }
+        if (aliasedSku) existing = inventoryBySku[aliasedSku];
       }
 
       if (existing) {
-        // Check if SKU needs migration from variant_sku to barcode
         const needsSkuMigration = variant.barcode && existing.sku !== variant.barcode;
-        const needsUpdate = existing.quantity !== quantity || existing.name !== variant.name || needsSkuMigration;
-        
+        const newNotes = buildNotes(existing.notes, perLocation);
+        const needsUpdate =
+          existing.quantity !== primaryQty ||
+          existing.name !== variant.name ||
+          existing.notes !== newNotes ||
+          needsSkuMigration;
+
         if (needsUpdate) {
-          const updateData = { id: existing.id, quantity, name: variant.name };
+          const updateData = {
+            id: existing.id,
+            quantity: primaryQty,
+            name: variant.name,
+            notes: newNotes,
+          };
           if (needsSkuMigration) {
             updateData.sku = variant.barcode;
             updateData.supplier_sku = variant.variant_sku;
@@ -192,17 +220,17 @@ Deno.serve(async (req) => {
           sku: variant.sku,
           supplier_sku: variant.variant_sku !== variant.sku ? variant.variant_sku : undefined,
           name: variant.name,
-          quantity,
+          quantity: primaryQty,
           type: 'finished_product',
           unit: 'units',
-          location: 'neob HQ',
+          location: PRIMARY_LOCATION,
+          notes: buildNotes('', perLocation),
           last_shopify_sync: now,
         });
       }
     }
-    console.log(`To create: ${toCreate.length}, To update: ${toUpdate.length}, Skipped: ${skipped}, SKU migrations: ${migrated}`);
 
-    // Bulk create new items in chunks of 20
+    // Bulk create
     for (let i = 0; i < toCreate.length; i += 20) {
       const chunk = toCreate.slice(i, i + 20);
       await base44.asServiceRole.entities.Inventory.bulkCreate(chunk);
@@ -210,23 +238,31 @@ Deno.serve(async (req) => {
       if (i + 20 < toCreate.length) await sleep(500);
     }
 
-    // Update existing items with retry logic and batched timing
+    // Updates with retry — slower throttle to avoid 429s, with a time budget so we
+    // can complete in repeat passes if there's too much to do in one go.
     let updateErrors = 0;
+    const TIME_BUDGET_MS = 50_000; // leave room before the 60s edge timeout
+    let deferred = 0;
     for (let ui = 0; ui < toUpdate.length; ui++) {
+      if (Date.now() - startTime > TIME_BUDGET_MS) {
+        deferred = toUpdate.length - ui;
+        break;
+      }
       const item = toUpdate[ui];
-      let retries = 3;
+      let retries = 4;
+      let backoff = 1500;
       while (retries > 0) {
         try {
-          const updatePayload = {
+          const payload = {
             name: item.name,
             quantity: item.quantity,
-            location: 'neob HQ',
+            notes: item.notes,
+            location: PRIMARY_LOCATION,
             last_shopify_sync: now,
           };
-          if (item.sku) updatePayload.sku = item.sku;
-          if (item.supplier_sku) updatePayload.supplier_sku = item.supplier_sku;
-          
-          await base44.asServiceRole.entities.Inventory.update(item.id, updatePayload);
+          if (item.sku) payload.sku = item.sku;
+          if (item.supplier_sku) payload.supplier_sku = item.supplier_sku;
+          await base44.asServiceRole.entities.Inventory.update(item.id, payload);
           updated++;
           break;
         } catch (e) {
@@ -235,22 +271,16 @@ Deno.serve(async (req) => {
             console.error(`Failed to update ${item.id}: ${e.message}`);
             updateErrors++;
           } else {
-            await sleep(e.status === 429 ? 3000 : 1000);
+            await sleep(backoff);
+            backoff = Math.min(backoff * 2, 8000);
           }
         }
       }
-      // Smaller delay, but pause longer every 20 items to avoid rate limits
-      if ((ui + 1) % 20 === 0) {
-        await sleep(1000);
-      } else {
-        await sleep(100);
-      }
+      await sleep(350); // steady throttle
     }
-    if (updateErrors > 0) console.log(`${updateErrors} update errors`);
 
     const duration = Math.round((Date.now() - startTime) / 1000);
 
-    // Log the sync
     await base44.asServiceRole.entities.SyncLog.create({
       sync_type: 'shopify_inventory',
       status: 'success',
@@ -259,23 +289,23 @@ Deno.serve(async (req) => {
       records_updated: updated,
       duration_seconds: duration,
       triggered_by: user.email,
-      notes: `Synced from neob HQ (location ${hqLocationId}). ${skipped} unchanged, ${migrated} SKU migrations.`,
+      notes: `Synced ${matchedLocations.length} locations: ${matchedLocations.map(l => l.canonical).join(', ')}. ${skipped} unchanged, ${migrated} SKU migrations, ${updateErrors} errors, ${deferred} deferred (rerun to finish).`,
     });
 
     return Response.json({
       success: true,
-      hq_location: { id: hqLocationId, name: hqLocation.name },
+      matched_locations: matchedLocations,
       total_variants: allVariants.length,
       updated,
       created,
       skipped,
       migrated,
+      deferred,
       duration_seconds: duration,
     });
 
   } catch (error) {
     const duration = Math.round((Date.now() - startTime) / 1000);
-    // Try to log the error too
     try {
       const base44 = createClientFromRequest(req);
       await base44.asServiceRole.entities.SyncLog.create({
