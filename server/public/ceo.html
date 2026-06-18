@@ -1297,7 +1297,16 @@ async function fetchBundles() {
   } catch(e) { return null; }
 }
 
-function buildStoreRows(rows, bundlePctByStore) {
+// Loyalty (BON) signups — cumulative counts since 2026-06-09 (per store +
+// total). Headline is the signup count; conversion is an automation-health dot.
+async function fetchLoyalty() {
+  try {
+    const r = await fetch(API + '/api/stats/loyalty-signups');
+    return await r.json();
+  } catch(e) { return null; }
+}
+
+function buildStoreRows(rows, bundlePctByStore, loyaltyByStore) {
   return rows.map(function(s, i) {
     var target = STORE_TARGETS_2026[s.location_name] || 0;
     var attPct = target > 0 ? (s.ytd_revenue / target) : null;
@@ -1315,11 +1324,18 @@ function buildStoreRows(rows, bundlePctByStore) {
     var bCell = (bPct === undefined || bPct === null)
       ? '<span class="no-data">—</span>'
       : '<span class="kpi-dot ' + (bPct >= 10 ? 'green' : bPct >= 5 ? 'amber' : 'red') + '"></span>' + bPct.toFixed(1) + '%';
+    // Loyalty signups (count headline) + automation-health dot from conversion.
+    var lname = s.location_name === 'Online/DTC' ? 'Online' : s.location_name;
+    var loy = loyaltyByStore ? loyaltyByStore[lname] : undefined;
+    var loyCell = (!loy)
+      ? '<span class="no-data">—</span>'
+      : '<span class="kpi-dot ' + (loy.conversion_pct == null ? 'gray' : loy.conversion_pct >= 90 ? 'green' : loy.conversion_pct >= 75 ? 'amber' : 'red') + '"></span>' + (loy.signups != null ? loy.signups.toLocaleString() : '—');
     return '<tr>' +
       '<td class="store-name ' + (i === 0 ? 'top' : '') + '">' + s.location_name + '</td>' +
       '<td class="revenue-val">' + fmt$(s.period_revenue || s.revenue || 0) + '</td>' +
       '<td><span class="kpi-dot ' + aovStatus + '"></span>$' + (s.aov || 0).toFixed(0) + '</td>' +
       '<td>' + bCell + '</td>' +
+      '<td style="font-weight:600">' + loyCell + '</td>' +
       '<td class="revenue-val" style="font-weight:600">' + fmt$(s.ytd_revenue || 0) + '</td>' +
       '<td class="revenue-val" style="color:var(--text-3)">' + (s.ly_revenue ? fmt$(s.ly_revenue) : '—') + '</td>' +
       '<td>' + vsLyChip + '</td>' +
@@ -1330,7 +1346,7 @@ function buildStoreRows(rows, bundlePctByStore) {
 }
 
 // ── RENDER ─────────────────────────────────────────────────────────
-function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bundles) {
+function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bundles, loyalty) {
   const now = new Date();
   const yearPct = yearProgress();
   const yearTarget2026 = ANNUAL_TARGETS[2026];
@@ -1342,6 +1358,16 @@ function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bund
   const bundleRetailPct = bundles?.retail_total?.bundle_pos_pct;
   const bundleDtcPct = bundles?.dtc?.bundle_dtc_pct;
   const bundleStatus = v => (v == null) ? 'neutral' : v >= bundleTarget ? 'green' : v >= bundleTarget / 2 ? 'amber' : 'red';
+
+  // Loyalty signups — headline is the signup count (cumulative since Jun 9);
+  // conversion is an automation-health dot (auto-enrollment keeps it ~99%).
+  const loyaltyByStore = {};
+  (loyalty?.stores || []).forEach(s => { loyaltyByStore[s.store] = s; });
+  const loyaltyTotal = loyalty?.total?.signups;            // BON-enrolled — the accurate loyalty count (headline)
+  const loyaltyFirstTimers = loyalty?.total?.first_timers; // denominator behind the conversion health dot
+  const loyaltyConv = loyalty?.total?.conversion_pct;
+  const loyaltySince = loyalty?.data_since || '2026-06-09';
+  const loyaltyDot = v => (v == null) ? 'gray' : v >= 90 ? 'green' : v >= 75 ? 'amber' : 'red';
 
   // Revenue — use accurate CEO stats endpoint
   const rev30d = stats?.rev_30d || 0;
@@ -1509,6 +1535,7 @@ function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bund
       ${renderKPI('Inventory Units', stats?.inventory_units ? stats.inventory_units.toLocaleString() : '—', 'Across 10 locations', 'neutral', null, null)}
       ${renderKPI('Packaged Bundle % · Retail', bundleRetailPct != null ? bundleRetailPct.toFixed(1) + '%' : '—', 'Gift sets · 30d · Target ' + bundleTarget + '%', bundleStatus(bundleRetailPct), null, bundleRetailPct != null ? bundleRetailPct / bundleTarget : null)}
       ${renderKPI('Packaged Bundle % · Online', bundleDtcPct != null ? bundleDtcPct.toFixed(1) + '%' : '—', 'Gift sets · 30d · Target ' + bundleTarget + '%', bundleStatus(bundleDtcPct), null, bundleDtcPct != null ? bundleDtcPct / bundleTarget : null)}
+      ${renderKPI('Loyalty Signups', loyaltyTotal != null ? loyaltyTotal.toLocaleString() : '—', '<span class="kpi-dot ' + loyaltyDot(loyaltyConv) + '"></span>' + (loyaltyConv != null ? loyaltyConv + '% of ' + (loyaltyFirstTimers != null ? loyaltyFirstTimers.toLocaleString() : '—') + ' first-timers' : 'enrollment —') + ' · since ' + loyaltySince, 'neutral', null, null)}
       ${(function() {
         if (!usageMtd) return renderKPI('API Spend (MTD)', '—', 'Sign in for admin access', 'neutral', null, null);
         const mtdCents = usageMtd.total_cents || 0;
@@ -1551,6 +1578,7 @@ function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bund
               <th>Period Rev</th>
               <th>Period AOV</th>
               <th>Pkg Bundle %<span style="font-weight:400;color:var(--text-3)"> 30d</span></th>
+              <th>Loyalty Signups<span style="font-weight:400;color:var(--text-3)"> Jun 9+</span></th>
               <th>YTD Revenue</th>
               <th>LY Same Period</th>
               <th>vs LY</th>
@@ -1559,12 +1587,16 @@ function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bund
             </tr>
           </thead>
           <tbody>
-            ${buildStoreRows(storeRows, bundlePctByStore)}
+            ${buildStoreRows(storeRows, bundlePctByStore, loyaltyByStore)}
           </tbody>
         </table>
         <div style="font-size:11px;color:var(--text-3);padding:10px 4px 2px;line-height:1.5">
           <strong>Pkg Bundle %</strong> = share of orders containing a packaged gift-set product (tagged bundle SKU), last 30d, since 2026-05-01.
           Packaged gift sets only — a subset of $40-threshold compliance, and <em>not</em> the 35–40% program target. Multi-item basket bundles tracked separately (Phase 3).
+        </div>
+        <div style="font-size:11px;color:var(--text-3);padding:2px 4px 2px;line-height:1.5">
+          <strong>Loyalty Signups</strong> = cumulative BON signups since 2026-06-09 (location tags started fresh that date). The dot is an
+          automation-health check on enrollment conversion (<span class="kpi-dot green"></span>≥90% · <span class="kpi-dot amber"></span>75–89% · <span class="kpi-dot red"></span>&lt;75%) — near-universal due to auto-enrollment, so it's a <em>health indicator, not a staff target</em>; a drop signals a broken Flow or misfired BON tagging.
         </div>
       </div>
 
@@ -1706,11 +1738,11 @@ async function loadAll(period) {
   const btn = document.getElementById('refreshBtn');
   if (btn) btn.classList.add('spinning');
 
-  const [stats, storeData, liveTasks, usageMtd, usageToday, syncStatus, bundles] = await Promise.all([
+  const [stats, storeData, liveTasks, usageMtd, usageToday, syncStatus, bundles, loyalty] = await Promise.all([
     fetchStats(), fetchStoreData(currentPeriod), fetchTasks(),
-    fetchUsageMtd(), fetchUsageToday(), fetchSyncStatus(), fetchBundles()
+    fetchUsageMtd(), fetchUsageToday(), fetchSyncStatus(), fetchBundles(), fetchLoyalty()
   ]);
-  renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bundles);
+  renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bundles, loyalty);
   renderSyncBadge(syncStatus);
 
   if (btn) btn.classList.remove('spinning');
