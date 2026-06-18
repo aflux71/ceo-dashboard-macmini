@@ -441,6 +441,62 @@ router.get('/revenue/ytd', (req, res) => {
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
+// ── /api/bundles/penetration ──────────────────────────────────────
+// "Packaged Bundle %" — share of orders containing a tagged bundle product
+// (neob-bundle-pos / neob-bundle-dtc), matched by stable SKU. POS % is per
+// retail store; DTC % is overall web. This is packaged gift-set bundles only
+// — a SUBSET of $40-threshold compliance — and is deliberately NOT the same
+// as the 35-40% program target. Multi-item discount baskets are a separate
+// (Phase 3) metric. Bundle flags are only backfilled from 2026-05-01, so this
+// endpoint is restricted to a 30d window by default.
+const RETAIL_STORES = "'Queen Street','Flower Farm','Elora','Stratford','Bracebridge'";
+const BUNDLE_TARGET_PCT = 10; // placeholder — not the 35-40% program target
+
+router.get('/bundles/penetration', (req, res) => {
+  try {
+    const { period = '30d', date_from, date_to } = req.query;
+    const { from, to } = resolvePeriod(period, date_from, date_to);
+
+    const stores = db.prepare(`
+      SELECT location_name AS store,
+        COUNT(*) AS orders,
+        COALESCE(SUM(is_bundle_pos),0) AS bundle_orders,
+        ROUND(100.0*SUM(is_bundle_pos)/NULLIF(COUNT(*),0),1) AS bundle_pos_pct
+      FROM orders
+      WHERE location_name IN (${RETAIL_STORES})
+        AND created_at >= ? AND created_at < ?
+      GROUP BY location_name
+      ORDER BY bundle_pos_pct DESC
+    `).all(from, to);
+
+    const retailTotal = db.prepare(`
+      SELECT COUNT(*) AS orders, COALESCE(SUM(is_bundle_pos),0) AS bundle_orders,
+        ROUND(100.0*SUM(is_bundle_pos)/NULLIF(COUNT(*),0),1) AS bundle_pos_pct
+      FROM orders
+      WHERE location_name IN (${RETAIL_STORES})
+        AND created_at >= ? AND created_at < ?
+    `).get(from, to);
+
+    const dtc = db.prepare(`
+      SELECT COUNT(*) AS orders, COALESCE(SUM(is_bundle_dtc),0) AS bundle_orders,
+        ROUND(100.0*SUM(is_bundle_dtc)/NULLIF(COUNT(*),0),1) AS bundle_dtc_pct
+      FROM orders
+      WHERE source_name = 'web'
+        AND created_at >= ? AND created_at < ?
+    `).get(from, to);
+
+    res.json({
+      period, from, to,
+      target_pct: BUNDLE_TARGET_PCT,
+      data_since: '2026-05-01',
+      label: 'Packaged Bundle %',
+      stores,
+      retail_total: retailTotal,
+      dtc
+    });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
 // ── helpers ───────────────────────────────────────────────────────
 function resolvePeriod(period, date_from, date_to) {
   const now = new Date();

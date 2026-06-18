@@ -114,29 +114,72 @@ export async function syncProducts() {
 // with the sales channel encoded in the tag itself:
 //   "neob-bundle-pos" → POS bundle   (is_bundle_pos)
 //   "neob-bundle-dtc" → DTC bundle   (is_bundle_dtc)
-// The map is built by reading product tags straight from the Shopify API
-// (not the local products table) so newly-tagged products are picked up
-// even when the local products mirror hasn't re-synced yet. Each order is
-// then flagged by matching its line-item product IDs against this map.
+//
+// Bundle products are recreated every cycle (the "monthly bundle reset"):
+// new product IDs each time, old products deleted. Deleting a product nulls
+// its product_id on historical order line items — but the SKU is stable and
+// survives (verified: 38/38 historical bundle lines kept their SKU). So we
+// accumulate every tagged product (keyed by SKU) into the bundle_products
+// table and match orders by SKU (the stable key), with product_id as a
+// fast-path for the current cycle. Titles can change across cycles, so
+// norm_title is stored for reference/debug only — NOT used for matching (a
+// title false positive would be permanent in the never-pruned accumulator).
+// The accumulator is refreshed from the live tag set each sync and never
+// pruned, so past orders stay attributable after a reset (and a transient
+// empty tag fetch can't erase known bundles).
 const BUNDLE_TAG_POS = 'neob-bundle-pos';
 const BUNDLE_TAG_DTC = 'neob-bundle-dtc';
 
+const normTitle = s => (s || '').trim().toLowerCase();
+
+const BUNDLE_UPSERT_SQL = `
+  INSERT INTO bundle_products (sku, product_id, title, norm_title, is_pos, is_dtc, first_seen, last_seen)
+  VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+  ON CONFLICT(sku) DO UPDATE SET
+    product_id = excluded.product_id,
+    title      = excluded.title,
+    norm_title = excluded.norm_title,
+    is_pos     = MAX(is_pos, excluded.is_pos),
+    is_dtc     = MAX(is_dtc, excluded.is_dtc),
+    last_seen  = datetime('now')
+`;
+
+// Fetch currently-tagged bundle products, upsert them into the bundle_products
+// accumulator, then return matchers built from the FULL accumulator (all SKUs
+// ever seen, not just this cycle's). Returns { bySku, byId } maps of
+// key → { pos, dtc }. norm_title is persisted but not returned for matching.
 async function buildBundleTagMap() {
-  const map = new Map();
-  let url = `${SHOPIFY_URL}/products.json?limit=250&fields=id,tags`;
+  const upsert = db.prepare(BUNDLE_UPSERT_SQL);
+  let url = `${SHOPIFY_URL}/products.json?limit=250&fields=id,title,tags,variants`;
+  let tagged = 0, noSku = 0;
 
   while (url) {
     const res = await getWithRetry(url);
     for (const p of res.data.products) {
       const tagList = (p.tags || '').split(',').map(t => t.trim());
-      const pos = tagList.includes(BUNDLE_TAG_POS);
-      const dtc = tagList.includes(BUNDLE_TAG_DTC);
-      if (pos || dtc) map.set(String(p.id), { pos, dtc });
+      const pos = tagList.includes(BUNDLE_TAG_POS) ? 1 : 0;
+      const dtc = tagList.includes(BUNDLE_TAG_DTC) ? 1 : 0;
+      if (!pos && !dtc) continue;
+      tagged++;
+      const skus = (p.variants || []).map(v => v.sku).filter(Boolean);
+      if (skus.length === 0) { noSku++; continue; }
+      for (const sku of skus) {
+        upsert.run(sku, String(p.id), p.title, normTitle(p.title), pos, dtc);
+      }
     }
     url = nextPageUrl(res.headers['link']);
     if (url) await sleep(600);
   }
-  return map;
+  if (noSku) console.log(`  ⚠ ${noSku}/${tagged} tagged bundle product(s) had no SKU — skipped in accumulator`);
+
+  const bySku = new Map(), byId = new Map();
+  for (const r of db.prepare(`SELECT sku, product_id, is_pos, is_dtc FROM bundle_products`).all()) {
+    const v = { pos: r.is_pos === 1, dtc: r.is_dtc === 1 };
+    if (r.sku) bySku.set(r.sku, v);
+    if (r.product_id) byId.set(String(r.product_id), v);
+  }
+  console.log(`  bundle accumulator: ${bySku.size} SKUs (${tagged} tagged this cycle, ${byId.size} ids)`);
+  return { bySku, byId };
 }
 
 const ORDER_INSERT_SQL = `
@@ -154,16 +197,20 @@ const LINE_ITEM_INSERT_SQL = `
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
 `;
 
-// Flag an order by matching its line-item product IDs against the bundle map.
-// pos/dtc are independent flags (a product carries at most one bundle tag, but
-// an order could in principle contain both kinds of line item).
+// Flag an order by matching its line items against the bundle accumulator.
+// SKU is the trusted key (stable across resets); product_id is a fast-path for
+// the current cycle. Title is deliberately NOT used (titles can change across
+// cycles → permanent false positives). pos/dtc are independent flags (an order
+// could in principle contain both kinds of line item).
 function detectBundles(order, bundleMap) {
   let isBundlePos = 0;
   let isBundleDtc = 0;
   const lineItems = Array.isArray(order.line_items) ? order.line_items : [];
   for (const li of lineItems) {
-    const pid = li.product_id != null ? String(li.product_id) : null;
-    const b = pid ? bundleMap.get(pid) : null;
+    const b =
+      (li.sku && bundleMap.bySku.get(li.sku)) ||
+      (li.product_id != null && bundleMap.byId.get(String(li.product_id))) ||
+      null;
     if (b) {
       if (b.pos) isBundlePos = 1;
       if (b.dtc) isBundleDtc = 1;
@@ -214,13 +261,11 @@ function insertOrders(orders, bundleMap) {
 // A fixed date is more predictable than a rolling window and won't drift.
 const ORDER_HISTORY_FLOOR = '2024-01-01T00:00:00Z';
 
-export async function syncOrders() {
-  console.log('Syncing orders (full history from ' + ORDER_HISTORY_FLOOR + ') with location data...');
+export async function syncOrders(createdMin = ORDER_HISTORY_FLOOR) {
+  console.log('Syncing orders (created_at_min ' + createdMin + ') with location data...');
   ensureBundleSchema();
   const bundleMap = await buildBundleTagMap();
-  console.log(`  bundle tag map: ${bundleMap.size} bundle products`);
   let synced = 0;
-  const createdMin = ORDER_HISTORY_FLOOR;
   let url = `${SHOPIFY_URL}/orders.json?limit=250&status=any&created_at_min=${createdMin}`;
 
   let page = 0;
@@ -245,7 +290,6 @@ export async function syncOrdersIncremental(hoursBack = 48) {
   console.log(`Syncing orders updated in last ${hoursBack}h...`);
   ensureBundleSchema();
   const bundleMap = await buildBundleTagMap();
-  console.log(`  bundle tag map: ${bundleMap.size} bundle products`);
   let synced = 0;
   const since = new Date();
   since.setHours(since.getHours() - hoursBack);

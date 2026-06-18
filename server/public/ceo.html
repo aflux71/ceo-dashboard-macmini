@@ -1287,7 +1287,17 @@ async function fetchStoreData(period) {
   } catch(e) { return null; }
 }
 
-function buildStoreRows(rows) {
+// Packaged Bundle % — always fetched for a fixed 30d window (flags are only
+// backfilled from 2026-05-01, so YTD/LY would be misleading). Packaged gift
+// sets only; a subset of $40 compliance — NOT the 35-40% program target.
+async function fetchBundles() {
+  try {
+    const r = await fetch(API + '/api/bundles/penetration?period=30d');
+    return await r.json();
+  } catch(e) { return null; }
+}
+
+function buildStoreRows(rows, bundlePctByStore) {
   return rows.map(function(s, i) {
     var target = STORE_TARGETS_2026[s.location_name] || 0;
     var attPct = target > 0 ? (s.ytd_revenue / target) : null;
@@ -1301,10 +1311,15 @@ function buildStoreRows(rows) {
     var attChip = attPct
       ? '<span class="vs-target-chip ' + attStatus + '">' + (attPct * 100).toFixed(0) + '%</span>'
       : '<span class="no-data">—</span>';
+    var bPct = bundlePctByStore ? bundlePctByStore[s.location_name] : undefined;
+    var bCell = (bPct === undefined || bPct === null)
+      ? '<span class="no-data">—</span>'
+      : '<span class="kpi-dot ' + (bPct >= 10 ? 'green' : bPct >= 5 ? 'amber' : 'red') + '"></span>' + bPct.toFixed(1) + '%';
     return '<tr>' +
       '<td class="store-name ' + (i === 0 ? 'top' : '') + '">' + s.location_name + '</td>' +
       '<td class="revenue-val">' + fmt$(s.period_revenue || s.revenue || 0) + '</td>' +
       '<td><span class="kpi-dot ' + aovStatus + '"></span>$' + (s.aov || 0).toFixed(0) + '</td>' +
+      '<td>' + bCell + '</td>' +
       '<td class="revenue-val" style="font-weight:600">' + fmt$(s.ytd_revenue || 0) + '</td>' +
       '<td class="revenue-val" style="color:var(--text-3)">' + (s.ly_revenue ? fmt$(s.ly_revenue) : '—') + '</td>' +
       '<td>' + vsLyChip + '</td>' +
@@ -1315,10 +1330,18 @@ function buildStoreRows(rows) {
 }
 
 // ── RENDER ─────────────────────────────────────────────────────────
-function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday) {
+function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bundles) {
   const now = new Date();
   const yearPct = yearProgress();
   const yearTarget2026 = ANNUAL_TARGETS[2026];
+
+  // Packaged Bundle % (30d) — per-store retail map + overall DTC.
+  const bundleTarget = bundles?.target_pct ?? 10;
+  const bundlePctByStore = {};
+  (bundles?.stores || []).forEach(s => { bundlePctByStore[s.store] = s.bundle_pos_pct; });
+  const bundleRetailPct = bundles?.retail_total?.bundle_pos_pct;
+  const bundleDtcPct = bundles?.dtc?.bundle_dtc_pct;
+  const bundleStatus = v => (v == null) ? 'neutral' : v >= bundleTarget ? 'green' : v >= bundleTarget / 2 ? 'amber' : 'red';
 
   // Revenue — use accurate CEO stats endpoint
   const rev30d = stats?.rev_30d || 0;
@@ -1484,6 +1507,8 @@ function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday) {
       ${renderKPI('Avg Order Value', aov30d ? '$' + aov30d.toFixed(0) : '—', 'Retail only · Target: $' + KPI_TARGETS.aov, getStatus(aov30d, KPI_TARGETS.aov), null, aov30d / KPI_TARGETS.aov)}
       ${renderKPI('Active SKUs', stats?.active_products ? stats.active_products.toLocaleString() : '—', 'Target: 270 by EOY', 'amber', null, null)}
       ${renderKPI('Inventory Units', stats?.inventory_units ? stats.inventory_units.toLocaleString() : '—', 'Across 10 locations', 'neutral', null, null)}
+      ${renderKPI('Packaged Bundle % · Retail', bundleRetailPct != null ? bundleRetailPct.toFixed(1) + '%' : '—', 'Gift sets · 30d · Target ' + bundleTarget + '%', bundleStatus(bundleRetailPct), null, bundleRetailPct != null ? bundleRetailPct / bundleTarget : null)}
+      ${renderKPI('Packaged Bundle % · Online', bundleDtcPct != null ? bundleDtcPct.toFixed(1) + '%' : '—', 'Gift sets · 30d · Target ' + bundleTarget + '%', bundleStatus(bundleDtcPct), null, bundleDtcPct != null ? bundleDtcPct / bundleTarget : null)}
       ${(function() {
         if (!usageMtd) return renderKPI('API Spend (MTD)', '—', 'Sign in for admin access', 'neutral', null, null);
         const mtdCents = usageMtd.total_cents || 0;
@@ -1525,6 +1550,7 @@ function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday) {
               <th>Store</th>
               <th>Period Rev</th>
               <th>Period AOV</th>
+              <th>Pkg Bundle %<span style="font-weight:400;color:var(--text-3)"> 30d</span></th>
               <th>YTD Revenue</th>
               <th>LY Same Period</th>
               <th>vs LY</th>
@@ -1533,9 +1559,13 @@ function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday) {
             </tr>
           </thead>
           <tbody>
-            ${buildStoreRows(storeRows)}
+            ${buildStoreRows(storeRows, bundlePctByStore)}
           </tbody>
         </table>
+        <div style="font-size:11px;color:var(--text-3);padding:10px 4px 2px;line-height:1.5">
+          <strong>Pkg Bundle %</strong> = share of orders containing a packaged gift-set product (tagged bundle SKU), last 30d, since 2026-05-01.
+          Packaged gift sets only — a subset of $40-threshold compliance, and <em>not</em> the 35–40% program target. Multi-item basket bundles tracked separately (Phase 3).
+        </div>
       </div>
 
       <!-- RIGHT COL -->
@@ -1676,11 +1706,11 @@ async function loadAll(period) {
   const btn = document.getElementById('refreshBtn');
   if (btn) btn.classList.add('spinning');
 
-  const [stats, storeData, liveTasks, usageMtd, usageToday, syncStatus] = await Promise.all([
+  const [stats, storeData, liveTasks, usageMtd, usageToday, syncStatus, bundles] = await Promise.all([
     fetchStats(), fetchStoreData(currentPeriod), fetchTasks(),
-    fetchUsageMtd(), fetchUsageToday(), fetchSyncStatus()
+    fetchUsageMtd(), fetchUsageToday(), fetchSyncStatus(), fetchBundles()
   ]);
-  renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday);
+  renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bundles);
   renderSyncBadge(syncStatus);
 
   if (btn) btn.classList.remove('spinning');

@@ -58,6 +58,19 @@ export function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_oli_order ON order_line_items(order_id);
     CREATE INDEX IF NOT EXISTS idx_oli_product ON order_line_items(product_id);
 
+    CREATE TABLE IF NOT EXISTS bundle_products (
+      sku TEXT PRIMARY KEY,
+      product_id TEXT,
+      title TEXT,
+      norm_title TEXT,
+      is_pos INTEGER DEFAULT 0,
+      is_dtc INTEGER DEFAULT 0,
+      first_seen TEXT,
+      last_seen TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_bundle_product_id ON bundle_products(product_id);
+    CREATE INDEX IF NOT EXISTS idx_bundle_norm_title ON bundle_products(norm_title);
+
     CREATE TABLE IF NOT EXISTS sync_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       entity TEXT,
@@ -101,5 +114,23 @@ export function ensureBundleSchema() {
     );
     CREATE INDEX IF NOT EXISTS idx_oli_order ON order_line_items(order_id);
     CREATE INDEX IF NOT EXISTS idx_oli_product ON order_line_items(product_id);
+
+    -- Accumulator of every product ever tagged as a bundle. Keyed by SKU
+    -- (stable across the monthly bundle reset, which recreates products with
+    -- new IDs and nulls deleted products' line-item product_ids). Refreshed
+    -- each sync from currently-tagged products; rows are never removed, so
+    -- historical orders stay attributable after a reset.
+    CREATE TABLE IF NOT EXISTS bundle_products (
+      sku TEXT PRIMARY KEY,
+      product_id TEXT,
+      title TEXT,
+      norm_title TEXT,
+      is_pos INTEGER DEFAULT 0,
+      is_dtc INTEGER DEFAULT 0,
+      first_seen TEXT,
+      last_seen TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_bundle_product_id ON bundle_products(product_id);
+    CREATE INDEX IF NOT EXISTS idx_bundle_norm_title ON bundle_products(norm_title);
   `);
 }
