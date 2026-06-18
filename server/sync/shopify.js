@@ -411,7 +411,7 @@ const BON_TIER_CLAUSE = "(tag:'BON_seedling' OR tag:'BON_blooming' OR tag:'BON_f
 //                  numberOfOrders=1) — the denominator.
 //   signups      = those same first-timers who also enrolled (carry a BON
 //                  tier tag) — the numerator.
-//   conversion   = signups / first_timers (target 60%).
+//   conversion   = signups / first_timers (target 50%).
 export async function getLoyaltySignups() {
   const stores = [];
   let totalSignups = 0, totalFirstTimers = 0;
@@ -431,7 +431,7 @@ export async function getLoyaltySignups() {
   }
   return {
     data_since: '2026-06-09',
-    target_pct: 60,
+    target_pct: 50,
     count_method: 'pagination',
     stores,
     total: {
