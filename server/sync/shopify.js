@@ -342,3 +342,102 @@ export async function runNightlySync() {
     throw err;
   }
 }
+
+// ── Loyalty (BON) signups via Admin GraphQL ──────────────────────
+// BON tier tags (BON_seedling / BON_blooming / BON_full_bloom) and signup-
+// location tags (signup-<store>) live only on Shopify customers, not in the
+// local mirror, so this queries the Admin GraphQL API live. Requires the
+// access token to carry the read_customers scope.
+const SHOPIFY_GRAPHQL_URL = `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-10/graphql.json`;
+
+async function shopifyGraphQL(query, variables = {}, maxRetries = 5) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    let res;
+    try {
+      res = await axios.post(SHOPIFY_GRAPHQL_URL, { query, variables }, { headers: HEADERS, timeout: 30000 });
+    } catch (err) {
+      const status = err.response?.status;
+      const retryable = status === 429 || status >= 500 ||
+        ['ECONNRESET', 'ETIMEDOUT', 'ECONNABORTED'].includes(err.code);
+      if (!retryable || attempt === maxRetries) throw err;
+      await sleep(1000 * attempt);
+      continue;
+    }
+    const { data, errors } = res.data;
+    if (errors && errors.length) {
+      if (errors.some(e => e.extensions?.code === 'THROTTLED') && attempt < maxRetries) {
+        await sleep(2000 * attempt);
+        continue;
+      }
+      const e = new Error(errors.map(x => x.message).join('; '));
+      e.graphQLErrors = errors;
+      throw e;
+    }
+    return data;
+  }
+}
+
+// Count customers matching a Shopify search query, via cursor pagination on
+// the customers connection (250/page). NOTE: customersCount(query:) is NOT
+// usable here — verified it ignores its query argument and always returns the
+// (capped) total customer count, so it can't do tag-filtered counts. The
+// customers connection respects the query, so we page through and count nodes.
+async function countCustomers(queryStr) {
+  let count = 0, after = null, hasNext = true;
+  while (hasNext) {
+    const data = await shopifyGraphQL(
+      `query($q:String!,$after:String){ customers(first:250, query:$q, after:$after){ nodes{ id } pageInfo{ hasNextPage endCursor } } }`,
+      { q: queryStr, after });
+    count += data.customers.nodes.length;
+    hasNext = data.customers.pageInfo.hasNextPage;
+    after = data.customers.pageInfo.endCursor;
+    if (hasNext) await sleep(300);
+  }
+  return count;
+}
+
+const LOYALTY_LOCATIONS = [
+  { key: 'queen-street', label: 'Queen Street' },
+  { key: 'flower-farm',  label: 'Flower Farm' },
+  { key: 'elora',        label: 'Elora' },
+  { key: 'stratford',    label: 'Stratford' },
+  { key: 'bracebridge',  label: 'Bracebridge' },
+  { key: 'online',       label: 'Online' }
+];
+const BON_TIER_CLAUSE = "(tag:'BON_seedling' OR tag:'BON_blooming' OR tag:'BON_full_bloom')";
+
+// Per store, window-clean because both sides are the same tag population:
+//   first_timers = all first-time customers (Flow tags signup-<loc> on
+//                  numberOfOrders=1) — the denominator.
+//   signups      = those same first-timers who also enrolled (carry a BON
+//                  tier tag) — the numerator.
+//   conversion   = signups / first_timers (target 60%).
+export async function getLoyaltySignups() {
+  const stores = [];
+  let totalSignups = 0, totalFirstTimers = 0;
+  for (const loc of LOYALTY_LOCATIONS) {
+    const sigTag = `tag:'signup-${loc.key}'`;
+    const firstTimers = await countCustomers(sigTag);
+    const signups = await countCustomers(`${sigTag} AND ${BON_TIER_CLAUSE}`);
+    stores.push({
+      store: loc.label,
+      signup_tag: `signup-${loc.key}`,
+      first_timers: firstTimers,
+      signups,
+      conversion_pct: firstTimers > 0 ? Math.round((signups / firstTimers) * 1000) / 10 : null
+    });
+    totalSignups += signups;
+    totalFirstTimers += firstTimers;
+  }
+  return {
+    data_since: '2026-06-09',
+    target_pct: 60,
+    count_method: 'pagination',
+    stores,
+    total: {
+      first_timers: totalFirstTimers,
+      signups: totalSignups,
+      conversion_pct: totalFirstTimers > 0 ? Math.round((totalSignups / totalFirstTimers) * 1000) / 10 : null
+    }
+  };
+}

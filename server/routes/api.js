@@ -4,6 +4,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import db from '../db/database.js';
 import { loadKnowledge, getLoadedDocs, getKnowledgeStatus } from '../knowledge.js';
 import { logUsage } from '../usage.js';
+import { getLoyaltySignups } from '../sync/shopify.js';
 
 const router = express.Router();
 
@@ -288,6 +289,16 @@ router.get('/stats/ceo', (req, res) => {
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
+
+// ── /api/stats/loyalty-signups ────────────────────────────────────
+// BON loyalty signups by signup-location, via the Shopify Admin GraphQL API.
+// Live query (tags live on customers, not the local mirror). data_since
+// 2026-06-09 (location tags started fresh that date). Requires read_customers.
+router.get('/stats/loyalty-signups', async (req, res) => {
+  try {
+    res.json(await getLoyaltySignups());
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
 
 // ── Channel exclusions — baked into every revenue query ──────────
 // Matrixify App: pre-Shopify historical import (8,180 orders, $788K) — NOT real Shopify sales
