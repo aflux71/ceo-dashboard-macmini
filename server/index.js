@@ -27,7 +27,7 @@ app.get('/health', (req, res) => {
 
 app.use('/api', apiRoutes);
 
-app.listen(PORT, () => {
+app.listen(PORT, '127.0.0.1', () => {
   console.log(`neōb Production Assistant running on port ${PORT}`);
   startScheduler();
   loadKnowledge().catch(err => console.error('[knowledge] boot load failed:', err.message));
