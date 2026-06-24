@@ -1738,12 +1738,18 @@ async function loadAll(period) {
   const btn = document.getElementById('refreshBtn');
   if (btn) btn.classList.add('spinning');
 
-  const [stats, storeData, liveTasks, usageMtd, usageToday, syncStatus, bundles, loyalty] = await Promise.all([
+  // Fast local-DB calls — all sub-100ms. Render as soon as these resolve.
+  const [stats, storeData, liveTasks, usageMtd, usageToday, syncStatus, bundles] = await Promise.all([
     fetchStats(), fetchStoreData(currentPeriod), fetchTasks(),
-    fetchUsageMtd(), fetchUsageToday(), fetchSyncStatus(), fetchBundles(), fetchLoyalty()
+    fetchUsageMtd(), fetchUsageToday(), fetchSyncStatus(), fetchBundles()
   ]);
-  renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bundles, loyalty);
+  renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bundles, null);
   renderSyncBadge(syncStatus);
+
+  // Loyalty is a live Shopify call (~2.7s) — fetch separately, fill in when ready.
+  fetchLoyalty().then(function(loyalty) {
+    if (loyalty) renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bundles, loyalty);
+  });
 
   if (btn) btn.classList.remove('spinning');
 }
