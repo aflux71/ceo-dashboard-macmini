@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>neōb — Missing Costs</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Serif+Display&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#F7F5F0;--surface:#FFFFFF;--surface-warm:#FAF8F4;--border:#E8E3D9;--text:#1A1714;
+    --text-2:#5C5650;--text-3:#9C948A;--lavender:#6B5B8F;--lavender-light:#EEE9F5;--green:#2D6A4F;
+    --green-light:#E8F5EE;--red:#991B1B;--amber:#92400E;--amber-light:#FEF3C7;
+    --shadow:0 1px 3px rgba(26,23,20,.06),0 1px 2px rgba(26,23,20,.04);}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.45;padding:24px;max-width:1080px;margin:0 auto}
+  h1{font-family:'DM Serif Display',serif;font-size:28px;font-weight:400;margin-bottom:2px}
+  h1 span{color:var(--lavender)}
+  .sub{color:var(--text-3);font-size:13px;font-family:'DM Mono',monospace;margin-bottom:18px}
+  .headline{background:linear-gradient(180deg,#fff,var(--lavender-light));border:1px solid var(--border);border-radius:14px;padding:20px 22px;margin-bottom:12px;box-shadow:var(--shadow)}
+  .headline .big{font-size:22px;font-weight:700}
+  .headline .big b{color:var(--lavender)}
+  .headline .arrow{color:var(--green);font-weight:700}
+  .bar{height:10px;border-radius:6px;background:var(--border);margin:12px 0 6px;overflow:hidden;position:relative}
+  .bar .fill{height:100%;background:var(--lavender);position:absolute;left:0;top:0}
+  .bar .fix{height:100%;background:var(--green);position:absolute;top:0}
+  .legend{font-size:12px;color:var(--text-2);display:flex;gap:16px;flex-wrap:wrap}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:middle}
+  h2{font-size:15px;font-weight:700;margin:24px 0 8px}
+  h2 .count{color:var(--text-3);font-weight:500;font-size:13px}
+  table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--shadow)}
+  th,td{padding:10px 12px;text-align:right;font-size:13.5px;font-variant-numeric:tabular-nums;border-bottom:1px solid var(--border)}
+  th{background:var(--surface-warm);color:var(--text-2);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  td:first-child,th:first-child,td.l,th.l{text-align:left}
+  tbody tr:last-child td{border-bottom:0}
+  .prod{font-weight:500}.sku{font-family:'DM Mono',monospace;font-size:11px;color:var(--text-3)}
+  .loc{font-size:11px;color:var(--text-3)}
+  .btn{display:inline-block;border:0;border-radius:8px;padding:6px 12px;font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;text-decoration:none}
+  .btn-fix{background:var(--lavender);color:#fff}
+  .btn-ack{background:transparent;color:var(--text-3);border:1px solid var(--border);margin-left:6px}
+  .muted{color:var(--text-3)}
+  .costless-note{font-size:12px;color:var(--text-2);margin:6px 0 8px}
+  details summary{cursor:pointer;font-size:15px;font-weight:700;margin:24px 0 8px}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--text);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;z-index:9}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+  <h1>ne<span>ō</span>b — Missing Product Costs</h1>
+  <div class="sub" id="sub">loading…</div>
+  <div class="headline" id="headline"></div>
+
+  <h2>Fix these in Shopify <span class="count" id="fixCount"></span></h2>
+  <table><thead><tr>
+    <th class="l">Product</th><th>No-cost net</th><th>Units</th><th class="l">Locations</th><th class="l">Action</th>
+  </tr></thead><tbody id="fixBody"></tbody></table>
+
+  <div id="nowCosted"></div>
+
+  <details id="costlessWrap"><summary>No variant to cost <span class="count" id="clCount"></span></summary>
+    <div class="costless-note">These lines have no single Shopify variant to attach a cost to — a mix of <b>genuinely costless services</b> (U-pick, field admission) and <b>bundles / gift baskets</b> that do have COGS but are assembled from components. Bundles need a bundle-costing approach (separate from this variant checklist); services are fine as $0.</div>
+    <table><thead><tr><th class="l">Line</th><th>No-cost net</th><th>Days</th></tr></thead><tbody id="clBody"></tbody></table>
+  </details>
+
+  <div class="toast" id="toast"></div>
+<script>
+const $=s=>document.querySelector(s);
+const money=n=>'$'+Number(n||0).toLocaleString('en-CA',{maximumFractionDigits:0});
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);}
+function adminPin(){let p=sessionStorage.getItem('adminPin');if(!p){p=prompt('Admin PIN to mark an item $0-cost:');if(p)sessionStorage.setItem('adminPin',p);}return p;}
+
+async function load(){
+  const d=await (await fetch('/api/data-quality/missing-costs')).json();
+  const h=d.headline;
+  $('#sub').textContent=`${d.window} · ${d.live_check?'live-checked against Shopify':'ledger only (Shopify check unavailable)'}`;
+  const projFixPct=Math.round((h.no_cost_pct-h.projected_pct_after_fixable)*10)/10;
+  $('#headline').innerHTML=`
+    <div class="big">No-cost is <b>${h.no_cost_pct}% of net</b> <span class="arrow">→ ${h.projected_pct_after_fixable}%</span> once these ${h.fixable_count} products are costed</div>
+    <div class="bar">
+      <div class="fill" style="width:${h.no_cost_pct}%"></div>
+      <div class="fix" style="width:${projFixPct}%;left:${h.projected_pct_after_fixable}%"></div>
+    </div>
+    <div class="legend">
+      <span><span class="dot" style="background:var(--green)"></span>${money(h.fixable_no_cost)} fixable now (${h.fixable_count} SKUs)</span>
+      <span><span class="dot" style="background:var(--lavender)"></span>${money(h.no_cost_net-h.fixable_no_cost)} no-variant (services/bundles)</span>
+      <span class="muted">net ${money(h.net)} · ${h.now_costed_count} recently costed</span>
+    </div>`;
+  $('#fixCount').textContent=`(${d.fixable.length} — biggest blind-spot dollars first)`;
+  $('#fixBody').innerHTML=d.fixable.map(r=>`<tr>
+    <td class="l"><span class="prod">${esc(r.title||'(untitled)')}</span> <span class="sku">${r.sku?esc(r.sku):'no SKU'}</span></td>
+    <td>${money(r.no_cost_net)}</td>
+    <td>${r.units!=null?r.units.toLocaleString():'—'}</td>
+    <td class="l loc">${esc(r.locations||'').replace(/,/g,', ')}</td>
+    <td class="l"><a class="btn btn-fix" href="${r.admin_link}" target="_blank" rel="noopener">Set cost →</a>
+      <button class="btn btn-ack" onclick="ack('${r.variant_id}','${esc(r.title||'').replace(/'/g,'')}')">mark $0-cost</button></td>
+  </tr>`).join('') || '<tr><td class="l" colspan="5" class="muted">🎉 Nothing fixable — every real product has a cost.</td></tr>';
+
+  $('#nowCosted').innerHTML = d.now_costed.length
+    ? `<div class="costless-note" style="color:var(--green)">✓ ${d.now_costed.length} recently costed and dropped off: ${d.now_costed.map(r=>esc(r.title)).join(', ')}</div>` : '';
+
+  $('#clCount').textContent=`(${d.intentionally_costless.length})`;
+  $('#clBody').innerHTML=d.intentionally_costless.map(r=>`<tr>
+    <td class="l">${esc(r.title||'(untitled)')}</td><td>${money(r.no_cost_net)}</td><td>${r.days}</td></tr>`).join('');
+}
+async function ack(variantId,title){
+  const pin=adminPin(); if(!pin)return;
+  const r=await fetch('/api/data-quality/missing-costs/ack',{method:'POST',headers:{'Content-Type':'application/json','X-Admin-Pin':pin},body:JSON.stringify({item_key:variantId,note:title})});
+  if(r.status===401){sessionStorage.removeItem('adminPin');toast('Wrong PIN');return;}
+  if(r.ok){toast('Marked $0-cost — removed from fix-list');load();}else{toast('Error');}
+}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+load().catch(e=>{$('#headline').innerHTML='Error: '+e.message;});
+</script>
+</body>
+</html>

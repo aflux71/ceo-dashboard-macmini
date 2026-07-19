@@ -1357,4 +1357,123 @@ router.get('/usage/daily', (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ── Data quality: missing product costs ──────────────────────────
+// Live checklist to get COGS entered in Shopify (no_cost_net distorts GP/margin).
+// FIXABLE = real variants with no unitCost, deep-linked straight to their cost
+// field; auto-shrinks as costs land (re-checked live against Shopify each load).
+// INTENTIONALLY COSTLESS = no-variant custom lines + human-acknowledged services
+// (U-pick / farm admissions) — flagged so they stop sitting on the fix-list.
+function ensureCostAckSchema() {
+  db.exec(`CREATE TABLE IF NOT EXISTS cost_acknowledged (
+    item_key TEXT PRIMARY KEY, note TEXT, acknowledged_at TEXT DEFAULT (datetime('now'))
+  );`);
+}
+
+// Current unitCost + product id per variant, batched via Admin GraphQL. Best-effort.
+async function shopifyVariantCosts(variantIds) {
+  const out = new Map();
+  if (!variantIds.length) return out;
+  const url = `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-10/graphql.json`;
+  const headers = { 'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN, 'Content-Type': 'application/json' };
+  for (let i = 0; i < variantIds.length; i += 100) {
+    const ids = variantIds.slice(i, i + 100).map(v => `gid://shopify/ProductVariant/${v}`);
+    const q = `query($ids:[ID!]!){ nodes(ids:$ids){ ... on ProductVariant { id sku title inventoryItem{ unitCost{ amount } } product{ id title } } } }`;
+    const r = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ query: q, variables: { ids } }) });
+    const j = await r.json();
+    for (const n of (j.data?.nodes || [])) {
+      if (!n?.id) continue;
+      const vid = n.id.split('/').pop();
+      out.set(vid, {
+        cost: n.inventoryItem?.unitCost?.amount != null ? parseFloat(n.inventoryItem.unitCost.amount) : null,
+        product_id: n.product?.id ? n.product.id.split('/').pop() : null,
+        product_title: n.product?.title || null,
+        sku: n.sku || null, title: n.title || null
+      });
+    }
+  }
+  return out;
+}
+
+router.get('/data-quality/missing-costs', async (req, res) => {
+  try {
+    ensureCostAckSchema();
+    const store = process.env.SHOPIFY_STORE_URL;
+    const tot = db.prepare('SELECT ROUND(SUM(net_sales),2) net, ROUND(SUM(no_cost_net),2) no_cost FROM daily_sales').get();
+
+    const cands = db.prepare(`
+      SELECT variant_id, MAX(sku) sku, MAX(title) title, ROUND(SUM(no_cost_net),2) no_cost_net,
+             COUNT(DISTINCT sale_date) days, MAX(sale_date) last_seen,
+             GROUP_CONCAT(DISTINCT store_name) locations
+      FROM missing_cost_ledger WHERE is_fixable = 1 AND variant_id IS NOT NULL
+      GROUP BY variant_id ORDER BY SUM(no_cost_net) DESC`).all();
+
+    const vids = cands.map(c => c.variant_id);
+    const unitsMap = new Map();
+    if (vids.length) {
+      const ph = vids.map(() => '?').join(',');
+      for (const r of db.prepare(`SELECT variant_id, SUM(quantity) units, MAX(product_id) product_id FROM order_line_items WHERE variant_id IN (${ph}) GROUP BY variant_id`).all(...vids))
+        unitsMap.set(r.variant_id, r);
+    }
+
+    const ack = new Set(db.prepare('SELECT item_key FROM cost_acknowledged').all().map(r => r.item_key));
+    let live = new Map();
+    try { live = await shopifyVariantCosts(vids); } catch (e) { /* fall back to ledger data */ }
+
+    const fixable = [], nowCosted = [], acknowledged = [];
+    for (const c of cands) {
+      const l = live.get(c.variant_id);
+      const u = unitsMap.get(c.variant_id) || {};
+      const product_id = l?.product_id || u.product_id || null;
+      const row = {
+        variant_id: c.variant_id, sku: l?.sku || c.sku,
+        title: l?.product_title || c.title || l?.title,   // product name, not "Default Title"
+        variant_title: l?.title || null, no_cost_net: c.no_cost_net,
+        units: u.units || null, days: c.days, last_seen: c.last_seen, locations: c.locations,
+        product_id,
+        admin_link: product_id
+          ? `https://${store}/admin/products/${product_id}/variants/${c.variant_id}`
+          : `https://${store}/admin/products?selectedView=all&query=${encodeURIComponent(c.sku || c.title || '')}`,
+        current_cost: l ? l.cost : undefined
+      };
+      if (ack.has(c.variant_id)) acknowledged.push(row);
+      else if (l && l.cost != null) nowCosted.push(row);   // cost now set in Shopify → off the fix-list
+      else fixable.push(row);
+    }
+
+    const costlessLines = db.prepare(`
+      SELECT item_key, MAX(title) title, ROUND(SUM(no_cost_net),2) no_cost_net, COUNT(DISTINCT sale_date) days
+      FROM missing_cost_ledger WHERE is_fixable = 0 GROUP BY item_key ORDER BY SUM(no_cost_net) DESC`).all();
+
+    const fixableSum = Math.round(fixable.reduce((s, r) => s + r.no_cost_net, 0) * 100) / 100;
+    const pct = (x) => tot.net ? Math.round((x / tot.net) * 1000) / 10 : 0;
+    res.json({
+      window: 'cumulative (2025-01-01 → latest daily_sales)',
+      live_check: live.size > 0,
+      headline: {
+        net: tot.net, no_cost_net: tot.no_cost,
+        no_cost_pct: pct(tot.no_cost),
+        projected_pct_after_fixable: pct(tot.no_cost - fixableSum),
+        fixable_no_cost: fixableSum, fixable_count: fixable.length,
+        now_costed_count: nowCosted.length,
+        costless_count: costlessLines.length + acknowledged.length
+      },
+      fixable, now_costed: nowCosted, acknowledged, intentionally_costless: costlessLines
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Mark a variant as intentionally $0-cost (or undo). Admin-pin gated.
+router.post('/data-quality/missing-costs/ack', (req, res) => {
+  if (!checkAdminPin(req, res)) return;
+  try {
+    ensureCostAckSchema();
+    const { item_key, note, undo } = req.body || {};
+    if (!item_key) return res.status(400).json({ error: 'item_key required' });
+    if (undo) db.prepare('DELETE FROM cost_acknowledged WHERE item_key = ?').run(String(item_key));
+    else db.prepare(`INSERT INTO cost_acknowledged (item_key, note) VALUES (?, ?)
+                     ON CONFLICT(item_key) DO UPDATE SET note = excluded.note`).run(String(item_key), note || null);
+    res.json({ ok: true, item_key: String(item_key), acknowledged: !undo });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 export default router;
