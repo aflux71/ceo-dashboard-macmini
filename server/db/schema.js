@@ -134,3 +134,51 @@ export function ensureBundleSchema() {
     CREATE INDEX IF NOT EXISTS idx_bundle_norm_title ON bundle_products(norm_title);
   `);
 }
+
+// Idempotent schema for the net-sales migration (Phase 1). Additive only —
+// creates the reconstruction target table and a data-quality companion; touches
+// nothing existing. Safe to call on every sync. One row per store per day.
+//
+// Net-sales model (reconciled to the penny against Shopify Analytics, 2026-07-18):
+//   net_sales        = full net = gross(Σ price*qty, pre-tax, ex gift cards)
+//                      − discounts − returns (returns attributed to processed date/location).
+//   no_cost_net      = net of sold items whose variant unitCost is null (Shopify's profit
+//                      report EXCLUDES these). Symmetric on returns of no-cost items.
+//   cost_bearing_net = net_sales − no_cost_net   (Shopify's profit-report net).
+//   gross_profit     = cost_bearing_net − cogs.
+//   gross_margin_pct = gross_profit / cost_bearing_net   (null if base ≤ 0).
+// Computing margin on cost_bearing_net (NOT net_sales) is what matches Shopify's 39.0%;
+// net_sales − cogs would overstate it (assigns no-cost items zero cost).
+export function ensureDailySalesSchema() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS daily_sales (
+      store_name           TEXT NOT NULL,       -- normalized display name
+      sale_date            TEXT NOT NULL,       -- YYYY-MM-DD, America/Toronto
+      net_sales            REAL,                -- FULL net (headline revenue)
+      discounts            REAL,
+      cogs                 REAL,
+      no_cost_net          REAL DEFAULT 0,      -- net of items with no recorded cost (data quality)
+      gross_profit         REAL,                -- (net_sales − no_cost_net) − cogs
+      gross_margin_pct     REAL,                -- gross_profit / (net_sales − no_cost_net)
+      net_items            INTEGER,             -- units sold − units returned (processed date)
+      orders               INTEGER,             -- full order count (for AOV/reporting)
+      aov_excluded_orders  INTEGER DEFAULT 0,   -- 0..5 sub-$15-NET txns dropped from AOV that day
+      aov_excluded_net     REAL    DEFAULT 0,   -- net of those excluded txns
+      source               TEXT,                -- 'orders_reconstruct' | 'backfill'
+      synced_at            TEXT,
+      PRIMARY KEY (store_name, sale_date)
+    );
+    CREATE INDEX IF NOT EXISTS idx_daily_sales_date ON daily_sales(sale_date);
+
+    -- SKUs sold with no cost recorded in Shopify — so they can be fixed there.
+    -- Accumulates across the backfill window; refreshed each sync.
+    CREATE TABLE IF NOT EXISTS missing_cost_items (
+      sku               TEXT PRIMARY KEY,
+      title             TEXT,
+      last_seen_date    TEXT,        -- most recent sale_date it appeared with null cost
+      last_seen_store   TEXT,
+      total_no_cost_net REAL DEFAULT 0,  -- accumulated net sold with no cost
+      updated_at        TEXT
+    );
+  `);
+}
