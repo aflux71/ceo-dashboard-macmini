@@ -538,6 +538,8 @@ function renderAccess() {
     <th>Store</th>
     <th>Code</th>
     <th>Expires</th>
+    <th>Shift Code</th>
+    <th>Shift Expires</th>
     <th>Status</th>
     <th class="col-actions">Actions</th>
   </tr></thead>`;
@@ -547,9 +549,12 @@ function renderAccess() {
       <td class="col-name">${esc(a.store_name || '—')}</td>
       <td class="col-code">${esc(a.store_code || '—')}</td>
       <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-2)">${esc(a.code_expires_at || '—')}</td>
+      <td class="col-code">${esc(a.shift_code || '—')}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-2)">${esc(a.shift_code_expires_at || '—')}</td>
       <td><span class="badge ${status.cls}">${status.label}</span></td>
       <td class="col-actions">
         <button class="btn btn-sm btn-ghost" onclick="rotateCode(${a.id})">Rotate</button>
+        <button class="btn btn-sm btn-ghost" onclick="rotateShift(${a.id})">Rotate shift</button>
       </td>
     </tr>`;
   }).join('') + '</tbody>';
@@ -577,6 +582,19 @@ async function rotateCode(id) {
     loadAccess();
   } catch (e) {
     toast('Rotate failed: ' + e.message, 'error');
+  }
+}
+
+async function rotateShift(id) {
+  if (!confirm('Rotate this shift code? The old shift code will stop working immediately.')) return;
+  try {
+    const r = await adminFetch(`/api/store-access/${id}/rotate-shift`, { method: 'POST' });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Rotate failed');
+    toast(`New shift code: ${data.shift_code}`, 'success');
+    loadAccess();
+  } catch (e) {
+    toast('Rotate shift failed: ' + e.message, 'error');
   }
 }
 

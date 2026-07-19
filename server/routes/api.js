@@ -1049,6 +1049,20 @@ router.post('/store-access/:id/rotate', async (req, res) => {
   } catch (err) { sendError(res, err); }
 });
 
+// POST /api/store-access/:id/rotate-shift — rotate the per-store SHIFT code
+router.post('/store-access/:id/rotate-shift', async (req, res) => {
+  if (!checkAdminPin(req, res)) return;
+  try {
+    const code = 'S' + randomInt(10000, 100000); // e.g. S48213 — distinct from store code
+    const expiresAt = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0]; // +30 days
+    await d1Query(
+      'UPDATE store_access SET shift_code = ?, shift_code_expires_at = ? WHERE id = ?',
+      [code, expiresAt, req.params.id]
+    );
+    res.json({ ok: true, shift_code: code, shift_code_expires_at: expiresAt });
+  } catch (err) { sendError(res, err); }
+});
+
 // — API usage / spend tracking —
 
 function summarizeUsage(whereClause, ...params) {
