@@ -1228,8 +1228,9 @@ async function fetchUsageToday() {
 }
 
 async function fetchStats() {
+  // Phase 2 flip: net-sales tiles (net primary, gross kept secondary).
   try {
-    const r = await fetch(API + '/api/stats/ceo');
+    const r = await fetch(API + '/api/stats/ceo-net');
     return await r.json();
   } catch(e) { return null; }
 }
@@ -1275,15 +1276,16 @@ async function fetchTasks() {
 async function fetchStoreData(period) {
   try {
     var pd = getPeriodDates(period || currentPeriod);
-    var storeUrl = API + '/api/revenue/by-store?date_from=' + encodeURIComponent(pd.from) + '&date_to=' + encodeURIComponent(pd.to);
-    var lyStoreUrl = API + '/api/revenue/by-store?date_from=' + encodeURIComponent(pd.lyFrom) + '&date_to=' + encodeURIComponent(pd.lyTo);
-    var ytdUrl = API + '/api/revenue/ytd';
-    const [s30, lyStore, ytd] = await Promise.all([
+    // Phase 2 flip: net-sales store table. by-store-net carries DoW-matched LY
+    // (ly_revenue) and partial-aware vs_ly_pct in the same response, so the
+    // separate LY call is no longer needed. A second call gets net YTD per store.
+    var storeUrl = API + '/api/revenue/by-store-net?date_from=' + encodeURIComponent(pd.from) + '&date_to=' + encodeURIComponent(pd.to);
+    var ytdUrl = API + '/api/revenue/by-store-net?period=ytd';
+    const [s30, ytdRes] = await Promise.all([
       fetch(storeUrl).then(function(r){ return r.json(); }),
-      fetch(lyStoreUrl).then(function(r){ return r.json(); }),
       fetch(ytdUrl).then(function(r){ return r.json(); })
     ]);
-    return { s30: s30, lyStore: lyStore, ytd: ytd, periodDates: pd };
+    return { s30: s30, lyStore: null, ytd: ytdRes, periodDates: pd };
   } catch(e) { return null; }
 }
 
@@ -1309,13 +1311,19 @@ async function fetchLoyalty() {
 function buildStoreRows(rows, bundlePctByStore, loyaltyByStore) {
   return rows.map(function(s, i) {
     var target = STORE_TARGETS_2026[s.location_name] || 0;
+    // NOTE (Phase 2): attainment compares NET ytd to GROSS 2026 targets → reads ~15% low
+    // until Phase 3 sets net targets. Kept for continuity; flagged for the flip review.
     var attPct = target > 0 ? (s.ytd_revenue / target) : null;
-    var vsLy = s.ly_revenue > 0 ? Math.round(((s.period_revenue - s.ly_revenue) / s.ly_revenue) * 100) : null;
+    // Partial-aware, DoW-matched YoY from the net endpoint (like-for-like when a
+    // store's LY is partial, e.g. Bracebridge opened 2025-02 / Festivals ramped).
+    var vsLy = (s.vs_ly_pct === undefined || s.vs_ly_pct === null) ? null : Math.round(s.vs_ly_pct);
     var vsLyStatus = (vsLy !== null && vsLy >= 0) ? 'up' : 'down';
-    var aovStatus = s.aov >= KPI_TARGETS.aov ? 'green' : s.aov >= KPI_TARGETS.aov * 0.75 ? 'amber' : 'red';
+    var hasAov = s.aov !== null && s.aov !== undefined;
+    var aovStatus = !hasAov ? 'gray' : s.aov >= KPI_TARGETS.aov ? 'green' : s.aov >= KPI_TARGETS.aov * 0.75 ? 'amber' : 'red';
     var attStatus = attPct && attPct >= 0.95 ? 'up' : 'down';
+    var partialMark = s.ly_partial ? '<span title="partial LY (no comparable 2025) — like-for-like">*</span>' : '';
     var vsLyChip = vsLy !== null
-      ? '<span class="vs-target-chip ' + vsLyStatus + '">' + (vsLy >= 0 ? '+' : '') + vsLy + '%</span>'
+      ? '<span class="vs-target-chip ' + vsLyStatus + '">' + (vsLy >= 0 ? '+' : '') + vsLy + '%' + partialMark + '</span>'
       : '<span class="no-data">—</span>';
     var attChip = attPct
       ? '<span class="vs-target-chip ' + attStatus + '">' + (attPct * 100).toFixed(0) + '%</span>'
@@ -1333,7 +1341,7 @@ function buildStoreRows(rows, bundlePctByStore, loyaltyByStore) {
     return '<tr>' +
       '<td class="store-name ' + (i === 0 ? 'top' : '') + '">' + s.location_name + '</td>' +
       '<td class="revenue-val">' + fmt$(s.period_revenue || s.revenue || 0) + '</td>' +
-      '<td><span class="kpi-dot ' + aovStatus + '"></span>$' + (s.aov || 0).toFixed(0) + '</td>' +
+      '<td>' + (hasAov ? '<span class="kpi-dot ' + aovStatus + '"></span>$' + s.aov.toFixed(0) : '<span class="no-data">—</span>') + '</td>' +
       '<td>' + bCell + '</td>' +
       '<td style="font-weight:600">' + loyCell + '</td>' +
       '<td class="revenue-val" style="font-weight:600">' + fmt$(s.ytd_revenue || 0) + '</td>' +
@@ -1369,14 +1377,17 @@ function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bund
   const loyaltySince = loyalty?.data_since || '2026-06-09';
   const loyaltyDot = v => (v == null) ? 'gray' : v >= 90 ? 'green' : v >= 75 ? 'amber' : 'red';
 
-  // Revenue — use accurate CEO stats endpoint
-  const rev30d = stats?.rev_30d || 0;
+  // Revenue — Phase 2 flip: NET is primary (from /stats/ceo-net); gross kept secondary.
+  const rev30d = stats?.net_30d || 0;              // NET, primary headline
+  const grossRev30d = stats?.rev_30d || 0;         // gross, secondary
   const orders30d = stats?.orders_30d || 0;
-  const aov30d = stats?.aov_30d || 0;
-  const revYTD = stats?.rev_ytd || 0;
+  const aov30d = stats?.aov_30d || 0;              // net-based, retail, sub-$15 rule
+  const revYTD = stats?.net_ytd || 0;              // NET
+  const grossRevYTD = stats?.rev_ytd || 0;         // gross, secondary
   const ordersYTD = stats?.orders_ytd || 0;
   const aovYTD = stats?.aov_ytd || 0;
-  const annualRunRate = stats?.annual_run_rate || 0;
+  const annualRunRate = stats?.annual_run_rate_net || 0;   // NET run rate
+  const netDelta30d = stats?.net_30d_delta_pct;    // clean net YoY (DoW-matched)
   const ytdTarget = yearTarget2026 * yearPct;
 
   // AOV from stats
@@ -1421,7 +1432,7 @@ function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bund
 
   // For period store comparison: current period vs same period LY
   var periodTotal = storeData && storeData.s30 ? storeData.s30.total || {} : {};
-  var lyPeriodTotal = storeData && storeData.lyStore ? storeData.lyStore.total || {} : {};
+  var lyPeriodTotal = storeData && storeData.s30 ? storeData.s30.ly_total || {} : {};
   var vsPeriodLyPct = lyPeriodTotal.revenue > 0
     ? Math.round(((periodTotal.revenue - lyPeriodTotal.revenue) / lyPeriodTotal.revenue) * 100)
     : null;
@@ -1430,13 +1441,13 @@ function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bund
   var lyMap = {};
   lyStores.forEach(function(s) { lyMap[s.location_name] = s; });
 
+  // Phase 2: LY (ly_revenue) + partial-aware vs_ly_pct now ride along on each
+  // period row from by-store-net, so we no longer merge a separate LY response.
   var storeMap = {};
   stores30d.forEach(function(s) {
-    var ly = lyMap[s.location_name] || {};
     storeMap[s.location_name] = Object.assign({}, s, {
       period_revenue: s.revenue,
-      ly_revenue: ly.revenue || 0,
-      ly_aov: ly.aov || 0,
+      ly_revenue: s.ly_revenue || 0,
       ytd_revenue: 0
     });
   });
@@ -1444,8 +1455,7 @@ function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bund
     if (storeMap[s.location_name]) {
       storeMap[s.location_name].ytd_revenue = s.revenue;
     } else {
-      var ly = lyMap[s.location_name] || {};
-      storeMap[s.location_name] = {location_name:s.location_name, revenue:0, orders:0, aov:0, period_revenue:0, ytd_revenue:s.revenue, ly_revenue:ly.revenue||0};
+      storeMap[s.location_name] = Object.assign({}, s, { period_revenue:0, ytd_revenue:s.revenue, ly_revenue:s.ly_revenue||0 });
     }
   });
   var storeRows = Object.values(storeMap).sort(function(a,b){ return (b.period_revenue||0)-(a.period_revenue||0); });
@@ -1509,9 +1519,9 @@ function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bund
       </div>
       <div class="hero-right">
         <div class="run-rate-card">
-          <div class="run-rate-label">30-Day Revenue</div>
+          <div class="run-rate-label">30-Day Net Sales</div>
           <div class="run-rate-val">${fmt$(rev30d)}</div>
-          <div class="run-rate-sub">vs $${(yearTarget2026/12).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')} monthly target</div>
+          <div class="run-rate-sub">gross ${fmt$(grossRev30d)} · vs $${(yearTarget2026/12).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')} monthly target</div>
         </div>
         <div class="year-progress">
           <div class="year-progress-label">Year Elapsed</div>
@@ -1528,7 +1538,7 @@ function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bund
 
     <!-- KPI ROW -->
     <div class="kpi-grid">
-      ${renderKPI('Revenue (30d)', fmt$(rev30d), 'YTD: ' + fmt$(revYTD), getStatus(revYTD, ytdTarget), null, revYTD / ytdTarget)}
+      ${renderKPI('Net Sales (30d)', fmt$(rev30d), 'YTD net: ' + fmt$(revYTD) + ' · gross ' + fmt$(grossRev30d), getStatus(revYTD, ytdTarget), null, revYTD / ytdTarget)}
       ${renderKPI('Orders (30d)', orders30d ? orders30d.toLocaleString() : '—', 'Unfulfilled: ' + (stats?.unfulfilled || 0), stats?.unfulfilled > 20 ? 'amber' : 'green', null, null)}
       ${renderKPI('Avg Order Value', aov30d ? '$' + aov30d.toFixed(0) : '—', 'Retail only · Target: $' + KPI_TARGETS.aov, getStatus(aov30d, KPI_TARGETS.aov), null, aov30d / KPI_TARGETS.aov)}
       ${renderKPI('Active SKUs', stats?.active_products ? stats.active_products.toLocaleString() : '—', 'Target: 270 by EOY', 'amber', null, null)}
@@ -1559,7 +1569,7 @@ function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bund
         <div class="section-header">
           <div>
             <div class="section-title">Store Performance</div>
-            <div class="section-sub">Real Shopify data · Matrixify excluded · ${periodDates ? periodDates.label : "30 days"} vs same period LY</div>
+            <div class="section-sub">Net sales · reconciled to Shopify · ${periodDates ? periodDates.label : "30 days"} vs day-of-week-matched LY</div>
           </div>
           <div style="text-align:right">
             <div style="font-family:'DM Mono',monospace;font-size:13px;font-weight:600">
