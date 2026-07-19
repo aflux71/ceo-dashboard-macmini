@@ -253,41 +253,9 @@ router.get('/stats/ceo', (req, res) => {
 });
 
 
-// Enhanced CEO stats endpoint
-router.get('/stats/ceo', (req, res) => {
-  try {
-    const d30 = new Date(Date.now() - 30*86400000).toISOString();
-    const ytd = new Date(new Date().getFullYear(), 0, 1).toISOString();
-
-    const s30 = db.prepare('SELECT COUNT(*) AS cnt, COALESCE(SUM(CAST(total_price AS REAL)),0) AS rev FROM orders WHERE created_at >= ?').get(d30);
-    const sYTD = db.prepare('SELECT COUNT(*) AS cnt, COALESCE(SUM(CAST(total_price AS REAL)),0) AS rev FROM orders WHERE created_at >= ?').get(ytd);
-    const s30Retail = db.prepare("SELECT COUNT(*) AS cnt, COALESCE(SUM(CAST(total_price AS REAL)),0) AS rev FROM orders WHERE created_at >= ? AND location_name IN ('Queen Street','Flower Farm','Elora','Stratford','Bracebridge')").get(d30);
-    const sYTDRetail = db.prepare("SELECT COUNT(*) AS cnt, COALESCE(SUM(CAST(total_price AS REAL)),0) AS rev FROM orders WHERE created_at >= ? AND location_name IN ('Queen Street','Flower Farm','Elora','Stratford','Bracebridge')").get(ytd);
-    const prods = db.prepare("SELECT COUNT(*) AS c FROM products WHERE status = 'active'").get();
-    const inv = db.prepare('SELECT COALESCE(SUM(available),0) AS u FROM inventory').get();
-    const unfCutoff = new Date(Date.now() - 14*86400000).toISOString();
-    const unf = db.prepare("SELECT COUNT(*) AS c FROM orders WHERE fulfillment_status IS NULL AND created_at >= ?").get(unfCutoff);
-    const lastSync = db.prepare("SELECT created_at FROM sync_log WHERE status='success' ORDER BY id DESC LIMIT 1").get();
-
-    const dayOfYear = Math.ceil((Date.now() - new Date(new Date().getFullYear(),0,1)) / 86400000);
-    const annualRunRate = Math.round((sYTD.rev / dayOfYear) * 365);
-
-    res.json({
-      rev_30d: Math.round(s30.rev * 100) / 100,
-      orders_30d: s30.cnt,
-      aov_30d: s30Retail.cnt > 0 ? Math.round(s30Retail.rev / s30Retail.cnt * 100) / 100 : 0,
-      rev_ytd: Math.round(sYTD.rev * 100) / 100,
-      orders_ytd: sYTD.cnt,
-      aov_ytd: sYTDRetail.cnt > 0 ? Math.round(sYTDRetail.rev / sYTDRetail.cnt * 100) / 100 : 0,
-      annual_run_rate: annualRunRate,
-      active_products: prods.c,
-      inventory_units: inv.u,
-      unfulfilled: unf.c,
-      last_sync: lastSync?.created_at || null,
-      day_of_year: dayOfYear
-    });
-  } catch(err) { res.status(500).json({ error: err.message }); }
-});
+// (Removed a duplicate /stats/ceo handler here — Express matched the first
+//  registration above, so this second copy was dead code. Phase 2 will add
+//  net-sales fields to that single handler via the net_sales_queries layer.)
 
 
 // ── /api/stats/loyalty-signups ────────────────────────────────────
