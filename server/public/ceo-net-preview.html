@@ -111,8 +111,7 @@ async function load(){
     let vsLy, note='';
     if(s.ly_partial){
       vsLy = deltaText(s.ll_net_delta_pct) + ' <span class="star">*</span>';
-      const opened = s.first_sale ? new Date(s.first_sale+'T12:00:00Z').toLocaleDateString('en-CA',{month:'short',year:'numeric'}) : '';
-      note = `<span class="chan">opened ${opened} · like-for-like</span>`;
+      note = `<span class="chan">partial LY (no comparable 2025) · like-for-like</span>`;
     } else vsLy = deltaText(s.net_delta_pct);
     const chan = s.channel==='retail'?'':`<span class="chan">${s.channel}</span>`;
     return `<tr>
@@ -127,7 +126,7 @@ async function load(){
 
   const ncPct = ceo[p.net]? (ceo[p.nc]/ceo[p.net]*100):0;
   $('#foot').innerHTML = `
-    <div><span class="star">*</span> <b>Partial LY</b> — store opened mid-2025 or ramped from a tiny base, so raw year-over-year is a presence artifact. Shown <b>like-for-like</b> over the shared period both years were live. Flower Farm is continuous (clean).</div>
+    <div><span class="star">*</span> <b>Partial LY (no comparable 2025)</b> — the store had no sales in part of the matched LY window (a seasonal gap, e.g. Bracebridge, or ramped from ~nothing, e.g. Festivals), so raw year-over-year is a presence artifact. Shown <b>like-for-like</b> over the shared period both years were live. Flower Farm is continuous (clean).</div>
     <div>† <b>Gross Profit / Margin YoY are approximate.</b> 2025 had more items with no cost recorded in Shopify, which understates last year's GP and overstates the YoY gain. <b>Net-sales YoY is exact.</b></div>
     <div>Data quality: ${money(ceo[p.nc])} of net (${ncPct.toFixed(1)}%) is from items with no cost recorded — set these costs in Shopify to sharpen GP/margin.</div>`;
 }

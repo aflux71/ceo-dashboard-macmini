@@ -127,11 +127,12 @@ function firstSaleDate(stores) {
   return db.prepare(`SELECT MIN(sale_date) AS f FROM daily_sales WHERE store_name IN (${ph})`).get(...stores).f || null;
 }
 
-// Per-store rows with DoW-matched LY. For a store whose LY window predates its
-// first sale (opened mid-2025 / tiny base — e.g. Bracebridge opened 2025-02-27,
-// Festivals ramped from ~nothing), the RAW YoY is a presence/base artifact, so we
-// also compute a LIKE-FOR-LIKE delta over the shared period where both years had
-// the store live, and flag ly_partial so the UI shows the honest number.
+// Per-store rows with DoW-matched LY. For a store with no comparable sales in the
+// matched LY window (a seasonal gap — e.g. Bracebridge, an established location
+// since 2024 with no sales until 2025-02-27 that year — or a ramp from ~nothing,
+// e.g. Festivals), the RAW YoY is a presence/base artifact, so we also compute a
+// LIKE-FOR-LIKE delta over the shared period where both years had the store live,
+// and flag ly_partial so the UI shows "partial LY (no comparable 2025)".
 export function netSalesByStoreYoY(from, to) {
   const cur = netSalesByStore(from, to);
   const ly_from = shiftDate(from, -LY_SHIFT_DAYS);
