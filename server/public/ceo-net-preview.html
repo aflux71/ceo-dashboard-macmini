@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>neōb — Net-Sales Dashboard (Preview)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Serif+Display&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F7F5F0; --surface:#FFFFFF; --surface-warm:#FAF8F4; --border:#E8E3D9;
+    --border-strong:#C9C0B0; --text:#1A1714; --text-2:#5C5650; --text-3:#9C948A;
+    --lavender:#6B5B8F; --lavender-light:#EEE9F5; --green:#2D6A4F; --green-light:#E8F5EE;
+    --red:#991B1B; --red-light:#FEE2E2; --amber:#92400E; --amber-light:#FEF3C7;
+    --shadow:0 1px 3px rgba(26,23,20,.06),0 1px 2px rgba(26,23,20,.04);
+    --shadow-md:0 4px 12px rgba(26,23,20,.08),0 2px 4px rgba(26,23,20,.04);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.4;padding:24px;max-width:1120px;margin:0 auto}
+  .banner{background:var(--amber-light);border:1px solid #E7CfA0;color:var(--amber);padding:10px 14px;border-radius:10px;font-size:13px;font-weight:500;margin-bottom:20px}
+  header{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px}
+  h1{font-family:'DM Serif Display',serif;font-size:30px;font-weight:400}
+  h1 span{color:var(--lavender)}
+  .sub{color:var(--text-3);font-size:13px;font-family:'DM Mono',monospace}
+  .toggle{display:inline-flex;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+  .toggle button{border:0;background:transparent;padding:8px 18px;font-family:inherit;font-size:14px;font-weight:500;color:var(--text-2);cursor:pointer}
+  .toggle button.on{background:var(--lavender);color:#fff}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:24px}
+  .tile{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;box-shadow:var(--shadow)}
+  .tile .label{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);font-weight:500}
+  .tile .val{font-size:30px;font-weight:700;margin-top:6px;font-variant-numeric:tabular-nums}
+  .tile.primary{background:linear-gradient(180deg,#fff, var(--lavender-light))}
+  .tile .val.big{font-size:38px}
+  .secondary{font-size:12px;color:var(--text-3);margin-top:4px;font-family:'DM Mono',monospace}
+  .delta{display:inline-block;font-size:13px;font-weight:600;margin-top:8px;padding:2px 8px;border-radius:20px;font-variant-numeric:tabular-nums}
+  .delta.up{background:var(--green-light);color:var(--green)}
+  .delta.down{background:var(--red-light);color:var(--red)}
+  .delta.flat{background:var(--surface-warm);color:var(--text-3)}
+  table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--shadow)}
+  th,td{padding:12px 14px;text-align:right;font-variant-numeric:tabular-nums;font-size:14px}
+  th{background:var(--surface-warm);color:var(--text-2);font-weight:500;font-size:12px;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border)}
+  td:first-child,th:first-child{text-align:left}
+  tbody tr{border-bottom:1px solid var(--border)}
+  tbody tr:last-child{border-bottom:0}
+  .chan{font-size:11px;color:var(--text-3);margin-left:6px;font-family:'DM Mono',monospace}
+  .up-t{color:var(--green);font-weight:600}.down-t{color:var(--red);font-weight:600}.muted{color:var(--text-3)}
+  .foot{margin-top:18px;font-size:12px;color:var(--text-2);line-height:1.7}
+  .foot b{color:var(--text)}
+  .star{color:var(--amber);font-weight:700}
+</style>
+</head>
+<body>
+  <div class="banner">⚙︎ PREVIEW — Phase 2 net-sales dashboard. Not yet live; the CEO dashboard is unchanged until the flip. Numbers come from <code>daily_sales</code> (reconciled to Shopify).</div>
+  <header>
+    <div>
+      <h1>ne<span>ō</span>b — Net Sales</h1>
+      <div class="sub" id="window">—</div>
+    </div>
+    <div class="toggle">
+      <button data-p="30d" class="on">Last 30 days</button>
+      <button data-p="ytd">Year to date</button>
+    </div>
+  </header>
+
+  <div class="tiles" id="tiles"></div>
+  <table>
+    <thead><tr><th>Store</th><th>Net Sales</th><th>vs LY *</th><th>Gross Profit †</th><th>Margin †</th><th>AOV</th></tr></thead>
+    <tbody id="storeBody"></tbody>
+  </table>
+  <div class="foot" id="foot"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+let period = '30d';
+const money = n => (n==null?'—':'$'+Number(n).toLocaleString('en-CA',{minimumFractionDigits:0,maximumFractionDigits:0}));
+const money2 = n => (n==null?'—':'$'+Number(n).toLocaleString('en-CA',{minimumFractionDigits:2,maximumFractionDigits:2}));
+const pct = n => (n==null?'—':(n>0?'+':'')+n.toFixed(1)+'%');
+function deltaBadge(n){ if(n==null) return '<span class="delta flat">no LY</span>';
+  const c = n>0.05?'up':(n<-0.05?'down':'flat'); return `<span class="delta ${c}">${pct(n)} vs LY</span>`; }
+function deltaText(n){ if(n==null) return '<span class="muted">—</span>';
+  const c = n>0.05?'up-t':(n<-0.05?'down-t':'muted'); return `<span class="${c}">${pct(n)}</span>`; }
+
+async function load(){
+  document.querySelectorAll('.toggle button').forEach(b=>b.classList.toggle('on',b.dataset.p===period));
+  const [ceo, store] = await Promise.all([
+    fetch('/api/stats/ceo-net').then(r=>r.json()),
+    fetch('/api/revenue/by-store-net?period='+period).then(r=>r.json())
+  ]);
+  const p = period==='30d' ? {net:'net_30d',disc:'discounts_30d',gp:'gp_30d',gm:'gm_30d',ord:'orders_30d',aov:'aov_30d',nc:'no_cost_net_30d',rev:'rev_30d',netd:'net_30d_delta_pct',gpd:'gp_30d_delta_pct'}
+                            : {net:'net_ytd',disc:'discounts_ytd',gp:'gp_ytd',gm:'gm_ytd',ord:'orders_ytd',aov:'aov_ytd',nc:'no_cost_net_ytd',rev:'rev_ytd',netd:'net_ytd_delta_pct',gpd:'gp_ytd_delta_pct'};
+  const w = ceo.windows[period==='30d'?'d30':'ytd'], lw = ceo.ly_windows[period==='30d'?'d30':'ytd'];
+  $('#window').textContent = `${w[0]} → ${w[1]}   ·   LY (matched weekday) ${lw[0]} → ${lw[1]}`;
+
+  $('#tiles').innerHTML = `
+    <div class="tile primary"><div class="label">Net Sales</div>
+      <div class="val big">${money(ceo[p.net])}</div>
+      ${deltaBadge(ceo[p.netd])}
+      <div class="secondary">gross ${money(ceo[p.rev])}</div></div>
+    <div class="tile"><div class="label">Gross Profit †</div>
+      <div class="val">${money(ceo[p.gp])}</div>${deltaBadge(ceo[p.gpd])}</div>
+    <div class="tile"><div class="label">Gross Margin † </div>
+      <div class="val">${ceo[p.gm]==null?'—':ceo[p.gm].toFixed(1)+'%'}</div></div>
+    <div class="tile"><div class="label">Discounts</div>
+      <div class="val">${money(ceo[p.disc])}</div></div>
+    <div class="tile"><div class="label">AOV · retail (net)</div>
+      <div class="val">${money2(ceo[p.aov])}</div></div>
+    <div class="tile"><div class="label">Orders</div>
+      <div class="val">${Number(ceo[p.ord]).toLocaleString()}</div></div>`;
+
+  $('#storeBody').innerHTML = store.stores.map(s=>{
+    let vsLy, note='';
+    if(s.ly_partial){
+      vsLy = deltaText(s.ll_net_delta_pct) + ' <span class="star">*</span>';
+      const opened = s.first_sale ? new Date(s.first_sale+'T12:00:00Z').toLocaleDateString('en-CA',{month:'short',year:'numeric'}) : '';
+      note = `<span class="chan">opened ${opened} · like-for-like</span>`;
+    } else vsLy = deltaText(s.net_delta_pct);
+    const chan = s.channel==='retail'?'':`<span class="chan">${s.channel}</span>`;
+    return `<tr>
+      <td>${s.store_name}${chan}${note}</td>
+      <td>${money(s.net_sales)}</td>
+      <td>${vsLy}</td>
+      <td>${money(s.gross_profit)}</td>
+      <td>${s.gross_margin_pct==null?'—':s.gross_margin_pct.toFixed(1)+'%'}</td>
+      <td>${s.aov==null?'<span class="muted">—</span>':money2(s.aov)}</td>
+    </tr>`;
+  }).join('');
+
+  const ncPct = ceo[p.net]? (ceo[p.nc]/ceo[p.net]*100):0;
+  $('#foot').innerHTML = `
+    <div><span class="star">*</span> <b>Partial LY</b> — store opened mid-2025 or ramped from a tiny base, so raw year-over-year is a presence artifact. Shown <b>like-for-like</b> over the shared period both years were live. Flower Farm is continuous (clean).</div>
+    <div>† <b>Gross Profit / Margin YoY are approximate.</b> 2025 had more items with no cost recorded in Shopify, which understates last year's GP and overstates the YoY gain. <b>Net-sales YoY is exact.</b></div>
+    <div>Data quality: ${money(ceo[p.nc])} of net (${ncPct.toFixed(1)}%) is from items with no cost recorded — set these costs in Shopify to sharpen GP/margin.</div>`;
+}
+document.querySelectorAll('.toggle button').forEach(b=>b.onclick=()=>{period=b.dataset.p;load();});
+load().catch(e=>{$('#tiles').innerHTML='<div class="tile">Error: '+e.message+'</div>';});
+</script>
+</body>
+</html>

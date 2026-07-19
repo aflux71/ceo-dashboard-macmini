@@ -116,22 +116,58 @@ export function netSalesCompanyYoY(from, to) {
   };
 }
 
-// Per-store rows with DoW-matched LY net + delta, joined by store_name.
+// Members backing a displayed store row (for first-sale + like-for-like sums).
+function membersFor(channel, storeName) {
+  if (channel === 'online') return ONLINE_DTC_MEMBERS;
+  if (channel === 'festivals') return [FESTIVALS];
+  return [storeName];
+}
+function firstSaleDate(stores) {
+  const ph = stores.map(() => '?').join(',');
+  return db.prepare(`SELECT MIN(sale_date) AS f FROM daily_sales WHERE store_name IN (${ph})`).get(...stores).f || null;
+}
+
+// Per-store rows with DoW-matched LY. For a store whose LY window predates its
+// first sale (opened mid-2025 / tiny base — e.g. Bracebridge opened 2025-02-27,
+// Festivals ramped from ~nothing), the RAW YoY is a presence/base artifact, so we
+// also compute a LIKE-FOR-LIKE delta over the shared period where both years had
+// the store live, and flag ly_partial so the UI shows the honest number.
 export function netSalesByStoreYoY(from, to) {
   const cur = netSalesByStore(from, to);
   const ly_from = shiftDate(from, -LY_SHIFT_DAYS);
   const ly_to = shiftDate(to, -LY_SHIFT_DAYS);
   const lyRows = new Map(netSalesByStore(ly_from, ly_to).map(r => [r.store_name, r]));
+
   return {
     ly_window: [ly_from, ly_to],
     stores: cur.map(r => {
       const ly = lyRows.get(r.store_name);
+      const lyNet = ly ? ly.net_sales : 0;
+      const members = membersFor(r.channel, r.store_name);
+      const first = firstSaleDate(members);
+      const partial = first ? (ly_from < first) : true;
+
+      let ll_from = null, ll_net_sales = null, ll_ly_net_sales = null, ll_net_delta_pct = null;
+      if (partial && first) {
+        // first cur date whose LY (date−364) is on/after the store's first sale
+        ll_from = shiftDate(first, LY_SHIFT_DAYS);
+        if (ll_from < from) ll_from = from;
+        if (ll_from <= to) {
+          const c = aggregate(ll_from, to, members);
+          const l = aggregate(shiftDate(ll_from, -LY_SHIFT_DAYS), ly_to, members);
+          ll_net_sales = c.net_sales; ll_ly_net_sales = l.net_sales;
+          ll_net_delta_pct = pctDelta(c.net_sales, l.net_sales);
+        }
+      }
       return {
         ...r,
-        ly_net_sales: ly ? ly.net_sales : 0,
+        ly_net_sales: lyNet,
         ly_gross_profit: ly ? ly.gross_profit : 0,
-        net_delta_pct: pctDelta(r.net_sales, ly ? ly.net_sales : 0),
-        gp_delta_pct: pctDelta(r.gross_profit, ly ? ly.gross_profit : 0)
+        net_delta_pct: pctDelta(r.net_sales, lyNet),
+        gp_delta_pct: pctDelta(r.gross_profit, ly ? ly.gross_profit : 0),
+        ly_partial: partial,
+        first_sale: first,
+        ll_from, ll_net_sales, ll_ly_net_sales, ll_net_delta_pct
       };
     })
   };
