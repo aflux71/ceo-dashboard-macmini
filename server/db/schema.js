@@ -153,7 +153,7 @@ export function ensureDailySalesSchema() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS daily_sales (
       store_name           TEXT NOT NULL,       -- normalized display name
-      sale_date            TEXT NOT NULL,       -- YYYY-MM-DD, America/Toronto
+      sale_date            TEXT NOT NULL,       -- YYYY-MM-DD, America/Toronto (DST-aware, IANA tz)
       net_sales            REAL,                -- FULL net (headline revenue)
       discounts            REAL,
       cogs                 REAL,
@@ -169,16 +169,48 @@ export function ensureDailySalesSchema() {
       PRIMARY KEY (store_name, sale_date)
     );
     CREATE INDEX IF NOT EXISTS idx_daily_sales_date ON daily_sales(sale_date);
+  `);
 
-    -- SKUs sold with no cost recorded in Shopify — so they can be fixed there.
-    -- Accumulates across the backfill window; refreshed each sync.
-    CREATE TABLE IF NOT EXISTS missing_cost_items (
-      sku               TEXT PRIMARY KEY,
-      title             TEXT,
-      last_seen_date    TEXT,        -- most recent sale_date it appeared with null cost
-      last_seen_store   TEXT,
-      total_no_cost_net REAL DEFAULT 0,  -- accumulated net sold with no cost
-      updated_at        TEXT
+  // Migration: earlier version created missing_cost_items as a SKU-keyed TABLE.
+  // Re-key to a per-(item,day,store) ledger so no-SKU custom lines don't collide
+  // on NULL and re-runs don't double-count. Only drop it if it's still a table.
+  const mci = db.prepare(
+    `SELECT type FROM sqlite_master WHERE name = 'missing_cost_items'`
+  ).get();
+  if (mci && mci.type === 'table') db.exec(`DROP TABLE missing_cost_items`);
+
+  db.exec(`
+    -- One row per (item, sale_date, store) of net sold with NO recorded cost.
+    -- item_key is a surrogate: the variant id when present, else 'custom:<title>'
+    -- for cashier-entered custom POS lines (no variant/SKU). Range-delete +
+    -- reinsert on each sync keeps totals idempotent.
+    CREATE TABLE IF NOT EXISTS missing_cost_ledger (
+      item_key     TEXT NOT NULL,     -- variant_id, or 'custom:<norm title>'
+      sale_date    TEXT NOT NULL,
+      store_name   TEXT NOT NULL,
+      variant_id   TEXT,              -- null for custom lines
+      sku          TEXT,
+      title        TEXT,
+      is_fixable   INTEGER DEFAULT 0, -- 1 = real variant w/ missing cost (fixable in Shopify)
+                                      -- 0 = inherently-costless custom line
+      no_cost_net  REAL DEFAULT 0,
+      PRIMARY KEY (item_key, sale_date, store_name)
     );
+    CREATE INDEX IF NOT EXISTS idx_mcl_date ON missing_cost_ledger(sale_date);
+
+    -- Rolled-up view: one row per item with accumulated no-cost net. Always
+    -- consistent with the ledger (no separate write path to drift).
+    DROP VIEW IF EXISTS missing_cost_items;
+    CREATE VIEW missing_cost_items AS
+      SELECT item_key,
+             MAX(variant_id)                 AS variant_id,
+             MAX(sku)                         AS sku,
+             MAX(title)                       AS title,
+             MAX(is_fixable)                  AS is_fixable,
+             MAX(sale_date)                   AS last_seen_date,
+             COUNT(DISTINCT sale_date)        AS days_seen,
+             ROUND(SUM(no_cost_net), 2)       AS total_no_cost_net
+        FROM missing_cost_ledger
+       GROUP BY item_key;
   `);
 }
