@@ -141,6 +141,7 @@ async function fetchOrdersUpdatedSince(sinceIso, onPage, untilIso = null) {
     onPage(orders);
     total += orders.length;
     pages++;
+    if (pages % 20 === 0) console.log(`  ...${pages} pages, ${total} orders`);
     url = nextPageUrl(res.headers['link']);
     if (url) await sleep(500);
   }
@@ -226,79 +227,56 @@ export async function reconstructRange(startDate, endDate, source = 'orders_reco
     if (!c) {
       c = {
         store, date,
-        gross: 0, disc: 0, rev: 0, cogsSold: 0, cogsRet: 0,
-        noCostSold: 0, noCostRet: 0, unitsSold: 0, unitsRet: 0,
+        gross: 0, disc: 0, rev: 0, unitsSold: 0, unitsRet: 0,
         orderIds: new Set(),
         smallTxns: [],           // retail only: {net, ts} for sub-$15 AOV rule
-        ledger: new Map()        // item_key -> {variant_id, sku, title, is_fixable, net}
+        items: new Map()         // item_key -> {variant_id, sku, title, is_fixable, soldQty, soldNet, retQty, retSub}
       };
       cells.set(k, c);
     }
     return c;
   };
-  const addLedger = (c, li, amount) => {
+  const itemOf = (c, li) => {
     const key = itemKeyFor(li);
-    let e = c.ledger.get(key);
+    let e = c.items.get(key);
     if (!e) {
       e = {
         variant_id: li.variant_id != null ? String(li.variant_id) : null,
-        sku: li.sku || null,
-        title: li.title || null,
+        sku: li.sku || null, title: li.title || null,
         is_fixable: li.variant_id != null ? 1 : 0,
-        net: 0
+        soldQty: 0, soldNet: 0, retQty: 0, retSub: 0
       };
-      c.ledger.set(key, e);
+      c.items.set(key, e);
     }
-    e.net += amount;
+    return e;
   };
 
-  // First pass: collect variant ids so costs can be batch-fetched before compute.
-  const orderPages = [];
+  // Single streaming pass — aggregate per store/day as pages arrive; never buffer
+  // raw orders (the full backfill is ~200k). Costs are applied in a finalize pass,
+  // so each cell keeps per-item qty/net (bounded by distinct SKUs sold that day).
   const variantIds = new Set();
   const stats = await fetchOrdersUpdatedSince(sinceIso, (orders) => {
-    orderPages.push(orders);
-    for (const o of orders) {
-      const saleDay = torontoDate(o.created_at);
-      if (inRange(saleDay) && !o.cancelled_at) {
-        for (const li of (o.line_items || [])) if (li.variant_id) variantIds.add(String(li.variant_id));
-      }
-      for (const rf of (o.refunds || [])) {
-        if (!inRange(torontoDate(rf.processed_at || rf.created_at))) continue;
-        for (const rli of (rf.refund_line_items || [])) {
-          const vid = rli.line_item?.variant_id;
-          if (vid) variantIds.add(String(vid));
-        }
-      }
-    }
-  }, untilIso);
-  await ensureCosts(variantIds);
-
-  // Second pass: aggregate.
-  for (const orders of orderPages) {
     for (const o of orders) {
       const oLoc = orderLocationId(o);
-      const saleDay = torontoDate(o.created_at);
 
-      // SALES side
+      // SALES side — attributed to created date + order location.
+      const saleDay = torontoDate(o.created_at);
       if (inRange(saleDay) && !o.cancelled_at) {
-        const store = storeNameFor(oLoc, o.source_name);
-        const c = cell(store, saleDay);
+        const c = cell(storeNameFor(oLoc, o.source_name), saleDay);
         c.orderIds.add(String(o.id));
         let orderNet = 0;
         for (const li of (o.line_items || [])) {
           if (li.gift_card) continue;
           const qty = li.quantity || 0;
           const net = lineNet(li);
-          const cost = costOf(li.variant_id);
           c.gross += parseFloat(li.price || '0') * qty;
           c.disc += (li.discount_allocations || []).reduce((s, d) => s + parseFloat(d.amount || '0'), 0);
           c.unitsSold += qty;
           orderNet += net;
-          if (cost == null) { c.noCostSold += net; addLedger(c, li, net); }
-          else { c.cogsSold += cost * qty; }
+          const e = itemOf(c, li); e.soldQty += qty; e.soldNet += net;
+          if (li.variant_id) variantIds.add(String(li.variant_id));
         }
-        // AOV sub-$15 rule: retail stores only, first ≤5 sub-$15-net txns/day.
-        if (RETAIL_STORES.has(store) && orderNet < AOV_THRESHOLD) {
+        if (RETAIL_STORES.has(c.store) && orderNet < AOV_THRESHOLD) {
           c.smallTxns.push({ net: orderNet, ts: o.created_at });
         }
       }
@@ -311,27 +289,40 @@ export async function reconstructRange(startDate, endDate, source = 'orders_reco
           const li = rli.line_item || {};
           if (li.gift_card) continue;
           const rLoc = rli.location_id ? String(rli.location_id) : oLoc;
-          const store = storeNameFor(rLoc, o.source_name);
-          const c = cell(store, refDay);
+          const c = cell(storeNameFor(rLoc, o.source_name), refDay);
           const qty = rli.quantity || 0;
           const sub = parseFloat(rli.subtotal || '0');   // net line value refunded
-          const cost = costOf(li.variant_id);
           c.rev += sub;
           c.unitsRet += qty;
-          if (cost == null) { c.noCostRet += sub; addLedger(c, li, -sub); }
-          else { c.cogsRet += cost * qty; }
+          const e = itemOf(c, li); e.retQty += qty; e.retSub += sub;
+          if (li.variant_id) variantIds.add(String(li.variant_id));
         }
       }
     }
-  }
+  }, untilIso);
+
+  // Fetch costs once, then finalize each cell.
+  await ensureCosts(variantIds);
 
   // Write (idempotent range replace).
   const rows = [];
   const ledgerRows = [];
   for (const c of cells.values()) {
+    // Apply costs: split each item's net contribution into cogs (cost known) or
+    // no_cost_net (cost null). Net qty/net already fold in same-cell returns.
+    let cogs = 0, no_cost_net = 0;
+    const cellLedger = [];
+    for (const [key, e] of c.items) {
+      const cost = costOf(e.variant_id);
+      if (cost == null) {
+        const itemNet = e.soldNet - e.retSub;
+        no_cost_net += itemNet;
+        cellLedger.push([key, c.date, c.store, e.variant_id, e.sku, e.title, e.is_fixable, itemNet]);
+      } else {
+        cogs += cost * (e.soldQty - e.retQty);
+      }
+    }
     const net_sales = c.gross - c.disc - c.rev;
-    const no_cost_net = c.noCostSold - c.noCostRet;
-    const cogs = c.cogsSold - c.cogsRet;
     const costBearing = net_sales - no_cost_net;
     const gross_profit = costBearing - cogs;
     const gross_margin_pct = costBearing > 0 ? (gross_profit / costBearing) * 100 : null;
@@ -350,9 +341,9 @@ export async function reconstructRange(startDate, endDate, source = 'orders_reco
       net_items, c.orderIds.size,
       aov_excluded_orders, round2(aov_excluded_net), source
     ]);
-    for (const [key, e] of c.ledger) {
-      if (Math.abs(e.net) < 0.005) continue;   // net-zero after returns → skip
-      ledgerRows.push([key, c.date, c.store, e.variant_id, e.sku, e.title, e.is_fixable, round2(e.net)]);
+    for (const r of cellLedger) {
+      if (Math.abs(r[7]) < 0.005) continue;    // net-zero after returns → skip
+      ledgerRows.push([r[0], r[1], r[2], r[3], r[4], r[5], r[6], round2(r[7])]);
     }
   }
 
