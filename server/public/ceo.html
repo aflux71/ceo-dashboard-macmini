@@ -1321,7 +1321,7 @@ function buildStoreRows(rows, bundlePctByStore, loyaltyByStore) {
     var hasAov = s.aov !== null && s.aov !== undefined;
     var aovStatus = !hasAov ? 'gray' : s.aov >= KPI_TARGETS.aov ? 'green' : s.aov >= KPI_TARGETS.aov * 0.75 ? 'amber' : 'red';
     var attStatus = attPct && attPct >= 0.95 ? 'up' : 'down';
-    var partialMark = s.ly_partial ? '<span title="opened mid-2025 / partial LY — like-for-like">*</span>' : '';
+    var partialMark = s.ly_partial ? '<span title="partial LY (no comparable 2025) — like-for-like">*</span>' : '';
     var vsLyChip = vsLy !== null
       ? '<span class="vs-target-chip ' + vsLyStatus + '">' + (vsLy >= 0 ? '+' : '') + vsLy + '%' + partialMark + '</span>'
       : '<span class="no-data">—</span>';
