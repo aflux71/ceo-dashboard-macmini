@@ -330,10 +330,35 @@ router.get('/stats/ceo-net', (req, res) => {
 router.get('/revenue/by-store-net', (req, res) => {
   try {
     const today = torontoDay();
-    const period = req.query.period || '30d';
-    const from = period === 'ytd' ? `${today.slice(0, 4)}-01-01` : torontoDaysAgo(29);
-    const byStore = netSalesByStoreYoY(from, today);
-    res.json({ period, from, to: today, ly_window: byStore.ly_window, stores: byStore.stores, company: netSalesCompanyYoY(from, today) });
+    const { period, date_from, date_to } = req.query;
+    let from, to;
+    if (date_from && date_to) {            // arbitrary range (from the dashboard period selector)
+      from = torontoDay(new Date(date_from));
+      to = torontoDay(new Date(date_to));
+    } else if (period === 'ytd') {
+      from = `${today.slice(0, 4)}-01-01`; to = today;
+    } else {
+      from = torontoDaysAgo(29); to = today;
+    }
+    const byStore = netSalesByStoreYoY(from, to);
+    // Back-compat aliases so the existing store-table renderer maps cleanly; the
+    // partial-aware vs_ly_pct is the like-for-like delta when a store's LY is partial.
+    const stores = byStore.stores.map(s => ({
+      ...s,
+      location_name: s.store_name,
+      revenue: s.net_sales,
+      period_revenue: s.net_sales,
+      ly_revenue: s.ly_net_sales,
+      vs_ly_pct: s.ly_partial ? s.ll_net_delta_pct : s.net_delta_pct
+    }));
+    const co = netSalesCompanyYoY(from, to);
+    const asTotal = (c) => ({ revenue: c.net_sales, orders: c.orders, aov: c.aov_retail });
+    res.json({
+      period: period || 'custom', from, to, ly_window: byStore.ly_window, stores, company: co,
+      // back-compat aliases for the existing store-table renderer (net-based):
+      total: asTotal(co.current),
+      ytd_total: asTotal(co.current), ly_total: asTotal(co.ly), vs_ly_pct: co.delta_pct.net_sales
+    });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
