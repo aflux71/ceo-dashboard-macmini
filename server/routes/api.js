@@ -5,7 +5,7 @@ import db from '../db/database.js';
 import { loadKnowledge, getLoadedDocs, getKnowledgeStatus } from '../knowledge.js';
 import { logUsage } from '../usage.js';
 import { getLoyaltySignups } from '../sync/shopify.js';
-import { netSalesCompany, netSalesByStore } from '../db/net_sales_queries.js';
+import { netSalesCompany, netSalesByStore, netSalesCompanyYoY, netSalesByStoreYoY } from '../db/net_sales_queries.js';
 
 const router = express.Router();
 
@@ -278,8 +278,10 @@ router.get('/stats/ceo-net', (req, res) => {
     const start30 = torontoDaysAgo(29);                 // 30-day inclusive window
     const startYTD = `${today.slice(0, 4)}-01-01`;
 
-    const c30 = netSalesCompany(start30, today);
-    const cYTD = netSalesCompany(startYTD, today);
+    const y30 = netSalesCompanyYoY(start30, today);
+    const yYTD = netSalesCompanyYoY(startYTD, today);
+    const c30 = y30.current;
+    const cYTD = yYTD.current;
 
     // Gross (secondary, same basis as the live /stats/ceo) for transition display.
     const grossSince = (iso) => db.prepare(
@@ -306,6 +308,12 @@ router.get('/stats/ceo-net', (req, res) => {
       gm_ytd: cYTD.gross_margin_pct, orders_ytd: cYTD.orders, aov_ytd: cYTD.aov_retail,
       no_cost_net_ytd: cYTD.no_cost_net,
       annual_run_rate_net: Math.round((cYTD.net_sales / dayOfYear) * 365),
+      // day-of-week-matched LY (364-day shift) + deltas
+      net_30d_ly: y30.ly.net_sales, gp_30d_ly: y30.ly.gross_profit,
+      net_30d_delta_pct: y30.delta_pct.net_sales, gp_30d_delta_pct: y30.delta_pct.gross_profit,
+      net_ytd_ly: yYTD.ly.net_sales, gp_ytd_ly: yYTD.ly.gross_profit,
+      net_ytd_delta_pct: yYTD.delta_pct.net_sales, gp_ytd_delta_pct: yYTD.delta_pct.gross_profit,
+      ly_windows: { d30: y30.ly_window, ytd: yYTD.ly_window },
       // secondary: GROSS (transition only)
       rev_30d: Math.round(rev30 * 100) / 100,
       rev_ytd: Math.round(revYTD * 100) / 100,
@@ -324,7 +332,8 @@ router.get('/revenue/by-store-net', (req, res) => {
     const today = torontoDay();
     const period = req.query.period || '30d';
     const from = period === 'ytd' ? `${today.slice(0, 4)}-01-01` : torontoDaysAgo(29);
-    res.json({ period, from, to: today, stores: netSalesByStore(from, today), company: netSalesCompany(from, today) });
+    const byStore = netSalesByStoreYoY(from, today);
+    res.json({ period, from, to: today, ly_window: byStore.ly_window, stores: byStore.stores, company: netSalesCompanyYoY(from, today) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

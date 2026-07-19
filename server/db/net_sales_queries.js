@@ -84,6 +84,59 @@ export function netSalesCompany(from, to) {
   return total;
 }
 
+// ── Day-of-week-matched LY (Phase 2, Chunk 4) ────────────────────────────────
+// Shopify's "Previous year (match day of week)" shifts the whole window back
+// 364 days (= 52 weeks exactly), so each weekday lines up with the same weekday
+// LY (this Saturday vs last year's corresponding Saturday), NOT the same calendar
+// date. Pure whole-day label arithmetic — DST/timezone irrelevant to the shift.
+const LY_SHIFT_DAYS = 364;
+export function shiftDate(dateStr, days) {
+  const d = new Date(`${dateStr}T12:00:00Z`);   // noon UTC avoids any edge rounding
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+const pctDelta = (cur, ly) =>
+  (ly && ly !== 0) ? Math.round(((cur - ly) / Math.abs(ly)) * 1000) / 10 : null;
+
+// Company totals with DoW-matched LY comparison + deltas.
+export function netSalesCompanyYoY(from, to) {
+  const current = netSalesCompany(from, to);
+  const ly_from = shiftDate(from, -LY_SHIFT_DAYS);
+  const ly_to = shiftDate(to, -LY_SHIFT_DAYS);
+  const ly = netSalesCompany(ly_from, ly_to);
+  return {
+    current, ly, ly_window: [ly_from, ly_to],
+    delta_pct: {
+      net_sales: pctDelta(current.net_sales, ly.net_sales),
+      gross_profit: pctDelta(current.gross_profit, ly.gross_profit),
+      discounts: pctDelta(current.discounts, ly.discounts),
+      orders: pctDelta(current.orders, ly.orders),
+      aov_retail: pctDelta(current.aov_retail, ly.aov_retail)
+    }
+  };
+}
+
+// Per-store rows with DoW-matched LY net + delta, joined by store_name.
+export function netSalesByStoreYoY(from, to) {
+  const cur = netSalesByStore(from, to);
+  const ly_from = shiftDate(from, -LY_SHIFT_DAYS);
+  const ly_to = shiftDate(to, -LY_SHIFT_DAYS);
+  const lyRows = new Map(netSalesByStore(ly_from, ly_to).map(r => [r.store_name, r]));
+  return {
+    ly_window: [ly_from, ly_to],
+    stores: cur.map(r => {
+      const ly = lyRows.get(r.store_name);
+      return {
+        ...r,
+        ly_net_sales: ly ? ly.net_sales : 0,
+        ly_gross_profit: ly ? ly.gross_profit : 0,
+        net_delta_pct: pctDelta(r.net_sales, ly ? ly.net_sales : 0),
+        gp_delta_pct: pctDelta(r.gross_profit, ly ? ly.gross_profit : 0)
+      };
+    })
+  };
+}
+
 // Per-store rows for the store table: 5 retail (with AOV), Festivals (rev/GP only),
 // one Online/DTC rollup, and — until mapped — a visible 'neob HQ (unmapped)' row.
 export function netSalesByStore(from, to) {
