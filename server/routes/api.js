@@ -5,6 +5,7 @@ import db from '../db/database.js';
 import { loadKnowledge, getLoadedDocs, getKnowledgeStatus } from '../knowledge.js';
 import { logUsage } from '../usage.js';
 import { getLoyaltySignups } from '../sync/shopify.js';
+import { netSalesCompany, netSalesByStore } from '../db/net_sales_queries.js';
 
 const router = express.Router();
 
@@ -256,6 +257,76 @@ router.get('/stats/ceo', (req, res) => {
 // (Removed a duplicate /stats/ceo handler here — Express matched the first
 //  registration above, so this second copy was dead code. Phase 2 will add
 //  net-sales fields to that single handler via the net_sales_queries layer.)
+
+// ── Toronto calendar-day helpers for daily_sales period bounds ────
+// daily_sales.sale_date is a Toronto (DST-aware) YYYY-MM-DD; period windows
+// must be expressed as those date strings, inclusive on both ends.
+const _NET_TZ = 'America/Toronto';
+const _netDayFmt = new Intl.DateTimeFormat('en-CA', { timeZone: _NET_TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
+const torontoDay = (d = new Date()) => _netDayFmt.format(d);
+const torontoDaysAgo = (n) => torontoDay(new Date(Date.now() - n * 86400000));
+
+// ── /api/stats/ceo-net ────────────────────────────────────────────
+// PARALLEL net-sales CEO tiles (Phase 2). Sourced from daily_sales via the
+// net_sales_queries layer. NOT yet wired into the frontend — the live gross
+// /stats/ceo above is untouched. Once validated side-by-side vs Shopify, the
+// dashboard flips to this. Net = primary; gross kept as a secondary field for
+// the transition. Margin/AOV use the cost-bearing / excluded-txn rollups.
+router.get('/stats/ceo-net', (req, res) => {
+  try {
+    const today = torontoDay();
+    const start30 = torontoDaysAgo(29);                 // 30-day inclusive window
+    const startYTD = `${today.slice(0, 4)}-01-01`;
+
+    const c30 = netSalesCompany(start30, today);
+    const cYTD = netSalesCompany(startYTD, today);
+
+    // Gross (secondary, same basis as the live /stats/ceo) for transition display.
+    const grossSince = (iso) => db.prepare(
+      'SELECT COALESCE(SUM(CAST(total_price AS REAL)),0) AS rev FROM orders WHERE created_at >= ?'
+    ).get(iso).rev;
+    const rev30 = grossSince(new Date(Date.now() - 30 * 86400000).toISOString());
+    const revYTD = grossSince(new Date(new Date().getFullYear(), 0, 1).toISOString());
+
+    const dayOfYear = Math.ceil((Date.now() - new Date(new Date().getFullYear(), 0, 1)) / 86400000);
+
+    // Operational tiles (reused from the live endpoint's queries).
+    const prods = db.prepare("SELECT COUNT(*) AS c FROM products WHERE status='active'").get();
+    const inv = db.prepare('SELECT COALESCE(SUM(available),0) AS u FROM inventory').get();
+    const unf = db.prepare("SELECT COUNT(*) AS c FROM orders WHERE fulfillment_status IS NULL AND created_at >= ?")
+      .get(new Date(Date.now() - 14 * 86400000).toISOString());
+    const lastSync = db.prepare("SELECT created_at FROM sync_log WHERE status='success' ORDER BY id DESC LIMIT 1").get();
+
+    res.json({
+      // primary: NET (from daily_sales)
+      net_30d: c30.net_sales, discounts_30d: c30.discounts, gp_30d: c30.gross_profit,
+      gm_30d: c30.gross_margin_pct, orders_30d: c30.orders, aov_30d: c30.aov_retail,
+      no_cost_net_30d: c30.no_cost_net,
+      net_ytd: cYTD.net_sales, discounts_ytd: cYTD.discounts, gp_ytd: cYTD.gross_profit,
+      gm_ytd: cYTD.gross_margin_pct, orders_ytd: cYTD.orders, aov_ytd: cYTD.aov_retail,
+      no_cost_net_ytd: cYTD.no_cost_net,
+      annual_run_rate_net: Math.round((cYTD.net_sales / dayOfYear) * 365),
+      // secondary: GROSS (transition only)
+      rev_30d: Math.round(rev30 * 100) / 100,
+      rev_ytd: Math.round(revYTD * 100) / 100,
+      // operational
+      active_products: prods.c, inventory_units: inv.u, unfulfilled: unf.c,
+      last_sync: lastSync?.created_at || null, day_of_year: dayOfYear,
+      windows: { d30: [start30, today], ytd: [startYTD, today] }
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── /api/revenue/by-store-net ─────────────────────────────────────
+// PARALLEL net-sales store table (Phase 2). period = '30d' | 'ytd' (Toronto days).
+router.get('/revenue/by-store-net', (req, res) => {
+  try {
+    const today = torontoDay();
+    const period = req.query.period || '30d';
+    const from = period === 'ytd' ? `${today.slice(0, 4)}-01-01` : torontoDaysAgo(29);
+    res.json({ period, from, to: today, stores: netSalesByStore(from, today), company: netSalesCompany(from, today) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 
 // ── /api/stats/loyalty-signups ────────────────────────────────────

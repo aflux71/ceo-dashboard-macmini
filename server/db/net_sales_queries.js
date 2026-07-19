@@ -16,14 +16,17 @@ import db from './database.js';
 // no bundle/ops KPIs). ONLINE_DTC = web + genuine fulfillment warehouses.
 export const RETAIL_STORES = ['Queen Street', 'Flower Farm', 'Elora', 'Stratford', 'Bracebridge'];
 export const FESTIVALS = 'Festivals & Events';
-export const ONLINE_DTC_MEMBERS = ['Online/DTC', 'Ecommerce Warehouse', '3PL-Online Orders', 'Walkers Market Warehouse'];
+// Online/DTC = web + genuine fulfillment/online locations. 'neob HQ' is the old
+// online-sales location (now also a 3PL-overflow / store-transfer warehouse); its
+// ~$242K is real online revenue (web + wholesale/manual-invoice draft orders,
+// verified as genuine external-customer sales), so it belongs here. Internal $0
+// transfer entries add $0 to net (they only affect order count), so net/GP/margin
+// are not inflated by folding neob HQ in.
+export const ONLINE_DTC_MEMBERS = ['Online/DTC', 'neob HQ', '3PL-Online Orders', 'Ecommerce Warehouse', 'Walkers Market Warehouse'];
 
-// PENDING — NOT yet classified. 'neob HQ' ($242K, 2025-01-01→2026-07-15) coexists
-// with all 5 retail stores, so it is NOT a clean rename; it may be a renamed/merged
-// retail store, a flagship, or a wholesale channel — Robert maps this before Chunk 4
-// (LY), because mis-bucketing corrupts per-store year-over-year. Surfaced as its own
-// row meanwhile so nothing is silently folded. 'Unattributed' is a tiny catch-all.
-export const PENDING_REVIEW = ['neob HQ', 'Unattributed', 'Retail (unattributed)'];
+// Not shown as store rows (kept only in the company total): a tiny unresolved
+// catch-all. ~$1.5K over 18 months.
+export const NON_STORE = ['Unattributed', 'Retail (unattributed)'];
 
 const AGG_COLS = `
   ROUND(SUM(net_sales), 2)          AS net_sales,
@@ -97,8 +100,7 @@ export function netSalesByStore(from, to) {
   const o = aggregate(from, to, ONLINE_DTC_MEMBERS);
   if (o.orders || o.net_sales) { o.store_name = 'Online/DTC'; o.aov = null; o.channel = 'online'; rows.push(o); }
 
-  const p = aggregate(from, to, PENDING_REVIEW);
-  if (p.orders || p.net_sales) { p.store_name = 'neob HQ (unmapped)'; p.aov = null; p.channel = 'pending'; rows.push(p); }
-
+  // NON_STORE (Unattributed) is intentionally not shown as a row; it remains in
+  // netSalesCompany's total, so store rows may sum to slightly under company net.
   return rows.sort((a, b) => (b.net_sales || 0) - (a.net_sales || 0));
 }
