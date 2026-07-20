@@ -413,6 +413,14 @@
     box-shadow: var(--shadow);
     overflow: hidden;
   }
+  /* Store table is wider than the column on desktop — scroll it horizontally with
+     an always-visible bar so the right columns (2026 Target / Attainment) reach. */
+  .store-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .store-scroll table { min-width: 860px; }
+  .store-scroll::-webkit-scrollbar { height: 10px; }
+  .store-scroll::-webkit-scrollbar-track { background: var(--surface-warm); }
+  .store-scroll::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 5px; }
+  .store-scroll::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
 
   .section-header {
     padding: 18px 24px 14px;
@@ -1582,6 +1590,7 @@ function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bund
             <div style="font-size:11px;color:var(--text-3);margin-top:2px">YTD: ${fmt$(ytdTotal.revenue || 0)} · LY period: ${fmt$(lyPeriodTotal.revenue || 0)}</div>
           </div>
         </div>
+        <div class="store-scroll">
         <table>
           <thead>
             <tr>
@@ -1601,6 +1610,7 @@ function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bund
             ${buildStoreRows(storeRows, bundlePctByStore, loyaltyByStore)}
           </tbody>
         </table>
+        </div>
         <div style="font-size:11px;color:var(--text-3);padding:10px 4px 2px;line-height:1.5">
           <strong>Pkg Bundle %</strong> = share of orders containing a packaged gift-set product (tagged bundle SKU), last 30d, since 2026-05-01.
           Packaged gift sets only — a subset of $40-threshold compliance, and <em>not</em> the 35–40% program target. Multi-item basket bundles tracked separately (Phase 3).
