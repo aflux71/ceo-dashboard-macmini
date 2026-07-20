@@ -125,8 +125,11 @@ artifact — the API also returns a **like-for-like** delta over the shared peri
   disk (`express.static`). It does **not** pull from GitHub.
 - **Deploy a code change:** `sudo launchctl kickstart -k system/com.neob.production`.
 - **Logs:** `~/Library/Logs/neob-production.log` (stdout) / `.err`.
-- **Backup remotes:** `origin` (HTTPS, neob-operations-suite_truth) · `macmini` (SSH,
-  ceo-dashboard-macmini). Access is Tailscale-only.
+- **Backups go to `macmini`** (`git@github.com:aflux71/ceo-dashboard-macmini.git`, SSH) — the
+  canonical mirror for this dashboard. **Do NOT push to `origin`** (`neob-operations-suite_truth`):
+  it is a *separate* operations-suite repo (base44 etc.) whose `main` has fully diverged from this
+  one — pushing there would merge an unrelated codebase onto the mini or force-clobber their work.
+  Access is Tailscale-only.
 - **Rollback the flip:** `git checkout main -- server/public/ceo.html` + reload daemon. The
   `/ceo-net-preview.html` page remains as a fallback net view.
 
