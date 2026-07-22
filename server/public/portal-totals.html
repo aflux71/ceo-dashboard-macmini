@@ -100,6 +100,56 @@
   .refresh-btn.spinning span, .refresh-icon.spinning { display: none; }
   .updated-stamp { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-3); }
 
+  /* Section tabs */
+  .section-tabs { display: inline-flex; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 4px; margin-bottom: 18px; }
+  .section-tab {
+    padding: 8px 18px; border: none; background: transparent; cursor: pointer; border-radius: 7px;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; color: var(--text-2);
+  }
+  .section-tab:hover { background: var(--bg); }
+  .section-tab.active { background: var(--lavender); color: #fff; }
+
+  /* Filters bar */
+  .filters { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .filter-field { display: flex; flex-direction: column; gap: 4px; }
+  .filter-field label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; color: var(--text-3); }
+  .filter-field input[type=date], .filter-field select {
+    padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--text); background: var(--surface); outline: none;
+  }
+  .filter-field input:focus, .filter-field select:focus { border-color: var(--lavender-mid); }
+  .btn {
+    padding: 9px 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface);
+    color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer;
+  }
+  .btn:hover { border-color: var(--border-strong); }
+  .btn-primary { background: var(--lavender); color: #fff; border-color: var(--lavender); }
+  .btn-primary:hover { opacity: 0.9; }
+
+  /* Sortable headers + pagination + value coloring (reuses .grid table) */
+  .grid thead th.sortable { cursor: pointer; user-select: none; }
+  .grid thead th.sortable:hover { color: var(--lavender); }
+  .grid thead th .sort-ind { font-size: 9px; opacity: 0.5; margin-left: 3px; }
+  .grid thead th.sorted .sort-ind { opacity: 1; color: var(--lavender); }
+  .grid td.num { font-family: 'DM Mono', monospace; text-align: right; padding-right: 14px; white-space: nowrap; }
+  .grid td.store-col { text-align: left; padding-left: 16px; font-weight: 500; }
+  .val-pos { color: var(--green); }
+  .val-neg { color: var(--red); }
+  .val-dim { color: var(--text-3); }
+  .pager { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-3); }
+  .pager-btns { display: flex; gap: 8px; }
+  .pager-btns button { width: 30px; height: 30px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--text-2); cursor: pointer; }
+  .pager-btns button:disabled { opacity: 0.4; cursor: default; }
+  .pager-btns button:not(:disabled):hover { border-color: var(--border-strong); }
+
+  /* Roll-up chart */
+  .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); padding: 18px 20px; margin-bottom: 18px; }
+  .chart-legend { display: flex; gap: 18px; margin-bottom: 10px; font-size: 12px; color: var(--text-2); }
+  .chart-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .lg-swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  .lg-line { width: 14px; height: 0; border-top: 2px dashed var(--amber); display: inline-block; }
+  .empty-note { padding: 40px; text-align: center; color: var(--text-3); font-size: 13px; }
+
   /* Summary cards */
   .summary-grid {
     display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-bottom: 22px;
@@ -221,6 +271,13 @@
 </header>
 
 <main class="main" id="mainContent" style="display:none">
+  <div class="section-tabs" id="sectionTabs">
+    <button class="section-tab active" data-section="totals">Totals</button>
+    <button class="section-tab" data-section="history">History</button>
+    <button class="section-tab" data-section="rollup">Roll-ups</button>
+  </div>
+
+  <div id="section-totals">
   <div class="page-head">
     <div>
       <div class="page-title">Store Targets vs Actuals</div>
@@ -251,6 +308,50 @@
   <div id="gridContainer">
     <div class="loading"><div class="spinner"></div> Loading…</div>
   </div>
+  </div><!-- /section-totals -->
+
+  <div id="section-history" style="display:none">
+    <div class="page-head">
+      <div>
+        <div class="page-title">Submission History</div>
+        <div class="page-sub">Every staff-entered store-day, with target variance and the gap vs reconciled Shopify net.</div>
+      </div>
+      <div class="filters">
+        <div class="filter-field">
+          <label>Store</label>
+          <select id="histStore"><option value="">All stores</option></select>
+        </div>
+        <div class="filter-field">
+          <label>From</label>
+          <input type="date" id="histFrom">
+        </div>
+        <div class="filter-field">
+          <label>To</label>
+          <input type="date" id="histTo">
+        </div>
+        <button class="btn" id="histApply">Apply</button>
+        <button class="btn btn-primary" id="histExport">↓ Export CSV</button>
+      </div>
+    </div>
+    <div id="histContainer"><div class="loading"><div class="spinner"></div> Loading…</div></div>
+  </div><!-- /section-history -->
+
+  <div id="section-rollup" style="display:none">
+    <div class="page-head">
+      <div>
+        <div class="page-title">Roll-ups</div>
+        <div class="page-sub">Submitted revenue vs target and Shopify net, aggregated by period.</div>
+      </div>
+      <div class="ctrl-group">
+        <div class="toggle" id="rollGrainToggle">
+          <button data-grain="week" class="active">Weekly · 12w</button>
+          <button data-grain="month">Monthly · 6m</button>
+        </div>
+        <select class="ctrl-select" id="rollStore"><option value="">All stores</option></select>
+      </div>
+    </div>
+    <div id="rollContainer"><div class="loading"><div class="spinner"></div> Loading…</div></div>
+  </div><!-- /section-rollup -->
 </main>
 
 <div class="pin-gate" id="pinGate">
@@ -267,6 +368,10 @@
 const API = '';
 const STORES = ['Queen Street', 'Flower Farm', 'Elora', 'Stratford', 'Bracebridge', 'Online/DTC'];
 let state = { view: 'day', offset: 0, store: '' };
+let section = 'totals';
+let hist = { store: '', from: '', to: '', sort: 'date', dir: 'desc', page: 0, rows: [] };
+let roll = { grain: 'week', store: '' };
+const PAGE_SIZE = 50;
 
 // ── PIN GATE ────────────────────────────────────────────────────
 function showPinGate() {
@@ -339,9 +444,46 @@ function wireControls() {
   document.getElementById('nextBtn').addEventListener('click', () => { state.offset += 1; load(); });
   document.getElementById('todayBtn').addEventListener('click', () => { state.offset = 0; load(); });
   document.getElementById('refreshBtn').addEventListener('click', () => load());
+  const storeOpts = '<option value="">All stores</option>' + STORES.map(s => `<option value="${s}">${s}</option>`).join('');
   const sf = document.getElementById('storeFilter');
-  sf.innerHTML = '<option value="">All stores</option>' + STORES.map(s => `<option value="${s}">${s}</option>`).join('');
+  sf.innerHTML = storeOpts;
   sf.addEventListener('change', () => { state.store = sf.value; load(); });
+
+  // Section tabs
+  document.querySelectorAll('#sectionTabs .section-tab').forEach(b => {
+    b.addEventListener('click', () => switchSection(b.dataset.section));
+  });
+
+  // History controls
+  document.getElementById('histStore').innerHTML = storeOpts;
+  document.getElementById('histStore').addEventListener('change', e => { hist.store = e.target.value; hist.page = 0; loadHistory(); });
+  document.getElementById('histFrom').addEventListener('change', e => { hist.from = e.target.value; });
+  document.getElementById('histTo').addEventListener('change', e => { hist.to = e.target.value; });
+  document.getElementById('histApply').addEventListener('click', () => { hist.page = 0; loadHistory(); });
+  document.getElementById('histExport').addEventListener('click', exportHistory);
+
+  // Roll-up controls
+  document.querySelectorAll('#rollGrainToggle button').forEach(b => {
+    b.addEventListener('click', () => {
+      if (roll.grain === b.dataset.grain) return;
+      roll.grain = b.dataset.grain;
+      document.querySelectorAll('#rollGrainToggle button').forEach(x => x.classList.toggle('active', x === b));
+      loadRollup();
+    });
+  });
+  document.getElementById('rollStore').innerHTML = storeOpts;
+  document.getElementById('rollStore').addEventListener('change', e => { roll.store = e.target.value; loadRollup(); });
+}
+
+// ── SECTION SWITCH ──────────────────────────────────────────────
+function switchSection(name) {
+  section = name;
+  document.querySelectorAll('#sectionTabs .section-tab').forEach(b => b.classList.toggle('active', b.dataset.section === name));
+  ['totals', 'history', 'rollup'].forEach(s => {
+    document.getElementById('section-' + s).style.display = s === name ? 'block' : 'none';
+  });
+  if (name === 'history' && !hist.rows.length) loadHistory();
+  else if (name === 'rollup') loadRollup();
 }
 
 // ── LOAD + RENDER ───────────────────────────────────────────────
@@ -466,6 +608,215 @@ function renderGrid(d) {
        <div class="grid-note">Bold = staff-entered actual · <span style="font-family:'DM Mono',monospace">tgt</span> = daily target · name = who submitted · ${noteRange}</div>
      </div>
      <div class="grid-wrap"><table class="grid">${head}${body}${foot}</table></div>`;
+}
+
+// ── HISTORY ─────────────────────────────────────────────────────
+const HIST_COLS = [
+  { key: 'date', label: 'Date', type: 'date', align: 'left' },
+  { key: 'store', label: 'Store', type: 'str', align: 'left' },
+  { key: 'submitted', label: 'Entered', type: 'num', money: true },
+  { key: 'target', label: 'Target', type: 'num', money: true },
+  { key: 'variance_pct', label: 'Var %', type: 'num', pct: true, color: true },
+  { key: 'shopify_net', label: 'Shopify Net', type: 'num', money: true },
+  { key: 'gap_dollars', label: 'Gap $', type: 'num', money: true, color: true },
+  { key: 'gap_pct', label: 'Gap %', type: 'num', pct: true, color: true },
+  { key: 'transactions', label: 'Txns', type: 'num' },
+  { key: 'aov', label: 'AOV', type: 'num', money: true },
+  { key: 'submitted_by', label: 'By', type: 'str', align: 'left' },
+];
+
+async function loadHistory() {
+  document.getElementById('histContainer').innerHTML =
+    '<div class="loading"><div class="spinner"></div> Loading…</div>';
+  try {
+    const p = new URLSearchParams();
+    if (hist.store) p.set('store', hist.store);
+    if (hist.from) p.set('from', hist.from);
+    if (hist.to) p.set('to', hist.to);
+    const r = await adminFetch('/api/portal-totals/history?' + p.toString());
+    const d = await r.json();
+    hist.rows = d.rows || [];
+    renderHistory();
+  } catch (e) {
+    document.getElementById('histContainer').innerHTML =
+      `<div class="empty-note" style="color:var(--red)">${e.message}</div>`;
+  }
+}
+
+function sortRows(rows, key, dir, type) {
+  const mul = dir === 'asc' ? 1 : -1;
+  return rows.slice().sort((a, b) => {
+    let x = a[key], y = b[key];
+    if (x === null || x === undefined) return 1;      // nulls last
+    if (y === null || y === undefined) return -1;
+    if (type === 'num') return (x - y) * mul;
+    return String(x).localeCompare(String(y)) * mul;
+  });
+}
+
+function renderHistory() {
+  const c = document.getElementById('histContainer');
+  if (!hist.rows.length) { c.innerHTML = '<div class="grid-wrap"><div class="empty-note">No submissions in this range.</div></div>'; return; }
+
+  const col = HIST_COLS.find(c => c.key === hist.sort);
+  const sorted = sortRows(hist.rows, hist.sort, hist.dir, col ? col.type : 'str');
+  const pages = Math.ceil(sorted.length / PAGE_SIZE);
+  if (hist.page >= pages) hist.page = pages - 1;
+  const pageRows = sorted.slice(hist.page * PAGE_SIZE, hist.page * PAGE_SIZE + PAGE_SIZE);
+
+  const head = '<thead><tr>' + HIST_COLS.map(col => {
+    const sorted = hist.sort === col.key;
+    const ind = sorted ? (hist.dir === 'asc' ? '▲' : '▼') : '↕';
+    const cls = 'sortable' + (sorted ? ' sorted' : '');
+    return `<th class="${cls}" data-key="${col.key}">${col.label}<span class="sort-ind">${ind}</span></th>`;
+  }).join('') + '</tr></thead>';
+
+  const body = '<tbody>' + pageRows.map(r => '<tr>' + HIST_COLS.map(col => {
+    let v = r[col.key];
+    let cls = col.align === 'left' ? 'store-col' : 'num';
+    let txt;
+    if (v === null || v === undefined) { txt = '—'; cls += ' val-dim'; }
+    else if (col.money) txt = money(v);
+    else if (col.pct) txt = pct(v);
+    else txt = (col.type === 'num') ? fmt0(v) : v;
+    if (col.color && v !== null && v !== undefined) cls += v >= 0 ? ' val-pos' : ' val-neg';
+    return `<td class="${cls}">${txt}</td>`;
+  }).join('') + '</tr>').join('') + '</tbody>';
+
+  const pager = `<div class="pager">
+    <span>${sorted.length} row${sorted.length === 1 ? '' : 's'} · page ${hist.page + 1} of ${pages}</span>
+    <div class="pager-btns">
+      <button id="histPrev" ${hist.page === 0 ? 'disabled' : ''}>‹</button>
+      <button id="histNext" ${hist.page >= pages - 1 ? 'disabled' : ''}>›</button>
+    </div>
+  </div>`;
+
+  c.innerHTML = `<div class="grid-wrap"><table class="grid" style="min-width:1000px">${head}${body}</table>${pager}</div>`;
+
+  c.querySelectorAll('thead th.sortable').forEach(th => th.addEventListener('click', () => {
+    const k = th.dataset.key;
+    if (hist.sort === k) hist.dir = hist.dir === 'asc' ? 'desc' : 'asc';
+    else { hist.sort = k; hist.dir = (HIST_COLS.find(c => c.key === k).type === 'num') ? 'desc' : 'asc'; }
+    hist.page = 0; renderHistory();
+  }));
+  const prev = document.getElementById('histPrev'), next = document.getElementById('histNext');
+  if (prev) prev.addEventListener('click', () => { hist.page--; renderHistory(); });
+  if (next) next.addEventListener('click', () => { hist.page++; renderHistory(); });
+}
+
+async function exportHistory() {
+  const btn = document.getElementById('histExport');
+  const orig = btn.textContent; btn.textContent = 'Exporting…'; btn.disabled = true;
+  try {
+    const p = new URLSearchParams();
+    if (hist.store) p.set('store', hist.store);
+    if (hist.from) p.set('from', hist.from);
+    if (hist.to) p.set('to', hist.to);
+    const r = await adminFetch('/api/portal-totals/export?' + p.toString());
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (r.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/)?.[1] || 'portal-totals.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  } catch (e) { alert('Export failed: ' + e.message); }
+  finally { btn.textContent = orig; btn.disabled = false; }
+}
+
+// ── ROLL-UPS ────────────────────────────────────────────────────
+async function loadRollup() {
+  document.getElementById('rollContainer').innerHTML =
+    '<div class="loading"><div class="spinner"></div> Loading…</div>';
+  try {
+    const p = new URLSearchParams({ grain: roll.grain });
+    if (roll.store) p.set('store', roll.store);
+    const r = await adminFetch('/api/portal-totals/rollup?' + p.toString());
+    const d = await r.json();
+    renderRollup(d);
+  } catch (e) {
+    document.getElementById('rollContainer').innerHTML =
+      `<div class="empty-note" style="color:var(--red)">${e.message}</div>`;
+  }
+}
+
+function periodLabel(row, grain) {
+  const dt = new Date(row.start + 'T12:00:00');
+  return grain === 'month'
+    ? dt.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+    : dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function renderRollup(d) {
+  const rows = d.rows || [];
+  const chart = rollupChart(rows, d.grain);
+
+  const head = `<thead><tr>
+    <th class="date-col">Period</th>
+    <th>Submitted</th><th>Target</th><th>Var %</th><th>Shopify Net</th><th>Txns</th><th>AOV</th>
+  </tr></thead>`;
+  const body = '<tbody>' + rows.slice().reverse().map(r => {
+    const vCls = r.variance_pct === null ? 'val-dim' : (r.variance_pct >= 0 ? 'val-pos' : 'val-neg');
+    return `<tr>
+      <td class="date-col">${periodLabel(r, d.grain)}<span class="dow">${r.start}</span></td>
+      <td class="num${r.submitted === null ? ' val-dim' : ''}">${money(r.submitted)}</td>
+      <td class="num">${money(r.target)}</td>
+      <td class="num ${vCls}">${pct(r.variance_pct)}</td>
+      <td class="num">${money(r.shopify_net)}</td>
+      <td class="num">${r.transactions ? fmt0(r.transactions) : '—'}</td>
+      <td class="num${r.aov === null ? ' val-dim' : ''}">${money(r.aov)}</td>
+    </tr>`;
+  }).join('') + '</tbody>';
+
+  document.getElementById('rollContainer').innerHTML =
+    `<div class="chart-card">
+       <div class="chart-legend">
+         <span><span class="lg-swatch" style="background:var(--lavender)"></span>Submitted</span>
+         <span><span class="lg-swatch" style="background:var(--lavender-mid)"></span>Shopify net</span>
+         <span><span class="lg-line"></span>Target</span>
+       </div>
+       ${chart}
+     </div>
+     <div class="grid-wrap"><table class="grid" style="min-width:720px">${head}${body}</table></div>`;
+}
+
+function rollupChart(rows, grain) {
+  if (!rows.length) return '<div class="empty-note">No data.</div>';
+  const W = Math.max(640, rows.length * 68), H = 240;
+  const padL = 52, padR = 14, padT = 14, padB = 34;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const yMax = Math.max(1, ...rows.map(r => Math.max(r.submitted || 0, r.shopify_net || 0, r.target || 0)));
+  const y = v => padT + plotH - (v / yMax) * plotH;
+  const groupW = plotW / rows.length;
+  const barW = Math.min(20, groupW * 0.32);
+
+  // gridlines (4)
+  let grid = '';
+  for (let i = 0; i <= 4; i++) {
+    const gy = padT + (plotH / 4) * i;
+    const val = yMax * (1 - i / 4);
+    grid += `<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W - padR}" y2="${gy.toFixed(1)}" stroke="#E8E3D9" stroke-width="1"/>`;
+    grid += `<text x="${padL - 6}" y="${(gy + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="#9C948A" font-family="DM Mono,monospace">${fmt0(val)}</text>`;
+  }
+
+  let bars = '', labels = '', targetPts = [];
+  rows.forEach((r, i) => {
+    const cx = padL + groupW * i + groupW / 2;
+    const sub = r.submitted || 0, shop = r.shopify_net || 0;
+    bars += `<rect x="${(cx - barW - 1).toFixed(1)}" y="${y(sub).toFixed(1)}" width="${barW}" height="${(padT + plotH - y(sub)).toFixed(1)}" fill="#6B5B8F" rx="2"><title>Submitted ${money(r.submitted)}</title></rect>`;
+    bars += `<rect x="${(cx + 1).toFixed(1)}" y="${y(shop).toFixed(1)}" width="${barW}" height="${(padT + plotH - y(shop)).toFixed(1)}" fill="#C4B5E8" rx="2"><title>Shopify net ${money(shop)}</title></rect>`;
+    targetPts.push(`${cx.toFixed(1)},${y(r.target || 0).toFixed(1)}`);
+    labels += `<text x="${cx.toFixed(1)}" y="${H - 12}" text-anchor="middle" font-size="10" fill="#5C5650" font-family="DM Sans,sans-serif">${periodLabel(r, grain)}</text>`;
+  });
+  const targetLine = `<polyline points="${targetPts.join(' ')}" fill="none" stroke="#92400E" stroke-width="2" stroke-dasharray="5 4"/>`;
+  const targetDots = rows.map((r, i) => {
+    const cx = padL + groupW * i + groupW / 2;
+    return `<circle cx="${cx.toFixed(1)}" cy="${y(r.target || 0).toFixed(1)}" r="2.5" fill="#92400E"><title>Target ${money(r.target)}</title></circle>`;
+  }).join('');
+
+  return `<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="max-width:100%">
+    ${grid}${bars}${targetLine}${targetDots}${labels}
+  </svg></div>`;
 }
 
 // ── INIT ────────────────────────────────────────────────────────
