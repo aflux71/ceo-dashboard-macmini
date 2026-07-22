@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>neōb — Portal Totals</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F7F5F0;
+    --surface: #FFFFFF;
+    --surface-warm: #FAF8F4;
+    --border: #E8E3D9;
+    --border-strong: #C9C0B0;
+    --text: #1A1714;
+    --text-2: #5C5650;
+    --text-3: #9C948A;
+    --lavender: #6B5B8F;
+    --lavender-light: #EEE9F5;
+    --lavender-mid: #C4B5E8;
+    --green: #2D6A4F;
+    --green-light: #E8F5EE;
+    --amber: #92400E;
+    --amber-light: #FEF3C7;
+    --red: #991B1B;
+    --red-light: #FEE2E2;
+    --shadow: 0 1px 3px rgba(26,23,20,0.06), 0 1px 2px rgba(26,23,20,0.04);
+    --shadow-md: 0 4px 12px rgba(26,23,20,0.08);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; }
+
+  .header {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 0 32px; height: 60px; display: flex; align-items: center;
+    justify-content: space-between; position: sticky; top: 0; z-index: 100;
+  }
+  .header-brand { display: flex; align-items: baseline; gap: 12px; }
+  .header-brand h1 { font-family: 'DM Serif Display', serif; font-size: 22px; color: var(--lavender); }
+  .header-brand span { font-size: 11px; font-weight: 500; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.1em; }
+  .header-nav { display: flex; gap: 8px; flex-wrap: wrap; }
+  .nav-link {
+    padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 500;
+    color: var(--text-2); text-decoration: none; transition: all 0.15s;
+  }
+  .nav-link:hover { background: var(--bg); }
+  .nav-link.active { background: var(--lavender-light); color: var(--lavender); }
+  .header-right { display: flex; align-items: center; gap: 14px; }
+  .header-user { font-size: 12px; color: var(--text-3); font-family: 'DM Mono', monospace; }
+  .header-signout {
+    background: none; border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text-2); padding: 5px 10px; font-size: 11px; font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+  }
+  .header-signout:hover { border-color: var(--border-strong); }
+
+  .main { max-width: 1400px; margin: 0 auto; padding: 24px 32px; }
+
+  .page-head {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    margin-bottom: 18px; gap: 18px; flex-wrap: wrap;
+  }
+  .page-title { font-family: 'DM Serif Display', serif; font-size: 26px; }
+  .page-sub { font-size: 13px; color: var(--text-3); margin-top: 2px; }
+
+  .ctrl-group { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .ctrl-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; color: var(--text-3); }
+  .ctrl-select {
+    padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--text);
+    background: var(--surface); outline: none;
+  }
+  .ctrl-select:focus { border-color: var(--lavender-mid); }
+
+  /* View toggle */
+  .toggle { display: inline-flex; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .toggle button {
+    padding: 8px 16px; border: none; background: transparent; cursor: pointer;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; color: var(--text-2);
+  }
+  .toggle button.active { background: var(--lavender); color: #fff; }
+
+  /* Period nav */
+  .period-nav { display: inline-flex; align-items: center; gap: 8px; }
+  .period-nav button {
+    width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--surface); color: var(--text-2); cursor: pointer; font-size: 15px; line-height: 1;
+  }
+  .period-nav button:hover { border-color: var(--border-strong); }
+  .period-label { font-family: 'DM Mono', monospace; font-size: 13px; color: var(--text); min-width: 150px; text-align: center; }
+  .period-today { background: none; border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; font-size: 12px; color: var(--text-2); cursor: pointer; font-family: 'DM Sans', sans-serif; }
+  .period-today:hover { border-color: var(--border-strong); }
+  .refresh-btn { display: inline-flex; align-items: center; gap: 5px; }
+  .refresh-btn.spinning { color: var(--lavender); border-color: var(--lavender-mid); pointer-events: none; }
+  .refresh-btn.spinning::before {
+    content: ''; width: 11px; height: 11px; border: 2px solid var(--lavender-light);
+    border-top-color: var(--lavender); border-radius: 50%; animation: spin 0.7s linear infinite;
+  }
+  .refresh-btn.spinning span, .refresh-icon.spinning { display: none; }
+  .updated-stamp { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-3); }
+
+  /* Summary cards */
+  .summary-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-bottom: 22px;
+  }
+  .sum-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px 16px; box-shadow: var(--shadow);
+  }
+  .sum-card.total { background: var(--lavender-light); border-color: var(--lavender-mid); }
+  .sum-store { font-size: 12px; font-weight: 600; color: var(--text-2); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .sum-card.total .sum-store { color: var(--lavender); }
+  .sum-actual { font-family: 'DM Serif Display', serif; font-size: 24px; line-height: 1; color: var(--text); }
+  .sum-actual.none { color: var(--text-3); font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500; }
+  .sum-target { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-3); margin-top: 5px; }
+  .sum-var { margin-top: 8px; display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 12px; }
+  .sum-var.up { background: var(--green-light); color: var(--green); }
+  .sum-var.down { background: var(--red-light); color: var(--red); }
+  .sum-var.na { background: var(--bg); color: var(--text-3); }
+
+  /* Daily grid */
+  .grid-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; gap: 12px; }
+  .grid-title { font-family: 'DM Serif Display', serif; font-size: 18px; }
+  .grid-note { font-size: 12px; color: var(--text-3); }
+  .grid-wrap {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    box-shadow: var(--shadow); overflow-x: auto;
+  }
+  table.grid { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 900px; }
+  .grid thead th {
+    background: var(--surface-warm); border-bottom: 1px solid var(--border);
+    padding: 10px 8px; font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--text-2); text-align: center; white-space: nowrap;
+  }
+  .grid thead th.date-col { text-align: left; padding-left: 16px; width: 96px; position: sticky; left: 0; background: var(--surface-warm); z-index: 2; }
+  .grid tbody td { border-bottom: 1px solid var(--bg); padding: 7px 8px; vertical-align: middle; text-align: center; }
+  .grid tbody tr:hover td { background: var(--surface-warm); }
+  .grid tbody tr.is-weekend td { background: rgba(238,233,245,0.18); }
+  .grid tbody tr.is-today td { background: var(--gold-light, #FFFBEB); }
+  .grid td.date-col {
+    text-align: left; padding-left: 16px; font-family: 'DM Mono', monospace;
+    color: var(--text-2); font-size: 12px; white-space: nowrap; position: sticky; left: 0;
+    background: var(--surface); z-index: 1;
+  }
+  .grid tbody tr:hover td.date-col { background: var(--surface-warm); }
+  .grid td.date-col .dow { color: var(--text-3); margin-left: 6px; font-size: 11px; }
+  .grid td.future { opacity: 0.55; }
+
+  .cell-actual { font-size: 14px; font-weight: 600; color: var(--text); line-height: 1.1; }
+  .cell-actual.none { color: var(--text-3); font-weight: 400; }
+  .cell-target { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-3); margin-top: 2px; }
+  .cell-by { font-size: 10px; color: var(--lavender); margin-top: 2px; font-style: italic; }
+  .cell-actual.over { color: var(--green); }
+  .cell-actual.under { color: var(--red); }
+
+  .grid tfoot td {
+    border-top: 2px solid var(--border); background: var(--surface-warm);
+    padding: 12px 8px; font-family: 'DM Mono', monospace; font-size: 13px;
+    font-weight: 600; text-align: center; color: var(--text); white-space: nowrap;
+  }
+  .grid tfoot td.date-col {
+    font-family: 'DM Sans', sans-serif; font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--text-3); text-align: left; padding-left: 16px;
+    position: sticky; left: 0; background: var(--surface-warm);
+  }
+  .ft-actual { font-size: 14px; }
+  .ft-target { font-size: 11px; color: var(--text-3); font-weight: 500; margin-top: 2px; }
+
+  /* PIN GATE */
+  .pin-gate {
+    position: fixed; inset: 0; background: var(--bg); z-index: 500;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .pin-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    padding: 32px 36px; box-shadow: var(--shadow-md); width: 340px; text-align: center;
+  }
+  .pin-card h2 { font-family: 'DM Serif Display', serif; font-size: 22px; color: var(--lavender); margin-bottom: 6px; }
+  .pin-card p { font-size: 12px; color: var(--text-3); margin-bottom: 18px; }
+  .pin-card input {
+    width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px;
+    font-family: 'DM Mono', monospace; font-size: 18px; text-align: center;
+    letter-spacing: 0.4em; outline: none; margin-bottom: 12px;
+  }
+  .pin-card input:focus { border-color: var(--lavender-mid); }
+  .pin-card button {
+    width: 100%; padding: 11px; background: var(--lavender); color: white;
+    border: none; border-radius: 8px; font-family: 'DM Sans', sans-serif;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  .pin-card button:hover { opacity: 0.9; }
+  .pin-error { color: var(--red); font-size: 12px; margin-top: 10px; min-height: 16px; }
+
+  .loading { display: flex; align-items: center; justify-content: center; height: 160px; color: var(--text-3); gap: 10px; }
+  .spinner { width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--lavender); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-brand">
+    <h1>neōb</h1>
+    <span>Admin</span>
+  </div>
+  <div class="header-nav">
+    <a href="ceo.html" class="nav-link">Dashboard</a>
+    <a href="tasks.html" class="nav-link">Tasks</a>
+    <a href="targets.html" class="nav-link">Targets</a>
+    <a href="portal-totals.html" class="nav-link active">Portal</a>
+    <a href="staff.html" class="nav-link">Staff</a>
+    <a href="ask.html" class="nav-link">Ask</a>
+    <a href="usage.html" class="nav-link">Usage</a>
+    <a href="data-quality.html" class="nav-link" title="Missing product costs — get COGS entered in Shopify">⚑ Data Quality</a>
+  </div>
+  <div class="header-right">
+    <span class="header-user" id="headerUser">—</span>
+    <button class="header-signout" onclick="signOut()">Sign out</button>
+  </div>
+</header>
+
+<main class="main" id="mainContent" style="display:none">
+  <div class="page-head">
+    <div>
+      <div class="page-title">Store Targets vs Actuals</div>
+      <div class="page-sub">Sales totals entered by staff in the store portal, tracked against daily targets with running totals.</div>
+    </div>
+    <div class="ctrl-group">
+      <div class="toggle" id="viewToggle">
+        <button data-view="day" class="active">Daily</button>
+        <button data-view="week">Weekly</button>
+        <button data-view="month">Monthly</button>
+      </div>
+      <div class="period-nav">
+        <button id="prevBtn" title="Previous">‹</button>
+        <span class="period-label" id="periodLabel">—</span>
+        <button id="nextBtn" title="Next">›</button>
+      </div>
+      <button class="period-today" id="todayBtn">This period</button>
+      <select class="ctrl-select" id="storeFilter">
+        <option value="">All stores</option>
+      </select>
+      <button class="period-today refresh-btn" id="refreshBtn" title="Reload latest staff submissions"><span>↻ Refresh</span></button>
+      <span class="updated-stamp" id="updatedStamp"></span>
+    </div>
+  </div>
+
+  <div id="summary"></div>
+
+  <div id="gridContainer">
+    <div class="loading"><div class="spinner"></div> Loading…</div>
+  </div>
+</main>
+
+<div class="pin-gate" id="pinGate">
+  <div class="pin-card">
+    <h2>Admin Sign In</h2>
+    <p>Enter your admin PIN to access portal totals.</p>
+    <input id="pinInput" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="••••">
+    <button onclick="submitPin()">Enter</button>
+    <div id="pinError" class="pin-error"></div>
+  </div>
+</div>
+
+<script>
+const API = '';
+const STORES = ['Queen Street', 'Flower Farm', 'Elora', 'Stratford', 'Bracebridge', 'Online/DTC'];
+let state = { view: 'day', offset: 0, store: '' };
+
+// ── PIN GATE ────────────────────────────────────────────────────
+function showPinGate() {
+  document.getElementById('pinGate').style.display = 'flex';
+  document.getElementById('mainContent').style.display = 'none';
+  setTimeout(() => document.getElementById('pinInput').focus(), 50);
+}
+function hidePinGate() {
+  document.getElementById('pinGate').style.display = 'none';
+  document.getElementById('mainContent').style.display = 'block';
+  document.getElementById('headerUser').textContent = sessionStorage.getItem('adminName') || '';
+}
+async function submitPin() {
+  const pin = document.getElementById('pinInput').value.trim();
+  const err = document.getElementById('pinError');
+  err.textContent = '';
+  if (!pin) { err.textContent = 'Enter a PIN'; return; }
+  try {
+    const r = await fetch(API + '/api/admin-auth/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin })
+    });
+    if (!r.ok) { err.textContent = 'Invalid PIN'; return; }
+    const data = await r.json();
+    sessionStorage.setItem('adminPin', pin);
+    sessionStorage.setItem('adminName', data.name);
+    hidePinGate();
+    init();
+  } catch (e) { err.textContent = 'Network error: ' + e.message; }
+}
+function signOut() {
+  sessionStorage.removeItem('adminPin');
+  sessionStorage.removeItem('adminName');
+  document.getElementById('pinInput').value = '';
+  showPinGate();
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('pinGate').style.display !== 'none') submitPin();
+});
+
+async function adminFetch(path, opts = {}) {
+  const headers = Object.assign({}, opts.headers || {});
+  headers['X-Admin-Pin'] = sessionStorage.getItem('adminPin') || '';
+  const r = await fetch(API + path, Object.assign({}, opts, { headers }));
+  if (r.status === 401) {
+    sessionStorage.removeItem('adminPin');
+    sessionStorage.removeItem('adminName');
+    showPinGate();
+    throw new Error('Authentication expired');
+  }
+  return r;
+}
+
+// ── FORMAT HELPERS ──────────────────────────────────────────────
+const fmt0 = n => (n === null || n === undefined) ? '—' : Math.round(n).toLocaleString('en-US');
+const money = n => (n === null || n === undefined) ? '—' : '$' + fmt0(n);
+const pct = n => (n === null || n === undefined) ? '—' : (n >= 0 ? '+' : '') + n.toFixed(1) + '%';
+
+// ── CONTROLS ────────────────────────────────────────────────────
+function wireControls() {
+  document.querySelectorAll('#viewToggle button').forEach(b => {
+    b.addEventListener('click', () => {
+      if (state.view === b.dataset.view) return;
+      state.view = b.dataset.view;
+      state.offset = 0;
+      document.querySelectorAll('#viewToggle button').forEach(x => x.classList.toggle('active', x === b));
+      load();
+    });
+  });
+  document.getElementById('prevBtn').addEventListener('click', () => { state.offset -= 1; load(); });
+  document.getElementById('nextBtn').addEventListener('click', () => { state.offset += 1; load(); });
+  document.getElementById('todayBtn').addEventListener('click', () => { state.offset = 0; load(); });
+  document.getElementById('refreshBtn').addEventListener('click', () => load());
+  const sf = document.getElementById('storeFilter');
+  sf.innerHTML = '<option value="">All stores</option>' + STORES.map(s => `<option value="${s}">${s}</option>`).join('');
+  sf.addEventListener('change', () => { state.store = sf.value; load(); });
+}
+
+// ── LOAD + RENDER ───────────────────────────────────────────────
+async function load() {
+  const refreshBtn = document.getElementById('refreshBtn');
+  refreshBtn.classList.add('spinning');
+  document.getElementById('gridContainer').innerHTML =
+    '<div class="loading"><div class="spinner"></div> Loading…</div>';
+  try {
+    const qs = `?view=${state.view}&offset=${state.offset}&store=${encodeURIComponent(state.store)}`;
+    const r = await adminFetch('/api/portal-totals/period' + qs);
+    const d = await r.json();
+    renderLabel(d);
+    renderSummary(d);
+    renderGrid(d);
+    stampUpdated();
+  } catch (e) {
+    document.getElementById('gridContainer').innerHTML =
+      `<div class="loading" style="color:var(--red)">${e.message}</div>`;
+  } finally {
+    refreshBtn.classList.remove('spinning');
+  }
+}
+
+function stampUpdated() {
+  const t = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+  document.getElementById('updatedStamp').textContent = 'Updated ' + t;
+}
+
+function renderLabel(d) {
+  let label;
+  if (d.view === 'day') {
+    label = new Date(d.period_start + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  } else if (d.view === 'week') {
+    const a = new Date(d.period_start + 'T12:00:00'), b = new Date(d.period_end + 'T12:00:00');
+    const opt = { month: 'short', day: 'numeric' };
+    label = a.toLocaleDateString('en-US', opt) + ' – ' + b.toLocaleDateString('en-US', opt);
+  } else {
+    label = new Date(d.period_start + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  }
+  document.getElementById('periodLabel').textContent = label;
+}
+
+function renderSummary(d) {
+  const cards = d.summary.map(s => sumCard(s, false)).join('');
+  const total = d.summary.length > 1 ? sumCard(d.total, true) : '';
+  document.getElementById('summary').innerHTML = `<div class="summary-grid">${cards}${total}</div>`;
+}
+
+function sumCard(s, isTotal) {
+  const hasActual = s.actual !== null && s.actual !== undefined;
+  let varCls = 'na', varTxt = 'No entries';
+  if (hasActual) {
+    const v = s.variance_dollars;
+    const up = v >= 0;
+    varCls = up ? 'up' : 'down';
+    const sign = up ? '+' : '−';
+    varTxt = sign + money(Math.abs(v)) + (s.variance_pct !== null ? ' · ' + pct(s.variance_pct) : '');
+  }
+  return `<div class="sum-card${isTotal ? ' total' : ''}">
+    <div class="sum-store">${s.store}</div>
+    <div class="sum-actual${hasActual ? '' : ' none'}">${hasActual ? money(s.actual) : 'No entries'}</div>
+    <div class="sum-target">Target to date ${money(s.target_elapsed)}</div>
+    <span class="sum-var ${varCls}">${varTxt}</span>
+  </div>`;
+}
+
+function renderGrid(d) {
+  const stores = d.stores;
+  // Lookup: store|date -> cell
+  const cellMap = {};
+  for (const row of d.rows) cellMap[row.store + '|' + row.date] = row;
+
+  const head = `<thead><tr>
+    <th class="date-col">Date</th>
+    ${stores.map(s => `<th>${s}</th>`).join('')}
+  </tr></thead>`;
+
+  const body = '<tbody>' + d.days.map(day => {
+    const dt = new Date(day.date + 'T12:00:00');
+    const dow = dt.toLocaleString('en-US', { weekday: 'short' });
+    const isWeekend = dt.getDay() === 0 || dt.getDay() === 6;
+    const isToday = day.date === d.today;
+    const cls = [isWeekend ? 'is-weekend' : '', isToday ? 'is-today' : ''].filter(Boolean).join(' ');
+    return `<tr class="${cls}">
+      <td class="date-col">${dt.getDate()}<span class="dow">${dow}</span></td>
+      ${stores.map(store => {
+        const c = cellMap[store + '|' + day.date];
+        const futureCls = day.is_elapsed ? '' : ' future';
+        if (!c) return `<td class="${futureCls}"><span class="cell-actual none">—</span></td>`;
+        const hasActual = c.actual !== null && c.actual !== undefined;
+        let aCls = '';
+        if (hasActual && c.target) aCls = c.actual >= c.target ? ' over' : ' under';
+        return `<td class="${futureCls}">
+          <div class="cell-actual${hasActual ? aCls : ' none'}">${hasActual ? money(c.actual) : '—'}</div>
+          ${c.target !== null ? `<div class="cell-target">tgt ${fmt0(c.target)}</div>` : ''}
+          ${c.submitted_by ? `<div class="cell-by">${c.submitted_by}</div>` : ''}
+        </td>`;
+      }).join('')}
+    </tr>`;
+  }).join('') + '</tbody>';
+
+  const smap = {};
+  for (const s of d.summary) smap[s.store] = s;
+  const foot = `<tfoot>
+    <tr>
+      <td class="date-col">Running total</td>
+      ${stores.map(store => {
+        const s = smap[store];
+        return `<td>
+          <div class="ft-actual">${s.actual !== null ? money(s.actual) : '—'}</div>
+          <div class="ft-target">of ${money(s.target_elapsed)}</div>
+        </td>`;
+      }).join('')}
+    </tr>
+  </tfoot>`;
+
+  const noteRange = `${d.period_start} → ${d.period_end}`;
+  document.getElementById('gridContainer').innerHTML =
+    `<div class="grid-head">
+       <div class="grid-title">Daily breakdown</div>
+       <div class="grid-note">Bold = staff-entered actual · <span style="font-family:'DM Mono',monospace">tgt</span> = daily target · name = who submitted · ${noteRange}</div>
+     </div>
+     <div class="grid-wrap"><table class="grid">${head}${body}${foot}</table></div>`;
+}
+
+// ── INIT ────────────────────────────────────────────────────────
+function init() { load(); }
+
+(async function boot() {
+  wireControls();
+  const cachedPin = sessionStorage.getItem('adminPin');
+  if (!cachedPin) { showPinGate(); return; }
+  try {
+    const r = await fetch(API + '/api/admin-users', { headers: { 'X-Admin-Pin': cachedPin } });
+    if (!r.ok) { sessionStorage.removeItem('adminPin'); sessionStorage.removeItem('adminName'); showPinGate(); return; }
+    hidePinGate();
+    init();
+  } catch (e) { showPinGate(); }
+})();
+</script>
+</body>
+</html>

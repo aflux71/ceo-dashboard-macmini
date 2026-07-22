@@ -1476,4 +1476,383 @@ router.post('/data-quality/missing-costs/ack', (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ══════════════════════════════════════════════════════════════════
+// PORTAL TOTALS — admin-only reporting over staff submissions
+// Reads: daily_kpi (staff-submitted), kpi_targets, daily_sales (reconciled
+// Shopify net). READ-ONLY — every handler is a SELECT. PIN-gated via
+// checkAdminPin (X-Admin-Pin header). See NEOB-PORTAL-TOTALS-BUILD-SPEC.md.
+// ──────────────────────────────────────────────────────────────────
+// Canonical portal stores (same set the portal/targets use).
+const PORTAL_STORES = ADMIN_STORES; // ['Queen Street','Flower Farm','Elora','Stratford','Bracebridge','Online/DTC']
+
+// Mapping canonical store -> daily_sales channel names for Shopify-net
+// reconciliation. The 5 physical stores map 1:1; Online/DTC is split across
+// three fulfilment channels in daily_sales, so we sum them.
+const SHOPIFY_CHANNELS = {
+  'Queen Street': ['Queen Street'],
+  'Flower Farm': ['Flower Farm'],
+  'Elora': ['Elora'],
+  'Stratford': ['Stratford'],
+  'Bracebridge': ['Bracebridge'],
+  'Online/DTC': ['Online/DTC', '3PL-Online Orders', 'Ecommerce Warehouse'],
+};
+
+// Pure date-string math (UTC midnight, DST-safe — date-only arithmetic).
+function ptAddDays(dateStr, delta) {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + delta);
+  return d.toISOString().slice(0, 10);
+}
+// Monday-start week containing dateStr.
+function ptWeekStart(dateStr) {
+  const dow = new Date(dateStr + 'T00:00:00Z').getUTCDay(); // 0=Sun..6=Sat
+  return ptAddDays(dateStr, -((dow + 6) % 7));
+}
+function ptMonthStart(dateStr) { return dateStr.slice(0, 7) + '-01'; }
+function ptMonthEnd(dateStr) {
+  const d = new Date(dateStr.slice(0, 7) + '-01T00:00:00Z');
+  d.setUTCMonth(d.getUTCMonth() + 1);
+  d.setUTCDate(0); // last day of the original month
+  return d.toISOString().slice(0, 10);
+}
+
+// Sum reconciled Shopify net + orders for a canonical store over [from,to] inclusive.
+function shopifyNetFor(store, from, to) {
+  const chans = SHOPIFY_CHANNELS[store] || [store];
+  const ph = chans.map(() => '?').join(',');
+  return db.prepare(
+    `SELECT COALESCE(SUM(net_sales),0) AS net, COALESCE(SUM(orders),0) AS orders
+       FROM daily_sales WHERE store_name IN (${ph}) AND sale_date >= ? AND sale_date <= ?`
+  ).get(...chans, from, to);
+}
+// Sum submitted revenue + transactions from daily_kpi for a store over [from,to].
+function submittedFor(store, from, to) {
+  return db.prepare(
+    `SELECT SUM(revenue) AS revenue, SUM(transactions) AS transactions, COUNT(*) AS days
+       FROM daily_kpi WHERE store_name = ? AND entry_date >= ? AND entry_date <= ?`
+  ).get(store, from, to);
+}
+// Sum revenue target from kpi_targets for a store over [from,to] (elapsed days only).
+function targetFor(store, from, to) {
+  return db.prepare(
+    `SELECT COALESCE(SUM(revenue_target),0) AS target
+       FROM kpi_targets WHERE store_name = ? AND target_date >= ? AND target_date <= ?`
+  ).get(store, from, to).target;
+}
+const pctVar = (actual, target) => (target > 0 ? ((actual - target) / target) * 100 : null);
+const pctGap = (submitted, shopify) => (shopify > 0 ? ((submitted - shopify) / shopify) * 100 : null);
+
+// GET /api/portal-totals/today
+router.get('/portal-totals/today', (req, res) => {
+  if (!checkAdminPin(req, res)) return;
+  try {
+    const today = torontoDay();
+    const kpiStmt = db.prepare(
+      'SELECT revenue, submitted_at, transactions, aov, staff_name FROM daily_kpi WHERE store_name = ? AND entry_date = ?'
+    );
+    const tgtStmt = db.prepare(
+      'SELECT revenue_target FROM kpi_targets WHERE store_name = ? AND target_date = ?'
+    );
+    const stores = PORTAL_STORES.map((store) => {
+      const k = kpiStmt.get(store, today);
+      const t = tgtStmt.get(store, today);
+      const sh = shopifyNetFor(store, today, today);
+      return {
+        store,
+        submitted: k ? k.revenue : null,
+        submitted_at: k ? k.submitted_at : null,
+        transactions: k ? k.transactions : null,
+        aov: k ? k.aov : null,
+        target: t ? t.revenue_target : null,
+        shopify_net: sh.net,
+      };
+    });
+    const reported = stores.filter((s) => s.submitted !== null);
+    const lastSubmission = reported
+      .map((s) => s.submitted_at)
+      .filter(Boolean)
+      .sort()
+      .pop() || null;
+    res.json({
+      date: today,
+      reported_count: reported.length,
+      store_count: stores.length,
+      last_submission_at: lastSubmission,
+      stores,
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/portal-totals/running?period=wtd|mtd
+router.get('/portal-totals/running', (req, res) => {
+  if (!checkAdminPin(req, res)) return;
+  try {
+    const period = req.query.period === 'mtd' ? 'mtd' : 'wtd';
+    const today = torontoDay();
+    const start = period === 'mtd' ? ptMonthStart(today) : ptWeekStart(today);
+
+    const rows = PORTAL_STORES.map((store) => {
+      const sub = submittedFor(store, start, today);
+      const submitted = sub.revenue; // null if no submissions
+      const target = targetFor(store, start, today);
+      const sh = shopifyNetFor(store, start, today);
+      const subVal = submitted || 0;
+      return {
+        store,
+        submitted,                    // null when nothing submitted
+        target,
+        shopify_net: sh.net,
+        variance_dollars: submitted === null ? null : subVal - target,
+        variance_pct: submitted === null ? null : pctVar(subVal, target),
+      };
+    });
+
+    // All-stores total.
+    const totSubmittedRaw = rows.reduce((a, r) => a + (r.submitted || 0), 0);
+    const anySubmitted = rows.some((r) => r.submitted !== null);
+    const totTarget = rows.reduce((a, r) => a + (r.target || 0), 0);
+    const totShopify = rows.reduce((a, r) => a + (r.shopify_net || 0), 0);
+    const total = {
+      store: 'All Stores',
+      submitted: anySubmitted ? totSubmittedRaw : null,
+      target: totTarget,
+      shopify_net: totShopify,
+      variance_dollars: anySubmitted ? totSubmittedRaw - totTarget : null,
+      variance_pct: anySubmitted ? pctVar(totSubmittedRaw, totTarget) : null,
+    };
+
+    res.json({ period, period_start: start, through: today, stores: rows, total });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Shared builder for history / export.
+function portalHistoryRows(query) {
+  const today = torontoDay();
+  const from = (query.from && String(query.from)) || torontoDaysAgo(29);
+  const to = (query.to && String(query.to)) || today;
+  const store = query.store && PORTAL_STORES.includes(String(query.store)) ? String(query.store) : null;
+
+  const params = [from, to];
+  let sql = 'SELECT store_name, entry_date, revenue, transactions, aov, staff_name, submitted_at FROM daily_kpi WHERE entry_date >= ? AND entry_date <= ?';
+  if (store) { sql += ' AND store_name = ?'; params.push(store); }
+  sql += ' ORDER BY entry_date DESC, store_name LIMIT 500';
+  const kpiRows = db.prepare(sql).all(...params);
+
+  const tgtStmt = db.prepare('SELECT revenue_target FROM kpi_targets WHERE store_name = ? AND target_date = ?');
+  return kpiRows.map((r) => {
+    const t = tgtStmt.get(r.store_name, r.entry_date);
+    const target = t ? t.revenue_target : null;
+    const sh = shopifyNetFor(r.store_name, r.entry_date, r.entry_date);
+    return {
+      date: r.entry_date,
+      store: r.store_name,
+      submitted: r.revenue,
+      submitted_by: r.staff_name,
+      submitted_at: r.submitted_at,
+      target,
+      variance_pct: target ? pctVar(r.revenue, target) : null,
+      shopify_net: sh.net,
+      gap_dollars: r.revenue - sh.net,
+      gap_pct: pctGap(r.revenue, sh.net),
+      transactions: r.transactions,
+      aov: r.aov,
+    };
+  });
+}
+
+// GET /api/portal-totals/history?store=&from=&to=
+router.get('/portal-totals/history', (req, res) => {
+  if (!checkAdminPin(req, res)) return;
+  try {
+    res.json({ rows: portalHistoryRows(req.query) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/portal-totals/rollup?grain=week|month&store=
+router.get('/portal-totals/rollup', (req, res) => {
+  if (!checkAdminPin(req, res)) return;
+  try {
+    const grain = req.query.grain === 'month' ? 'month' : 'week';
+    const store = req.query.store && PORTAL_STORES.includes(String(req.query.store)) ? String(req.query.store) : null;
+    const stores = store ? [store] : PORTAL_STORES;
+    const today = torontoDay();
+
+    // Build period buckets oldest -> newest.
+    const buckets = [];
+    if (grain === 'week') {
+      const thisMonday = ptWeekStart(today);
+      for (let i = 11; i >= 0; i--) {
+        const start = ptAddDays(thisMonday, -7 * i);
+        const end = ptAddDays(start, 6);
+        buckets.push({ label: start, start, end });
+      }
+    } else {
+      for (let i = 5; i >= 0; i--) {
+        const anchor = new Date(ptMonthStart(today) + 'T00:00:00Z');
+        anchor.setUTCMonth(anchor.getUTCMonth() - i);
+        const start = anchor.toISOString().slice(0, 10);
+        buckets.push({ label: start.slice(0, 7), start, end: ptMonthEnd(start) });
+      }
+    }
+
+    const subStmt = db.prepare(
+      `SELECT SUM(revenue) AS revenue, SUM(transactions) AS transactions
+         FROM daily_kpi WHERE store_name IN (${stores.map(() => '?').join(',')})
+         AND entry_date >= ? AND entry_date <= ?`
+    );
+
+    const rows = buckets.map((b) => {
+      const sub = subStmt.get(...stores, b.start, b.end);
+      const target = stores.reduce((a, s) => a + targetFor(s, b.start, b.end), 0);
+      const shopify = stores.reduce((a, s) => a + shopifyNetFor(s, b.start, b.end).net, 0);
+      const submitted = sub.revenue; // null if none
+      const txns = sub.transactions || 0;
+      return {
+        period: b.label,
+        start: b.start,
+        end: b.end,
+        submitted,
+        target,
+        variance_pct: submitted === null ? null : pctVar(submitted, target),
+        shopify_net: shopify,
+        transactions: txns,
+        aov: txns > 0 && submitted ? submitted / txns : null,
+      };
+    });
+
+    res.json({ grain, store: store || 'All Stores', rows });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/portal-totals/period?view=week|month&offset=0&store=
+// Primary feed for portal-totals.html: per-store daily grid of target + actual
+// + submitter name for one week (Mon–Sun) or one calendar month. offset shifts
+// the window (0=current, -1=previous, +1=next). Includes elapsed-only running
+// totals per store and an all-stores total.
+router.get('/portal-totals/period', (req, res) => {
+  if (!checkAdminPin(req, res)) return;
+  try {
+    const view = req.query.view === 'month' ? 'month' : (req.query.view === 'day' ? 'day' : 'week');
+    let offset = parseInt(req.query.offset, 10);
+    if (!Number.isFinite(offset)) offset = 0;
+    const store = req.query.store && PORTAL_STORES.includes(String(req.query.store)) ? String(req.query.store) : null;
+    const stores = store ? [store] : PORTAL_STORES;
+    const today = torontoDay();
+
+    // Resolve window bounds + label.
+    let start, end, label;
+    if (view === 'day') {
+      start = ptAddDays(today, offset);
+      end = start;
+      label = start;
+    } else if (view === 'week') {
+      start = ptAddDays(ptWeekStart(today), offset * 7);
+      end = ptAddDays(start, 6);
+      label = `${start} – ${end}`;
+    } else {
+      const anchor = new Date(ptMonthStart(today) + 'T00:00:00Z');
+      anchor.setUTCMonth(anchor.getUTCMonth() + offset);
+      start = anchor.toISOString().slice(0, 10);
+      end = ptMonthEnd(start);
+      label = start.slice(0, 7);
+    }
+
+    // All days in the window with an elapsed flag.
+    const days = [];
+    for (let d = start; d <= end; d = ptAddDays(d, 1)) days.push({ date: d, is_elapsed: d <= today });
+
+    // Pull targets + submissions for the window in two scans, then assemble.
+    const inStores = stores.map(() => '?').join(',');
+    const tgtRows = db.prepare(
+      `SELECT store_name, target_date, revenue_target FROM kpi_targets
+        WHERE store_name IN (${inStores}) AND target_date >= ? AND target_date <= ?`
+    ).all(...stores, start, end);
+    const kpiRows = db.prepare(
+      `SELECT store_name, entry_date, revenue, transactions, aov, staff_name, submitted_at FROM daily_kpi
+        WHERE store_name IN (${inStores}) AND entry_date >= ? AND entry_date <= ?`
+    ).all(...stores, start, end);
+
+    const tgtMap = new Map();  // store|date -> target
+    for (const t of tgtRows) tgtMap.set(t.store_name + '|' + t.target_date, t.revenue_target);
+    const kpiMap = new Map();  // store|date -> row
+    for (const k of kpiRows) kpiMap.set(k.store_name + '|' + k.entry_date, k);
+
+    const rows = [];       // every store-day cell that has a target or an actual
+    const summary = [];
+    let totTargetElapsed = 0, totTargetFull = 0, totActual = 0, totAnyActual = false;
+
+    for (const s of stores) {
+      let tgtElapsed = 0, tgtFull = 0, actual = 0, anyActual = false, daysSubmitted = 0;
+      for (const day of days) {
+        const key = s + '|' + day.date;
+        const target = tgtMap.has(key) ? tgtMap.get(key) : null;
+        const k = kpiMap.get(key);
+        if (target === null && !k) continue;
+        rows.push({
+          date: day.date,
+          store: s,
+          is_elapsed: day.is_elapsed,
+          target,
+          actual: k ? k.revenue : null,
+          submitted_by: k ? k.staff_name : null,
+          submitted_at: k ? k.submitted_at : null,
+          transactions: k ? k.transactions : null,
+          aov: k ? k.aov : null,
+        });
+        if (target !== null) { tgtFull += target; if (day.is_elapsed) tgtElapsed += target; }
+        if (k) { actual += k.revenue; anyActual = true; daysSubmitted++; }
+      }
+      const actualVal = anyActual ? actual : null;
+      summary.push({
+        store: s,
+        target_elapsed: tgtElapsed,
+        target_full: tgtFull,
+        actual: actualVal,
+        days_submitted: daysSubmitted,
+        variance_dollars: anyActual ? actual - tgtElapsed : null,
+        variance_pct: anyActual ? pctVar(actual, tgtElapsed) : null,
+      });
+      totTargetElapsed += tgtElapsed; totTargetFull += tgtFull;
+      if (anyActual) { totActual += actual; totAnyActual = true; }
+    }
+
+    const total = {
+      store: 'All Stores',
+      target_elapsed: totTargetElapsed,
+      target_full: totTargetFull,
+      actual: totAnyActual ? totActual : null,
+      variance_dollars: totAnyActual ? totActual - totTargetElapsed : null,
+      variance_pct: totAnyActual ? pctVar(totActual, totTargetElapsed) : null,
+    };
+
+    res.json({ view, offset, period_start: start, period_end: end, label, today, days, stores, rows, summary, total });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/portal-totals/export?store=&from=&to=  -> CSV attachment
+router.get('/portal-totals/export', (req, res) => {
+  if (!checkAdminPin(req, res)) return;
+  try {
+    const rows = portalHistoryRows(req.query);
+    const headers = ['Date', 'Store', 'Staff Entered', 'Target', 'Variance %', 'Shopify Net', 'Gap $', 'Gap %', 'Transactions', 'AOV'];
+    const esc = (v) => {
+      if (v === null || v === undefined) return '';
+      const s = String(v);
+      return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+    const round2 = (v) => (v === null || v === undefined ? '' : Math.round(v * 100) / 100);
+    const lines = [headers.join(',')];
+    for (const r of rows) {
+      lines.push([
+        r.date, esc(r.store), round2(r.submitted), round2(r.target), round2(r.variance_pct),
+        round2(r.shopify_net), round2(r.gap_dollars), round2(r.gap_pct), r.transactions ?? '', round2(r.aov),
+      ].join(','));
+    }
+    const csv = lines.join('\r\n') + '\r\n';
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="portal-totals-${torontoDay()}.csv"`);
+    res.send(csv);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 export default router;
