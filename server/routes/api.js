@@ -1855,4 +1855,155 @@ router.get('/portal-totals/export', (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ── STORE-SCOPED SCORECARD API (Phase 0) ──────────────────────────
+// Read-only. day/WTD/MTD/YTD net sales vs kpi_targets and DOW-matched
+// LY (−364d). Net = daily_sales.net_sales (Shopify net, headline).
+// Auth: Bearer neob-portal-sync-2026 (reuses checkPortalAuth above).
+// Served stores = physical stores that carry kpi_targets rows. Online/DTC
+// is intentionally excluded (raw-location mapping unresolved, out of scope).
+
+const SCORECARD_PHYSICAL_STORES = ['Bracebridge', 'Elora', 'Flower Farm', 'Queen Street', 'Stratford'];
+
+const _scStoresStmt   = db.prepare('SELECT DISTINCT store_name FROM kpi_targets ORDER BY store_name');
+const _scSalesStmt    = db.prepare('SELECT COALESCE(SUM(net_sales),0) AS net, COALESCE(SUM(orders),0) AS txns FROM daily_sales WHERE store_name = ? AND sale_date BETWEEN ? AND ?');
+const _scTargetStmt   = db.prepare('SELECT COALESCE(SUM(revenue_target),0) AS tgt, COUNT(revenue_target) AS days FROM kpi_targets WHERE store_name = ? AND target_date BETWEEN ? AND ?');
+const _scFirstSaleStmt = db.prepare('SELECT MIN(sale_date) AS first FROM daily_sales WHERE store_name = ?');
+
+// Served set: distinct kpi_targets stores intersected with physical stores.
+function scorecardStores() {
+  return _scStoresStmt.all()
+    .map(r => r.store_name)
+    .filter(s => SCORECARD_PHYSICAL_STORES.includes(s));
+}
+
+// --- Toronto-calendar date arithmetic on YYYY-MM-DD strings ---
+// sale_date / target_date are plain Toronto calendar strings; treat them as
+// UTC midnight so day arithmetic is DST-immune and round-trips exactly.
+const _scYmdToUtc = (ymd) => { const [y, m, d] = ymd.split('-').map(Number); return Date.UTC(y, m - 1, d); };
+function _scAddDays(ymd, days) {
+  const dt = new Date(_scYmdToUtc(ymd) + days * 86400000);
+  const y = dt.getUTCFullYear();
+  const m = String(dt.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(dt.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+const _scDaysInclusive = (start, end) => Math.round((_scYmdToUtc(end) - _scYmdToUtc(start)) / 86400000) + 1;
+function _scMondayOf(ymd) {                              // week starts Monday
+  const wd = new Date(_scYmdToUtc(ymd)).getUTCDay();     // 0=Sun..6=Sat
+  const offset = wd === 0 ? 6 : wd - 1;                  // days since Monday
+  return _scAddDays(ymd, -offset);
+}
+const _scValidYmd = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s) && _scAddDays(s, 0) === s;
+
+const _scRound = (n, p) => (n == null ? null : Math.round(n * 10 ** p) / 10 ** p);
+function _scVariancePct(actual, comparator) {
+  if (comparator == null || comparator === 0) return null;   // never divide by zero
+  return _scRound(((actual - comparator) / comparator) * 100, 1);
+}
+
+// generated_at with Toronto (DST-aware) offset, e.g. 2026-07-30T06:00:12-04:00
+function _scTorontoNowIso() {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: _NET_TZ, hourCycle: 'h23',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit'
+  }).formatToParts(now);
+  const p = Object.fromEntries(parts.map(x => [x.type, x.value]));
+  const asUTC = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second);
+  const offMin = Math.round((asUTC - now.getTime()) / 60000);
+  const sign = offMin >= 0 ? '+' : '-';
+  const oh = String(Math.floor(Math.abs(offMin) / 60)).padStart(2, '0');
+  const om = String(Math.abs(offMin) % 60).padStart(2, '0');
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}${sign}${oh}:${om}`;
+}
+
+function _scBuildPeriod(store, label, start, end, firstSale) {
+  const s = _scSalesStmt.get(store, start, end);
+  const net = _scRound(s.net, 2);
+  const transactions = s.txns;
+  const aov = transactions > 0 ? _scRound(s.net / transactions, 2) : null;
+
+  // Targets — sum kpi_targets across the range; partial coverage => no variance.
+  const t = _scTargetStmt.get(store, start, end);
+  const rangeDays = _scDaysInclusive(start, end);
+  let target = null;
+  let target_variance_pct = null;
+  let target_partial = false;
+  if (t.days > 0) {
+    target = _scRound(t.tgt, 2);
+    if (t.days < rangeDays) {
+      target_partial = true;                 // some days lack a target row
+      target_variance_pct = null;            // never variance a partial target
+    } else {
+      target_variance_pct = _scVariancePct(net, target);
+    }
+  }
+
+  // LY — day-of-week matched: shift the whole range back 364 days (52 weeks).
+  const lyStart = _scAddDays(start, -364);
+  const lyEnd = _scAddDays(end, -364);
+  const ly = _scSalesStmt.get(store, lyStart, lyEnd);
+  const ly_net_sales = _scRound(ly.net, 2);
+  const ly_dates = start === end ? [lyStart] : [lyStart, lyEnd];
+  let ly_variance_pct;
+  let ly_partial = false;
+  if (firstSale && lyStart < firstSale) {    // LY window predates this store's data
+    ly_partial = true;
+    ly_variance_pct = null;
+  } else {
+    ly_variance_pct = _scVariancePct(net, ly.net);
+  }
+
+  const period = {
+    label, start, end,
+    net_sales: net,
+    transactions,
+    aov,
+    target,
+    target_variance_pct,
+    ly_net_sales,
+    ly_variance_pct,
+    ly_dates
+  };
+  if (target_partial) period.target_partial = true;
+  if (ly_partial) period.ly_partial = true;
+  return period;
+}
+
+// GET /api/scorecard/stores — the served store list, straight from the data.
+router.get('/scorecard/stores', (req, res) => {
+  if (!checkPortalAuth(req, res)) return;
+  try {
+    res.json({ stores: scorecardStores() });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/scorecard?store=<name>&as_of=YYYY-MM-DD
+router.get('/scorecard', (req, res) => {
+  if (!checkPortalAuth(req, res)) return;
+  try {
+    const store = req.query.store;
+    // Fail closed: unknown / unsupported / absent store => 400, never leak rows.
+    if (!store || !scorecardStores().includes(store)) {
+      return res.status(400).json({ error: 'Unknown or unsupported store' });
+    }
+    const as_of = req.query.as_of || torontoDaysAgo(1);   // yesterday (today incomplete)
+    if (!_scValidYmd(as_of)) {
+      return res.status(400).json({ error: 'Invalid as_of date (expected YYYY-MM-DD)' });
+    }
+
+    const firstSale = _scFirstSaleStmt.get(store).first;
+    const [yy, mm] = as_of.split('-');
+    const periods = {
+      day: _scBuildPeriod(store, 'Day',            as_of,               as_of, firstSale),
+      wtd: _scBuildPeriod(store, 'Week-to-date',   _scMondayOf(as_of),  as_of, firstSale),
+      mtd: _scBuildPeriod(store, 'Month-to-date',  `${yy}-${mm}-01`,    as_of, firstSale),
+      ytd: _scBuildPeriod(store, 'Year-to-date',   `${yy}-01-01`,       as_of, firstSale)
+    };
+
+    res.json({ store, as_of, generated_at: _scTorontoNowIso(), periods });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 export default router;
