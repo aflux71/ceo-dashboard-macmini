@@ -1,6 +1,6 @@
 # Resume — neōb CEO Dashboard / Net-Sales Migration
 
-_Last updated: 2026-07-19. Everything below is **LIVE** and backed up to `macmini`._
+_Last updated: 2026-07-30. Everything below is **LIVE** and backed up to `macmini`._
 
 ## TL;DR
 Migrated revenue reporting from gross `total_price` → **net sales** (reconciled to Shopify to the
@@ -18,6 +18,14 @@ live**. Added a live **missing-cost checklist** to get COGS entered. Full techni
 - **Nightly sync** (`server/scheduler.js`): net-sales 3:30 AM (30-day trailing) + Sun 4:00 AM
   (90-day), alongside the untouched orders sync at 3:00 AM.
 - **daily_sales** backfilled 2025-01-01 → today (3,503 rows, zero gaps).
+- **Scorecard API (Phase 0)** — shipped 2026-07-30, commit `e94963d`. Read-only, additive to
+  `server/routes/api.js`. `GET /api/scorecard/stores` + `GET /api/scorecard?store=&as_of=` (Bearer
+  `neob-portal-sync-2026`). Returns day/WTD/MTD/YTD net sales (from `daily_sales`) vs `kpi_targets`
+  and DOW-matched LY (−364d). Serves the **5 physical stores only** (`Online/DTC` → 400). Live locally
+  (3001) and via the tunnel (`https://api.neobniagara.ca/api/scorecard`). Partial target/LY coverage
+  → `null` variance + `*_partial:true` (targets only exist 2026-05-27→08-31, so every YTD is partial).
+  Full detail: `NEOB-SCORECARD-PHASE0-MINI-SPEC.md`. **This is the server foundation for the portal
+  scorecard (Phase 1 = separate repo).**
 
 ## Ops (mini)
 - Served by **launchd `com.neob.production`** (NOT pm2), from local disk. Reload after code changes:
@@ -53,7 +61,9 @@ live**. Added a live **missing-cost checklist** to get COGS entered. Full techni
 1. **Phase 4 — store portal net entry.** Staff currently enter gross vs held targets. Options:
    (a) portal shows actual net from daily_sales (needs the separate `neob-store-portal` Cloudflare
    repo + an intraday sync for same-day freshness); (b) staff type net; (c) keep gross, reconcile
-   overnight. The staff-facing portal source is NOT in this repo.
+   overnight. The staff-facing portal source is NOT in this repo. **Server side now exists** —
+   the Phase 0 scorecard API (above) is what the portal Worker will call; Phase 1 (portal UI) is
+   the next build in the separate repo. Staff entry is left untouched for now (decision deferred).
 2. **Gift-basket / bundle costing** — the ~$564k no-variant bucket (gift baskets have real COGS but
    no variant to attach it to). Separate from the variant-cost checklist.
 3. **Optional:** re-run the backfill to retroactively apply newly-entered costs to past days
