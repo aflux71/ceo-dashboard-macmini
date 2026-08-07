@@ -11,31 +11,53 @@
 
 ---
 
-> # ⚠️ SUPERSEDED — §0 and §4 bundle conclusions are WRONG (2026-08-07, later same day)
+> # ⚠️ §4's CAUSE IS WRONG — root cause found 2026-08-07 (later same day)
 >
-> This document concludes that retail gift-set sales **stopped** on 2026-06-15 and hands
-> that to Melissa as a merchandising problem. **That is incorrect. Do not send §4 to
-> Melissa. Do not act on it.**
+> §0/§4 correctly observe that the 33 in-store gift sets stopped selling on 2026-06-15, but
+> attribute it to merchandising ("came off the POS floor, never re-listed"). **The real
+> cause is a Shopify platform limitation.** Send Melissa this box, not §4.
 >
-> Bundles **are selling.** They were recreated using the **Shopify Bundles app**, which
-> expands a bundle into its **component line items** at the POS — component SKUs, component
-> product IDs, no bundle line anywhere on the order. The bundle identity lives in the
-> order's `discount_applications` (e.g. `automatic | Bath Bomb Mix & Match`, present on
-> **10 of 244 sampled POS orders = 4.1%**, right in the historical 5.2% range), which the
-> sync does not store. 2026-06-15 was the **migration date**, not the day sales stopped.
+> **On ~2026-06-15 the 33 in-store gift sets were rebuilt as Shopify Bundles.** Verified via
+> GraphQL: every one has `requiresComponents = true` with 4–5 components (GS0006, GS0007,
+> GS0008, GS0009, GS0033, GS0041 …).
 >
-> This is a **detection failure, not a sales failure.** Every check in §0/§4 keyed off the
-> bundle *product*, which no longer appears on the order at all.
+> **Shopify Bundles does not support POS.** Per Shopify's own documentation, the app
+> supports Online Store and Headless only; POS is unsupported. So converting these products
+> made them **unsellable in stores** — they are `active` and `published_scope: global`, but
+> POS cannot transact a bundle. Since Jun 15 they have sold **once**, on Jun 15 itself.
 >
-> Also wrong: the "two groups of 33 / SKU-less duplicates" in §4. Those 33 are
-> previous-cycle products **deleted from Shopify**, still present locally because the
-> product sync never prunes. Confirmed via `synced_at`.
+> So the zero is **real**, and no code change can fix it. This is an operational problem:
+>
+> | Period | Orders w/ gift set | Revenue |
+> |---|---|---|
+> | 2026-04 | 50 | $3,115.42 |
+> | 2026-05 | 327 | $20,803.84 |
+> | 2026-06 (to the 15th) | 190 | $11,363.75 |
+> | **60 days pre-conversion** | **550** | **$34,228.76 (~$570/day)** |
+>
+> **Two things follow, and they are separate:**
+>
+> 1. **Real sales stop (not fixable in code).** The gift sets must be sold in-store some
+>    other way — un-bundle them back to regular products with their `GS####` SKUs, or accept
+>    that in-store gift sets are a different SKU set from online.
+> 2. **Real detection gap (fixable in code).** What *is* selling in-store as a "bundle" is
+>    an automatic discount — `automatic | Bath Bomb Mix & Match`, on **10 of 244 sampled POS
+>    orders (4.1%)**. It lives in `discount_applications`, which the sync does not store, so
+>    it is uncounted. That is the number the dashboard should probably show for retail.
+>
+> Also note: even **online**, Shopify Bundles records **component SKUs, not the bundle SKU**,
+> so bundle-SKU matching cannot work for Bundles-app products on any channel. The DTC figure
+> (5.3%) is unaffected and correct — those 5 products are `requiresComponents = false`,
+> i.e. ordinary products, not Bundles-app bundles.
+>
+> Also wrong in §4: the "two groups of 33 / SKU-less duplicates". Those 33 are previous-cycle
+> products **deleted from Shopify**, still present locally because the product sync never
+> prunes. Confirmed via `synced_at`. They were never SKU-less.
 >
 > Everything in §1–§3 and §5–§10 (date windows, lexicographic skew, AOV bands, loyalty,
 > staleness, dead-code deletion) is **unaffected and still correct**.
 >
-> **See `RESUME_ceo-dashboard-fixes-2026-08-07.md` Part 2 for the full correction and Part 3
-> for the rebuild plan.**
+> **Full analysis: `RESUME_ceo-dashboard-fixes-2026-08-07.md` Part 2; rebuild plan Part 3.**
 
 ---
 

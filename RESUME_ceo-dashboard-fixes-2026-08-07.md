@@ -2,7 +2,7 @@
 
 **Session date:** 2026-08-07
 **Branch:** merged to `main`, pushed to `macmini/main` (`1a7d15a`)
-**Companion doc:** `neob-dashboard-fixes-DONE.md` — **§4 and §0 bundle conclusions are now WRONG, see Part 2**
+**Companion doc:** `neob-dashboard-fixes-DONE.md` — **§4's CAUSE is wrong; see Part 2 for the root cause**
 
 ---
 
@@ -34,21 +34,60 @@ patch to exclude them — see Part 4 for the technique.
 
 ---
 
-# PART 2 — ⚠️ THE BUNDLE CONCLUSION WAS WRONG
+# PART 2 — ⚠️ ROOT CAUSE: Shopify Bundles does not support POS
 
-`neob-dashboard-fixes-DONE.md` §0/§4 states retail bundle sales stopped 2026-06-15 and
-frames it as a merchandising problem for Melissa. **That is incorrect. Do not act on it.**
+`neob-dashboard-fixes-DONE.md` §0/§4 correctly observe that the 33 in-store gift sets
+stopped selling on 2026-06-15, but blame merchandising ("came off the floor, never
+re-listed"). The observation is right; **the cause is wrong.**
 
-**Bundles ARE selling.** Robert confirmed they were recreated using the **Shopify Bundles
-app**, and the plugin managing SKUs changed. The dashboard reads 0% because the matcher
-can no longer see them — a detection failure, not a sales failure.
+**ROOT CAUSE (confirmed via GraphQL + Shopify docs): Shopify Bundles does not support POS.**
+There are two separate issues; do not conflate them.
 
-### What actually happens now
+### Issue 1 — REAL sales stop, NOT fixable in code
 
-The Bundles app **expands a bundle into its component line items at the POS**. A bundle
-sale arrives as N separate product lines, each with the *component's* SKU and product_id,
-each carrying an identical per-unit discount. **There is no bundle line, no `GS####` SKU,
-and no bundle `product_id` anywhere on the order.**
+On ~2026-06-15 the 33 in-store gift sets were **rebuilt as Shopify Bundles**. Verified via
+`admin/api/2024-10` GraphQL — every one has `requiresComponents = true`, 4–5 components:
+
+```
+GS0006  requiresComponents=true  components=4   Botanical Bliss Glorious Collection
+GS0009  requiresComponents=true  components=5   The Complete Ritual Massuet Collection
+GS0041  requiresComponents=true  components=5   Culinary Treats For Two Collection  ...
+```
+
+**Shopify Bundles supports Online Store and Headless only — POS is unsupported** (Shopify
+documentation). Converting them made them **unsellable in stores**: they are `active` and
+`published_scope: global`, but POS cannot transact a bundle. Since Jun 15 they have sold
+**once**, on Jun 15 itself.
+
+**So the 0% is real.** An earlier correction in this session said "bundles ARE selling —
+detection failure, not sales failure"; that was wrong for *these* products. Impact:
+
+| Period | Orders w/ gift set | Revenue |
+|---|---|---|
+| 2026-04 | 50 | $3,115.42 |
+| 2026-05 | 327 | $20,803.84 |
+| 2026-06 (to the 15th) | 190 | $11,363.75 |
+| **60 days pre-conversion** | **550** | **$34,228.76 (~$570/day)** |
+
+Fix is operational: un-bundle back to ordinary products carrying their `GS####` SKUs, or
+accept that in-store gift sets are a different SKU set from online.
+
+### Issue 2 — REAL detection gap, IS fixable in code
+
+Separately, something *is* selling in-store as a bundle and is uncounted: the automatic
+discount **`automatic | Bath Bomb Mix & Match`**, on **10 of 244 sampled POS orders =
+4.1%**. It lives in `discount_applications`, which the sync does not store.
+
+### DTC is fine — do not "fix" it
+
+The 5 DTC gift sets are `requiresComponents = false` — ordinary products, not Bundles-app
+bundles. They sell normally and match by SKU. The 5.3% DTC figure is correct.
+
+### Also true regardless: Bundles hides the bundle SKU on every channel
+
+Shopify docs: *"SKUs are listed for individual items in orders, not for the bundle SKU."*
+For any Bundles-app product, on any channel, the order records **component** line items —
+component SKUs and product_ids, **no bundle line, no `GS####` SKU, no bundle product_id.**
 
 Live example — order **183214**, 2026-08-07, POS:
 
@@ -84,13 +123,15 @@ All four methods keyed off the bundle *product*, which never appears on the orde
 
 | Method | Result | Why it failed |
 |---|---|---|
-| SKU (`GS####`) | last 2026-06-15 | bundle product not on the order |
+| SKU (`GS####`) | last 2026-06-15 | bundle product never appears on the order |
 | `product_id` | never matched | same |
 | Product title | last 2026-06-15 | components carry component titles |
 | Tag-agnostic title sweep | 73/19,127 = 0.38% | same |
 
-The Jun 15 cutoff was **the day bundles were migrated to the Bundles app**, not the day
-sales stopped.
+Jun 15 was **the day the gift sets were converted to Shopify Bundles** — which both stopped
+them selling on POS (Issue 1) and hid the bundle SKU from any order that does happen
+(Issue 2). Both effects start on the same date, which is why the earlier single-cause
+readings each looked self-consistent.
 
 ### Also corrected: the "two groups of 33"
 
@@ -121,11 +162,21 @@ doesn't exist (**0 synthetic rows**). Harmless, but not load-bearing.
 
 # PART 3 — NEXT SESSION: what to do
 
-### Step 0 — Confirm the mechanism with Robert
-- Is **"Bath Bomb Mix & Match"** the only bundle promotion, or are there others?
-- Do the 33 `GS####` gift-set products still sell as scannable products, or are they now
-  purely Bundles-app definitions?
-- What are the current bundle promo names? (Needed for the allow-list in Step 2.)
+### Step 0 — Decisions for Robert (business first, then code)
+
+**The operational decision comes first — it changes what we should measure:**
+- Do the 33 gift sets need to sell in-store again? If yes they must be **un-bundled** back
+  to ordinary products with their `GS####` SKUs. Shopify Bundles cannot be sold on POS,
+  full stop. No dashboard change makes those sales appear.
+- If in-store gift sets are being retired in favour of the Mix & Match promo, then
+  "Packaged Bundle % · Retail" should be **redefined** to measure the promo, not the SKUs.
+
+**Then, for whichever definition wins:**
+- Is **"Bath Bomb Mix & Match"** the only in-store bundle promo, or are there others?
+  (Needed for the allow-list in Step 2. `manual | custom set` and
+  `manual | 2 small soaps for price of 1 large` also appeared — ad-hoc, probably ignore.)
+- Should online Bundles-app sales be counted too? If yes that needs Step 1 Option B, since
+  bundle SKUs never appear on any order.
 
 ### Step 1 — Decide the detection strategy
 
@@ -137,8 +188,12 @@ Risk: manual discounts named ad-hoc ("custom set") are missed; needs an allow-li
 **Option B — GraphQL bundle components (correct, more work):**
 REST **2023-10 cannot see bundle structure at all** — verified: line-item fields contain no
 bundle/component/parent field and `properties` is empty on every sampled line.
-Shopify exposes this only via GraphQL `LineItem.components` / bundle parent, **2024-01+**.
-Requires bumping `SHOPIFY_URL` API version (`shopify.js:9`) and moving order sync to GraphQL.
+Shopify exposes this only via GraphQL, **2024-01+**. **The current token already works on
+`admin/api/2024-10` GraphQL** (verified this session — `requiresComponents` /
+`productVariantComponents` both return data), so no new scope or credential is needed;
+it is a code change only: bump `SHOPIFY_URL` (`shopify.js:9`) and move order sync to GraphQL.
+Only worth doing if ONLINE bundle sales must be counted — it does nothing for POS, where
+Bundles-app products cannot be sold at all.
 
 **Recommendation:** A now for a working number, B later for correctness. Do NOT ship a
 number without telling Robert which definition it uses.
@@ -208,7 +263,11 @@ current handover** — it says gift sets stopped selling, which is false.
 
 ## One-line restart prompt
 
-> Read `RESUME_ceo-dashboard-fixes-2026-08-07.md`. Part 1 shipped. Part 2 says bundle
-> detection is broken because the Shopify Bundles app expands bundles into component line
-> items — the bundle identity is in `discount_applications` (`automatic | Bath Bomb Mix &
-> Match`, 4.1% of POS orders), which we don't store. Continue at Part 3 Step 0.
+> Read `RESUME_ceo-dashboard-fixes-2026-08-07.md`. Part 1 shipped and is merged/pushed.
+> Part 2: root cause is that the 33 in-store gift sets were rebuilt as Shopify Bundles on
+> 2026-06-15 (`requiresComponents=true`), and **Shopify Bundles does not support POS** — so
+> they are genuinely unsellable in stores (~$570/day of prior bundle revenue). That part is
+> operational, not code. Separately there IS a code-fixable gap: the in-store
+> `automatic | Bath Bomb Mix & Match` discount (4.1% of POS orders) lives in
+> `discount_applications`, which we don't store. DTC is fine, don't touch it.
+> Continue at Part 3 Step 0 — the business decision comes before any code.
