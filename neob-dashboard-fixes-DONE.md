@@ -259,6 +259,33 @@ retail_total: {"first_timers":2982,"signups":2949,"orders":11455,"signup_rate_pc
 all_total   : {"signups":3167,"orders":11712,"signup_rate_pct":27.0}
 ```
 
+### 2.3 Post-deletion verification (dead-code removal, §9.5)
+
+Run against the reloaded service after `/api/revenue/ytd` and `getStoreRevenue()` were
+deleted:
+
+| Check | Result |
+|---|---|
+| `/api/revenue/ytd` | **404** ✅ |
+| Route inventory diff, `main` → `HEAD` | **exactly one line removed** (`router.get('/revenue/ytd'`); nothing else added, removed or altered across all three commits ✅ |
+| 8 endpoints ceo.html calls | 6 × 200, 2 × 401 (pre-existing admin-PIN gate on `usage/*`) ✅ |
+| `/api/revenue/by-store` (sibling of the deleted helper) | 200 ✅ |
+| Portal / scorecard routes | 401 (auth gate — routing intact) ✅ |
+| Module import smoke test | loads, express router constructed ✅ |
+
+**No numbers moved:** hero vs store table still $467,381.53 = $467,381.53 / AOV $40.49 =
+$40.49; May bundles 6,310 / 327 / 5.2%; `pos_last_sale_date` 2026-06-15;
+`data_through` 2026-08-06, `data_stale` false.
+
+⚠️ **One metric is not reproducible to the decimal, by nature.** The loyalty retail rate
+read 25.7% then 25.8% on re-query. The denominator (11,455 orders, local DB) was
+identical; the numerator moved +2 first_timers / +2 signups. Loyalty counts come from a
+**live** Shopify customer search matching on `created_at` *plus current tag state*, so a
+customer from a past window whose `signup-<loc>` tag is applied late (Flow catch-up,
+manual tagging) newly enters that window. **Loyalty figures for a closed period are not a
+fixed snapshot and will drift slightly on re-query.** Immaterial here (0.07%), but do not
+reconcile them to the cent against an earlier reading.
+
 ---
 
 ## 3. What shifted under you (before/after)
