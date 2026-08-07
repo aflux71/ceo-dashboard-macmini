@@ -11,6 +11,34 @@
 
 ---
 
+> # ⚠️ SUPERSEDED — §0 and §4 bundle conclusions are WRONG (2026-08-07, later same day)
+>
+> This document concludes that retail gift-set sales **stopped** on 2026-06-15 and hands
+> that to Melissa as a merchandising problem. **That is incorrect. Do not send §4 to
+> Melissa. Do not act on it.**
+>
+> Bundles **are selling.** They were recreated using the **Shopify Bundles app**, which
+> expands a bundle into its **component line items** at the POS — component SKUs, component
+> product IDs, no bundle line anywhere on the order. The bundle identity lives in the
+> order's `discount_applications` (e.g. `automatic | Bath Bomb Mix & Match`, present on
+> **10 of 244 sampled POS orders = 4.1%**, right in the historical 5.2% range), which the
+> sync does not store. 2026-06-15 was the **migration date**, not the day sales stopped.
+>
+> This is a **detection failure, not a sales failure.** Every check in §0/§4 keyed off the
+> bundle *product*, which no longer appears on the order at all.
+>
+> Also wrong: the "two groups of 33 / SKU-less duplicates" in §4. Those 33 are
+> previous-cycle products **deleted from Shopify**, still present locally because the
+> product sync never prunes. Confirmed via `synced_at`.
+>
+> Everything in §1–§3 and §5–§10 (date windows, lexicographic skew, AOV bands, loyalty,
+> staleness, dead-code deletion) is **unaffected and still correct**.
+>
+> **See `RESUME_ceo-dashboard-fixes-2026-08-07.md` Part 2 for the full correction and Part 3
+> for the rebuild plan.**
+
+---
+
 ## 0. ROOT CAUSE — lexicographic timestamp skew
 
 **This is the largest correctness win in the change, and it was not in the spec.**
