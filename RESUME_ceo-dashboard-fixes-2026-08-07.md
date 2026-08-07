@@ -160,14 +160,104 @@ doesn't exist (**0 synthetic rows**). Harmless, but not load-bearing.
 
 ---
 
+# PART 2A — Shopify investigation (2026-08-07, read-only, NO writes made)
+
+Commissioned to find out whether the fix is a simple re-publish/restock rather than
+un-bundling. **It is not** — and the working "Group A / Group B" model was inverted.
+
+### Credentials: we CANNOT fix this in Shopify — it is Melissa's task
+
+`/oauth/access_scopes.json` returns 0 scopes (doesn't report for this token type), so
+capability was probed directly with a **non-existent product ID** (nothing modifiable):
+
+```
+mutation productUpdate(id:"gid://shopify/Product/1")
+  -> "Access denied for productUpdate field. Required access: `write_products` access scope."
+```
+
+| Scope | Held |
+|---|---|
+| `write_products` | **NO** — cannot un-bundle, re-publish or edit anything |
+| `read_publications` | **NO** — cannot read per-channel publication |
+| `read_products`, `locations`, `inventory` | yes |
+
+**Any remediation must be done by Melissa in the Shopify Admin.**
+
+### ⚠️ There is only ONE live group of 33, and it IS the bundles
+
+| Model assumed | Reality |
+|---|---|
+| "Group A" = original SKU'd gift sets, still active | **Deleted from Shopify.** 8 of 33 IDs sampled → all **HTTP 404** |
+| "Group B" = `requiresComponents=true`, separate | **These ARE the live 33**, and they hold the `GS####` SKUs |
+
+Shopify returns **33** live POS-bundle-tagged products (not 66). All `ACTIVE`, **all 33
+`requiresComponents=true`**. The other 33 exist only as unpruned rows in the local
+`products` table. **There is no Group A left to re-publish or restock** — the June
+conversion replaced the originals rather than sitting alongside them.
+
+### What the live 33 look like
+
+- **Channels: unreadable** (no `read_publications`). REST says `published_scope: global` for
+  all 33, but that is a coarse legacy field, **not** proof of POS-channel publication.
+  **Melissa must confirm in Admin.**
+- **Inventory: location record only at `neob HQ`; none at any of the 5 stores (0/33).**
+  Nuance — Bundles-app products hold no stock of their own (`available` = 0); inventory
+  derives from components, and the component-derived `inventoryQuantity` is healthy
+  (GS0006 462, GS0009 328, GS0007 209). So stock is not the primary blocker, but the
+  HQ-only location assignment is worth checking.
+- **Price range $39.80–$84.97.** No before/after comparison possible — the deleted
+  products' prices were never stored locally.
+
+Cheapest → dearest: GS0034 $39.80 · GS0008/GS0033 $39.95 · GS0006/GS0007 $44.20 ·
+GS0041 $44.62 · GS0023/GS0024 $49.15 · GS0032 $49.42 · GS0017/GS0021 $49.85 ·
+GS0019/GS0020 $52.40 · GS0022/GS0027 $54.10 · GS0015 $56.75 · GS0038 $59.38 ·
+GS0028/GS0031 $62.75 · GS0026 $63.75 · GS0039/GS0040 $64.60 · GS0016 $68.75 ·
+GS0013/GS0025 $69.55 · GS0014 $74.50 · GS0029/GS0030 $74.83 · GS0009/GS0012 $79.02 ·
+GS0035 $84.80 · GS0010/GS0011 $84.97
+
+### DTC — confirmed load-bearing, DO NOT TOUCH
+
+A **separate set of 5** products (not the 33), all `requiresComponents = false` — ordinary
+products, which is why they still match by SKU:
+
+| SKU | Gift set | Last sold | Orders since Jun 15 |
+|---|---|---|---|
+| GS0001 | Lavender Harvest Collection | **2026-08-05** | 9 |
+| GS0000 | Ultimate Pain Relief Collection | 2026-07-28 | 13 |
+| GS0003 | Botanical Bliss Lavender Edition | 2026-07-07 | 3 |
+| GS0005 | The Lavender Ritual | 2026-06-27 | 1 |
+| GS0002 | Lavender Body Care Set | 2026-06-22 | 5 |
+
+### Title match: 1:1, exact
+
+33 live titles vs 33 deleted titles → **33 matched, 0 live-only, 0 deleted-only.** Every
+gift set was recreated under an identical title. No orphans in either direction.
+
+### Options for Melissa
+
+| Option | Action | Trade-off |
+|---|---|---|
+| **A — Un-bundle** (recommended if in-store gift sets matter) | Convert the 33 back to ordinary products with their `GS####` SKUs; stock at the 5 store locations | Restores in-store sales **and** SKU-based tracking. Loses Bundles-app component inventory linkage |
+| **B — Duplicate** | Keep the 33 bundles for online; create parallel POS-only products | Both channels work; doubles catalogue maintenance, re-splits the SKU set |
+| **C — Accept** | Retire in-store gift sets; dashboard measures the Mix & Match promo instead | No Shopify work; ~$570/day of bundle revenue stays gone |
+
+**Two things Melissa must confirm in Admin first (we cannot read them):**
+1. Are the 33 actually published to the **POS** channel?
+2. Is the **HQ-only inventory location** deliberate?
+
+---
+
 # PART 3 — NEXT SESSION: what to do
 
 ### Step 0 — Decisions for Robert (business first, then code)
 
-**The operational decision comes first — it changes what we should measure:**
+**The operational decision comes first — it changes what we should measure. See PART 2A
+for the full Shopify investigation: we hold NO `write_products` scope, so all remediation
+is Melissa's to execute in the Admin.**
 - Do the 33 gift sets need to sell in-store again? If yes they must be **un-bundled** back
   to ordinary products with their `GS####` SKUs. Shopify Bundles cannot be sold on POS,
-  full stop. No dashboard change makes those sales appear.
+  full stop. No dashboard change makes those sales appear. Note there is **no surviving
+  pre-conversion product set to restore** — those 33 are deleted (HTTP 404).
 - If in-store gift sets are being retired in favour of the Mix & Match promo, then
   "Packaged Bundle % · Retail" should be **redefined** to measure the promo, not the SKUs.
 
