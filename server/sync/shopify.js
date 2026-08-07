@@ -127,8 +127,12 @@ export async function syncProducts() {
 // The accumulator is refreshed from the live tag set each sync and never
 // pruned, so past orders stay attributable after a reset (and a transient
 // empty tag fetch can't erase known bundles).
-const BUNDLE_TAG_POS = 'neob-bundle-pos';
-const BUNDLE_TAG_DTC = 'neob-bundle-dtc';
+// Each channel carries a primary machine tag and a human-facing secondary tag.
+// Verified 2026-08-07: correspondence is currently 1:1 (66/66 POS, 15/15 DTC,
+// zero either-side-only, no cross-channel overlap), so the OR is insurance —
+// it keeps matching working if a product loses one tag in the Shopify admin.
+const BUNDLE_TAGS_POS = ['neob-bundle-pos', 'In Store Gift Set'];
+const BUNDLE_TAGS_DTC = ['neob-bundle-dtc', 'Online Gift Set'];
 
 const normTitle = s => (s || '').trim().toLowerCase();
 
@@ -157,12 +161,24 @@ async function buildBundleTagMap() {
     const res = await getWithRetry(url);
     for (const p of res.data.products) {
       const tagList = (p.tags || '').split(',').map(t => t.trim());
-      const pos = tagList.includes(BUNDLE_TAG_POS) ? 1 : 0;
-      const dtc = tagList.includes(BUNDLE_TAG_DTC) ? 1 : 0;
+      const has = tags => tags.some(t => tagList.includes(t));
+      const pos = has(BUNDLE_TAGS_POS) ? 1 : 0;
+      const dtc = has(BUNDLE_TAGS_DTC) ? 1 : 0;
       if (!pos && !dtc) continue;
       tagged++;
       const skus = (p.variants || []).map(v => v.sku).filter(Boolean);
-      if (skus.length === 0) { noSku++; continue; }
+      if (skus.length === 0) {
+        // A tagged product with no variant SKU used to be dropped entirely, which
+        // also cost us the product_id match — so its sales were invisible, not just
+        // unkeyed. Store it under a synthetic key so product_id matching still works
+        // for the current cycle. 'PID:' can never collide with a real Shopify SKU.
+        // Such a product stops matching after a bundle reset (new id, no stable SKU)
+        // — that is a Shopify data problem to fix at source, but partial attribution
+        // beats silent zero. 33 POS-tagged products were in this state on 2026-08-07.
+        noSku++;
+        upsert.run(`PID:${p.id}`, String(p.id), p.title, normTitle(p.title), pos, dtc);
+        continue;
+      }
       for (const sku of skus) {
         upsert.run(sku, String(p.id), p.title, normTitle(p.title), pos, dtc);
       }
@@ -170,12 +186,14 @@ async function buildBundleTagMap() {
     url = nextPageUrl(res.headers['link']);
     if (url) await sleep(600);
   }
-  if (noSku) console.log(`  ⚠ ${noSku}/${tagged} tagged bundle product(s) had no SKU — skipped in accumulator`);
+  if (noSku) console.log(`  ⚠ ${noSku}/${tagged} tagged bundle product(s) had no SKU — matching by product_id only (fix the SKU in Shopify: they stop matching after a bundle reset)`);
 
   const bySku = new Map(), byId = new Map();
   for (const r of db.prepare(`SELECT sku, product_id, is_pos, is_dtc FROM bundle_products`).all()) {
     const v = { pos: r.is_pos === 1, dtc: r.is_dtc === 1 };
-    if (r.sku) bySku.set(r.sku, v);
+    // 'PID:' rows are synthetic placeholders for SKU-less products — they exist to
+    // carry product_id and must never be offered as a real SKU match.
+    if (r.sku && !r.sku.startsWith('PID:')) bySku.set(r.sku, v);
     if (r.product_id) byId.set(String(r.product_id), v);
   }
   console.log(`  bundle accumulator: ${bySku.size} SKUs (${tagged} tagged this cycle, ${byId.size} ids)`);
@@ -377,25 +395,6 @@ async function shopifyGraphQL(query, variables = {}, maxRetries = 5) {
   }
 }
 
-// Count customers matching a Shopify search query, via cursor pagination on
-// the customers connection (250/page). NOTE: customersCount(query:) is NOT
-// usable here — verified it ignores its query argument and always returns the
-// (capped) total customer count, so it can't do tag-filtered counts. The
-// customers connection respects the query, so we page through and count nodes.
-async function countCustomers(queryStr) {
-  let count = 0, after = null, hasNext = true;
-  while (hasNext) {
-    const data = await shopifyGraphQL(
-      `query($q:String!,$after:String){ customers(first:250, query:$q, after:$after){ nodes{ id } pageInfo{ hasNextPage endCursor } } }`,
-      { q: queryStr, after });
-    count += data.customers.nodes.length;
-    hasNext = data.customers.pageInfo.hasNextPage;
-    after = data.customers.pageInfo.endCursor;
-    if (hasNext) await sleep(300);
-  }
-  return count;
-}
-
 const LOYALTY_LOCATIONS = [
   { key: 'queen-street', label: 'Queen Street' },
   { key: 'flower-farm',  label: 'Flower Farm' },
@@ -404,7 +403,29 @@ const LOYALTY_LOCATIONS = [
   { key: 'bracebridge',  label: 'Bracebridge' },
   { key: 'online',       label: 'Online' }
 ];
-const BON_TIER_CLAUSE = "(tag:'BON_seedling' OR tag:'BON_blooming' OR tag:'BON_full_bloom')";
+const BON_TIER_TAGS = ['BON_seedling', 'BON_blooming', 'BON_full_bloom'];
+
+// Page a customer search once, returning both the total and how many carry a BON
+// tier tag. NOTE: customersCount(query:) is NOT usable here — verified it ignores
+// its query argument and always returns the (capped) total customer count, so it
+// can't do tag-filtered counts. The customers connection respects the query, so
+// we page through (250/page) and count nodes.
+async function countCustomersWithTier(queryStr) {
+  let total = 0, withTier = 0, after = null, hasNext = true;
+  while (hasNext) {
+    const data = await shopifyGraphQL(
+      `query($q:String!,$after:String){ customers(first:250, query:$q, after:$after){ nodes{ id tags } pageInfo{ hasNextPage endCursor } } }`,
+      { q: queryStr, after });
+    for (const n of data.customers.nodes) {
+      total++;
+      if ((n.tags || []).some(t => BON_TIER_TAGS.includes(t))) withTier++;
+    }
+    hasNext = data.customers.pageInfo.hasNextPage;
+    after = data.customers.pageInfo.endCursor;
+    if (hasNext) await sleep(300);
+  }
+  return { total, withTier };
+}
 
 // Per store, window-clean because both sides are the same tag population:
 //   first_timers = all first-time customers (Flow tags signup-<loc> on
@@ -412,32 +433,72 @@ const BON_TIER_CLAUSE = "(tag:'BON_seedling' OR tag:'BON_blooming' OR tag:'BON_f
 //   signups      = those same first-timers who also enrolled (carry a BON
 //                  tier tag) — the numerator.
 //   conversion   = signups / first_timers (target 50%).
-export async function getLoyaltySignups() {
-  const stores = [];
-  let totalSignups = 0, totalFirstTimers = 0;
-  for (const loc of LOYALTY_LOCATIONS) {
+// Window clause for the customer search. Customers are tagged signup-<loc> by
+// Flow on their FIRST order, so the customer's created_at is effectively the
+// signup date — it is the only window key Shopify exposes here. `to` is
+// exclusive-shifted to the next day so the final day is fully included
+// (created_at:<=DATE would cut at that day's midnight).
+function loyaltyDateClause(from, to) {
+  if (!from || !to) return '';
+  const next = new Date(Date.UTC(+to.slice(0,4), +to.slice(5,7) - 1, +to.slice(8,10) ) );
+  next.setUTCDate(next.getUTCDate() + 1);
+  return ` AND created_at:>=${from} AND created_at:<${next.toISOString().slice(0,10)}`;
+}
+
+// Cheap in-process cache. The underlying Shopify paging is slow (see below) and
+// this endpoint is hit on every dashboard render, including the second render.
+const LOYALTY_TTL_MS = 5 * 60 * 1000;
+const loyaltyCache = new Map();
+
+export async function getLoyaltySignups(window) {
+  const from = window?.from || null;
+  const to = window?.to || null;
+  const cacheKey = `${from || '*'}..${to || '*'}`;
+  const hit = loyaltyCache.get(cacheKey);
+  if (hit && Date.now() - hit.at < LOYALTY_TTL_MS) return hit.value;
+
+  const dateClause = loyaltyDateClause(from, to);
+
+  // Per location this is 2 paginated queries. Run the six locations CONCURRENTLY
+  // — sequentially it was 12 round-trips of paging and reliably timed out at
+  // ~30s. Pages within a location stay sequential (and keep their inter-page
+  // sleep) to stay inside Shopify's GraphQL cost bucket.
+  const results = await Promise.all(LOYALTY_LOCATIONS.map(async (loc) => {
     const sigTag = `tag:'signup-${loc.key}'`;
-    const firstTimers = await countCustomers(sigTag);
-    const signups = await countCustomers(`${sigTag} AND ${BON_TIER_CLAUSE}`);
-    stores.push({
+    // One paginated pass, not two. signups is a strict subset of first_timers
+    // (same tag population, plus a BON tier tag), so fetching tags once and
+    // counting locally halves the round-trips and guarantees the numerator can
+    // never exceed the denominator through a race between two separate queries.
+    const { total: firstTimers, withTier: signups } =
+      await countCustomersWithTier(`${sigTag}${dateClause}`);
+    return {
       store: loc.label,
       signup_tag: `signup-${loc.key}`,
       first_timers: firstTimers,
       signups,
+      // Automation health: enrolled ÷ first-timers. Deliberately unchanged.
       conversion_pct: firstTimers > 0 ? Math.round((signups / firstTimers) * 1000) / 10 : null
-    });
-    totalSignups += signups;
-    totalFirstTimers += firstTimers;
-  }
-  return {
+    };
+  }));
+
+  const totalSignups = results.reduce((a, s) => a + s.signups, 0);
+  const totalFirstTimers = results.reduce((a, s) => a + s.first_timers, 0);
+
+  const value = {
     data_since: '2026-06-09',
+    // The window these counts actually cover. null/null = cumulative since
+    // data_since, which is the legacy behaviour when no dates are passed.
+    from, to,
+    scoped: Boolean(from && to),
     target_pct: 50,
     count_method: 'pagination',
-    stores,
+    stores: results,
     total: {
       first_timers: totalFirstTimers,
       signups: totalSignups,
       conversion_pct: totalFirstTimers > 0 ? Math.round((totalSignups / totalFirstTimers) * 1000) / 10 : null
     }
   };
+  loyaltyCache.set(cacheKey, { at: Date.now(), value });
+  return value;
 }

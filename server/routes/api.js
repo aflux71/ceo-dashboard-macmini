@@ -330,15 +330,19 @@ router.get('/stats/ceo-net', (req, res) => {
 router.get('/revenue/by-store-net', (req, res) => {
   try {
     const today = torontoDay();
+    const yesterday = torontoDaysAgo(1);   // windows end on the last COMPLETE day
     const { period, date_from, date_to } = req.query;
     let from, to;
     if (date_from && date_to) {            // arbitrary range (from the dashboard period selector)
-      from = torontoDay(new Date(date_from));
-      to = torontoDay(new Date(date_to));
+      // toTorontoDate, not torontoDay(new Date(x)): '2026-08-06' parses as UTC
+      // midnight, which is the 5th in Toronto — that silently shifted the window
+      // back a day for every date-only request.
+      from = toTorontoDate(date_from);
+      to = toTorontoDate(date_to);
     } else if (period === 'ytd') {
-      from = `${today.slice(0, 4)}-01-01`; to = today;
+      from = `${today.slice(0, 4)}-01-01`; to = yesterday;
     } else {
-      from = torontoDaysAgo(29); to = today;
+      from = torontoDaysAgo(30); to = yesterday;   // 30 complete days
     }
     const byStore = netSalesByStoreYoY(from, to);
     // Back-compat aliases so the existing store-table renderer maps cleanly; the
@@ -353,13 +357,21 @@ router.get('/revenue/by-store-net', (req, res) => {
     }));
     const co = netSalesCompanyYoY(from, to);
     const asTotal = (c) => ({ revenue: c.net_sales, orders: c.orders, aov: c.aov_retail });
+    // Windows now END on yesterday, but daily_sales only gains yesterday's row
+    // when the 3:30 AM net-sales sync runs. If that sync fails — or the dashboard
+    // is opened before it — every window silently loses its most recent complete
+    // day (~$15k / 347 orders on a 30d window). Surface how far the data actually
+    // reaches so the page can say so instead of quietly under-reporting.
+    const dataThrough = db.prepare(`SELECT MAX(sale_date) AS d FROM daily_sales`).get().d;
     res.json({
       period: period || 'custom', from, to, ly_window: byStore.ly_window, stores, company: co,
+      data_through: dataThrough,
+      data_stale: Boolean(dataThrough && dataThrough < to),
       // back-compat aliases for the existing store-table renderer (net-based):
       total: asTotal(co.current),
       ytd_total: asTotal(co.current), ly_total: asTotal(co.ly), vs_ly_pct: co.delta_pct.net_sales
     });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
 });
 
 
@@ -367,10 +379,76 @@ router.get('/revenue/by-store-net', (req, res) => {
 // BON loyalty signups by signup-location, via the Shopify Admin GraphQL API.
 // Live query (tags live on customers, not the local mirror). data_since
 // 2026-06-09 (location tags started fresh that date). Requires read_customers.
+// Signups are period-scoped when date_from/date_to are supplied. Without a
+// window the counts stay cumulative since data_since (legacy behaviour), and the
+// denominator is scoped to that same start — a rate that divides ~2 months of
+// signups by 1 month of orders is meaningless, which is why no rate was shown
+// before. Denominator is ALL retail transactions (not the AOV-filtered count):
+// every transaction is a chance to ask for a signup, including the $6 soap bar.
 router.get('/stats/loyalty-signups', async (req, res) => {
   try {
-    res.json(await getLoyaltySignups());
-  } catch(err) { res.status(500).json({ error: err.message }); }
+    const { date_from, date_to } = req.query;
+    const window = (date_from && date_to)
+      ? { from: toTorontoDate(date_from), to: toTorontoDate(date_to) }
+      : null;
+    const loy = await getLoyaltySignups(window);
+
+    const from = window ? window.from : loy.data_since;
+    const to = window ? window.to : torontoDaysAgo(1);
+
+    const retailOrders = db.prepare(`
+      SELECT location_name AS store, COUNT(*) AS orders
+      FROM orders
+      WHERE location_name IN (${RETAIL_STORES})
+        AND substr(created_at,1,10) BETWEEN ? AND ?
+      GROUP BY location_name
+    `).all(from, to);
+
+    const onlineOrders = db.prepare(`
+      SELECT COUNT(*) AS orders FROM orders
+      WHERE source_name = 'web' AND substr(created_at,1,10) BETWEEN ? AND ?
+    `).get(from, to).orders;
+
+    // LOYALTY_LOCATIONS labels 'Online'; orders live under source_name='web'.
+    const ordersByStore = Object.fromEntries(retailOrders.map(r => [r.store, r.orders]));
+    ordersByStore['Online'] = onlineOrders;
+
+    const rate = (s, o) => (o > 0 ? Math.round((s / o) * 1000) / 10 : null);
+    // Online/DTC enrols at checkout automatically; in-store requires staff to ask.
+    // Different mechanism, so its rate is not comparable to a store's and must not
+    // be read as a ranking. Flag the row and keep it OUT of the retail total.
+    const stores = loy.stores.map(s => {
+      const orders = ordersByStore[s.store] ?? null;
+      const isRetail = s.store !== 'Online';
+      return {
+        ...s, orders,
+        signup_rate_pct: orders == null ? null : rate(s.signups, orders),
+        comparable: isRetail,
+        enrolment: isRetail ? 'staff-ask' : 'auto-at-checkout'
+      };
+    });
+    const sum = (rows, k) => rows.reduce((a, r) => a + (r[k] || 0), 0);
+    const retail = stores.filter(s => s.comparable);
+
+    res.json({
+      ...loy,
+      denominator_from: from,
+      denominator_to: to,
+      stores,
+      // Retail-only — the like-for-like figure to compare stores against.
+      retail_total: {
+        first_timers: sum(retail, 'first_timers'),
+        signups: sum(retail, 'signups'),
+        orders: sum(retail, 'orders'),
+        signup_rate_pct: rate(sum(retail, 'signups'), sum(retail, 'orders'))
+      },
+      total: {
+        ...loy.total,
+        orders: sum(stores, 'orders'),
+        signup_rate_pct: rate(loy.total.signups, sum(stores, 'orders'))
+      }
+    });
+  } catch(err) { res.status(err.status || 500).json({ error: err.message }); }
 });
 
 // ── Channel exclusions — baked into every revenue query ──────────
@@ -406,8 +484,7 @@ router.get('/revenue/by-store', (req, res) => {
         ROUND(SUM(CAST(total_price AS REAL)) / COUNT(*), 2) AS aov
       FROM orders
       WHERE source_name NOT IN (${EXCLUDED_SOURCES})
-        AND created_at >= ?
-        AND created_at < ?
+        AND substr(created_at,1,10) BETWEEN ? AND ?
         AND location_id IS NOT NULL
         AND location_name NOT IN ('neob HQ','Ecommerce Warehouse','3PL-Online Orders','Festivals & Events','Walkers Market Warehouse')
       GROUP BY location_id, location_name
@@ -423,8 +500,7 @@ router.get('/revenue/by-store', (req, res) => {
         ROUND(SUM(CAST(total_price AS REAL)) / COUNT(*), 2) AS aov
       FROM orders
       WHERE source_name = 'web'
-        AND created_at >= ?
-        AND created_at < ?
+        AND substr(created_at,1,10) BETWEEN ? AND ?
     `).get(from, to);
 
     // Total (all clean channels)
@@ -435,8 +511,7 @@ router.get('/revenue/by-store', (req, res) => {
         ROUND(SUM(CAST(total_price AS REAL)) / COUNT(*), 2) AS aov
       FROM orders
       WHERE source_name NOT IN (${EXCLUDED_SOURCES})
-        AND created_at >= ?
-        AND created_at < ?
+        AND substr(created_at,1,10) BETWEEN ? AND ?
     `).get(from, to);
 
     const stores = storeRows.map(r => ({
@@ -464,7 +539,7 @@ router.get('/revenue/by-store', (req, res) => {
       stores,
       total: totalRow
     });
-  } catch(err) { res.status(500).json({ error: err.message }); }
+  } catch(err) { res.status(err.status || 500).json({ error: err.message }); }
 });
 
 // ── /api/revenue/ytd ──────────────────────────────────────────────
@@ -548,7 +623,7 @@ router.get('/bundles/penetration', (req, res) => {
         ROUND(100.0*SUM(is_bundle_pos)/NULLIF(COUNT(*),0),1) AS bundle_pos_pct
       FROM orders
       WHERE location_name IN (${RETAIL_STORES})
-        AND created_at >= ? AND created_at < ?
+        AND substr(created_at,1,10) BETWEEN ? AND ?
       GROUP BY location_name
       ORDER BY bundle_pos_pct DESC
     `).all(from, to);
@@ -558,7 +633,7 @@ router.get('/bundles/penetration', (req, res) => {
         ROUND(100.0*SUM(is_bundle_pos)/NULLIF(COUNT(*),0),1) AS bundle_pos_pct
       FROM orders
       WHERE location_name IN (${RETAIL_STORES})
-        AND created_at >= ? AND created_at < ?
+        AND substr(created_at,1,10) BETWEEN ? AND ?
     `).get(from, to);
 
     const dtc = db.prepare(`
@@ -566,37 +641,86 @@ router.get('/bundles/penetration', (req, res) => {
         ROUND(100.0*SUM(is_bundle_dtc)/NULLIF(COUNT(*),0),1) AS bundle_dtc_pct
       FROM orders
       WHERE source_name = 'web'
-        AND created_at >= ? AND created_at < ?
+        AND substr(created_at,1,10) BETWEEN ? AND ?
     `).get(from, to);
 
+    // Last day a POS bundle actually sold, independent of the requested window.
+    // Retail bundle sales stopped 2026-06-15 (verified by SKU, product_id AND
+    // title — a correct zero, not a broken match), so the dashboard needs to
+    // distinguish "no sales" from "metric is broken". Derived, not hardcoded:
+    // if bundles start selling again this clears itself.
+    const posLastSale = db.prepare(`
+      SELECT MAX(substr(created_at,1,10)) AS d FROM orders WHERE is_bundle_pos = 1
+    `).get().d;
+
     res.json({
-      period, from, to,
+      // Report the window that was actually used, not the ignored default.
+      period: (date_from && date_to) ? 'custom' : period,
+      from, to,
       target_pct: BUNDLE_TARGET_PCT,
       data_since: '2026-05-01',
       label: 'Packaged Bundle %',
+      pos_last_sale_date: posLastSale || null,
       stores,
       retail_total: retailTotal,
       dtc
     });
-  } catch(err) { res.status(500).json({ error: err.message }); }
+  } catch(err) { res.status(err.status || 500).json({ error: err.message }); }
 });
 
 // ── helpers ───────────────────────────────────────────────────────
+// resolvePeriod returns INCLUSIVE Toronto calendar dates ('YYYY-MM-DD'), not
+// instants. Callers must compare with `substr(created_at,1,10) BETWEEN ? AND ?`.
+//
+// Why dates and not ISO timestamps: orders.created_at is stored in Toronto local
+// time WITH offset ('2026-07-08T00:44:13-04:00'), while callers were passing UTC
+// 'Z' instants. SQLite compares TEXT lexicographically, so every window was
+// skewed by the 4–5h offset and `created_at < to` silently dropped the final day
+// (a same-day query returned nothing at all). Because created_at is already
+// Toronto-local, substr(...,1,10) IS the Toronto calendar date — so plain date
+// comparison is both correct and inclusive. There is no index on created_at
+// either way, so this costs nothing.
+//
+// Every named window ends YESTERDAY: today is incomplete and drags down averages.
+const PERIOD_DAYS = { '7d': 7, '30d': 30, '90d': 90 };
+
+function toTorontoDate(v) {
+  const s = String(v);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;      // already a plain date
+  const d = new Date(s);
+  if (isNaN(d)) { const e = new Error(`Invalid date: ${s}`); e.status = 400; throw e; }
+  return torontoDay(d);
+}
+
 function resolvePeriod(period, date_from, date_to) {
-  const now = new Date();
-  if (date_from && date_to) return { from: date_from, to: date_to };
-  switch(period) {
+  // An explicit range always wins; both ends inclusive.
+  if (date_from && date_to) {
+    return { from: toTorontoDate(date_from), to: toTorontoDate(date_to) };
+  }
+  const yesterday = torontoDaysAgo(1);
+  const shiftYear = (d, n) => `${Number(d.slice(0, 4)) + n}${d.slice(4)}`;
+
+  if (period in PERIOD_DAYS) {
+    return { from: torontoDaysAgo(PERIOD_DAYS[period]), to: yesterday };
+  }
+  switch (period) {
     case 'ytd':
-      return { from: `${now.getFullYear()}-01-01T00:00:00Z`, to: now.toISOString() };
-    case 'lytd': {
-      const ly = new Date(now); ly.setFullYear(ly.getFullYear()-1);
-      return { from: `${ly.getFullYear()}-01-01T00:00:00Z`, to: ly.toISOString() };
+      return { from: `${torontoDay().slice(0, 4)}-01-01`, to: yesterday };
+    case 'lytd':
+      return { from: `${Number(torontoDay().slice(0, 4)) - 1}-01-01`, to: shiftYear(yesterday, -1) };
+    case 'ly30d':
+      return { from: shiftYear(torontoDaysAgo(30), -1), to: shiftYear(yesterday, -1) };
+    default: {
+      // Never silently substitute a different window than the caller asked for —
+      // returning 30d data labelled '90d' is worse than refusing.
+      const e = new Error(
+        `Unsupported period '${period}'. Use one of: ` +
+        `${[...Object.keys(PERIOD_DAYS), 'ytd', 'lytd', 'ly30d'].join(', ')}, ` +
+        `or pass explicit date_from & date_to.`
+      );
+      e.status = 400;
+      throw e;
     }
-    case '7d':
-      return { from: new Date(now - 7*86400000).toISOString(), to: now.toISOString() };
-    case '30d':
-    default:
-      return { from: new Date(now - 30*86400000).toISOString(), to: now.toISOString() };
   }
 }
 

@@ -1063,64 +1063,85 @@ var PERIODS = [
 var customFrom = null;
 var customTo = null;
 
+// ── PERIOD WINDOWS ────────────────────────────────────────────────
+// Every window ends YESTERDAY (America/Toronto), never today. Robert reviews
+// this in the morning; a partial today drags down every average, AOV and
+// run-rate on the page.
+//
+// Dates are held as UTC-midnight Date objects standing for a Toronto calendar
+// day, and handed to the API as plain 'YYYY-MM-DD' strings (both ends
+// inclusive — the server compares Toronto dates). Anchoring to UTC keeps day
+// arithmetic free of DST jumps and correct even if the browser is not in
+// Toronto; the old code did local-midnight maths and could slip a day.
+function torontoTodayUTC() {
+  var p = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Toronto', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(new Date());
+  var g = function(t) { return parseInt(p.find(function(x){ return x.type === t; }).value, 10); };
+  return new Date(Date.UTC(g('year'), g('month') - 1, g('day')));
+}
+function addDaysUTC(d, n) { var x = new Date(d); x.setUTCDate(x.getUTCDate() + n); return x; }
+function shiftYearUTC(d, n) { var x = new Date(d); x.setUTCFullYear(x.getUTCFullYear() + n); return x; }
+function ymd(d) { return d.toISOString().slice(0, 10); }
+function parseYmd(s) { var p = String(s).split('-'); return new Date(Date.UTC(+p[0], +p[1] - 1, +p[2])); }
+
 function getPeriodDates(period) {
-  var now = new Date();
-  var to, from, lyFrom, lyTo;
+  var today = torontoTodayUTC();
+  var yEnd = addDaysUTC(today, -1);        // yesterday — the last COMPLETE day
+  var from, to = yEnd;
+
   switch(period) {
     case '7d':
-      from = new Date(now - 7*86400000);
-      to = now;
+      from = addDaysUTC(yEnd, -6);         // 7 complete days ending yesterday
       break;
     case 'last_week': {
-      var day = now.getDay();
-      var lastMon = new Date(now); lastMon.setDate(now.getDate() - day - 6);
-      lastMon.setHours(0,0,0,0);
-      var lastSun = new Date(lastMon); lastSun.setDate(lastMon.getDate() + 6);
-      lastSun.setHours(23,59,59,999);
-      from = lastMon; to = lastSun;
+      // Unchanged semantics: the previous complete Mon–Sun calendar week.
+      var day = today.getUTCDay();
+      from = addDaysUTC(today, -day - 6);
+      to = addDaysUTC(from, 6);
       break;
     }
     case 'mtd':
-      from = new Date(now.getFullYear(), now.getMonth(), 1);
-      to = now;
+      // First of the CURRENT month — so on the 1st this correctly yields an
+      // empty window rather than silently showing last month.
+      from = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
       break;
     case 'ytd':
-      from = new Date(now.getFullYear(), 0, 1);
-      to = now;
+      from = new Date(Date.UTC(today.getUTCFullYear(), 0, 1));
       break;
     case 'custom':
-      if (customFrom) {
-        var fp = customFrom.split('-');
-        from = new Date(parseInt(fp[0]), parseInt(fp[1])-1, parseInt(fp[2]), 0, 0, 0);
-      } else {
-        from = new Date(now - 30*86400000);
-      }
-      if (customTo) {
-        var tp = customTo.split('-');
-        to = new Date(parseInt(tp[0]), parseInt(tp[1])-1, parseInt(tp[2]), 23, 59, 59);
-      } else {
-        to = now;
-      }
+      from = customFrom ? parseYmd(customFrom) : addDaysUTC(yEnd, -29);
+      to = customTo ? parseYmd(customTo) : yEnd;
+      if (to > yEnd) to = yEnd;            // never let a custom range run into today
       break;
     case '30d':
     default:
-      from = new Date(now - 30*86400000);
-      to = now;
+      from = addDaysUTC(yEnd, -29);        // 30 complete days ending yesterday
       break;
   }
-  lyFrom = new Date(from); lyFrom.setFullYear(lyFrom.getFullYear() - 1);
-  lyTo = new Date(to); lyTo.setFullYear(lyTo.getFullYear() - 1);
+
+  // On the 1st of a month (or Jan 1) there is no complete day in the window yet.
+  // Do NOT clamp — that would show a previous-month day labelled "MTD". Signal it
+  // so the tiles render as — with an explanatory label.
+  var noCompleteDays = from > to;
+  var unit = period === 'ytd' ? 'Year' : 'Month';
+
   return {
-    from: from.toISOString(),
-    to: to.toISOString(),
-    lyFrom: lyFrom.toISOString(),
-    lyTo: lyTo.toISOString(),
-    label: formatDateRange(from, to)
+    from: ymd(from),
+    to: ymd(to),
+    lyFrom: ymd(shiftYearUTC(from, -1)),
+    lyTo: ymd(shiftYearUTC(to, -1)),
+    noCompleteDays: noCompleteDays,
+    label: noCompleteDays
+      ? unit + ' to date — no complete days yet'
+      : formatDateRange(from, to)
   };
 }
 
 function formatDateRange(from, to) {
-  var opts = { month: 'short', day: 'numeric', timeZone: 'America/Toronto' };
+  // from/to are UTC-midnight stand-ins for Toronto days — format them in UTC so
+  // the label can't slip back a day.
+  var opts = { month: 'short', day: 'numeric', timeZone: 'UTC' };
   var f = from.toLocaleDateString('en-CA', opts);
   var t = to.toLocaleDateString('en-CA', opts);
   return f + ' – ' + t;
@@ -1141,7 +1162,12 @@ const STORE_TARGETS_2026 = {
 };
 
 const KPI_TARGETS = {
-  aov: 55,
+  // aov was 55 — a GROSS-basis number carried over from before the net flip. On
+  // net, the old amber rule (75% of target = 41.25) put every store just under,
+  // painting five red dots over a metric that is up 8% YoY. 45 is the net target;
+  // aov_floor 40 is the actual $40 program rule, which is what amber should mean.
+  aov: 45,
+  aov_floor: 40,
   bundle_pct: 0.40,
   forty_compliance: 0.90,
   soap_attach: 0.35,
@@ -1291,8 +1317,12 @@ async function fetchStoreData(period) {
     // separate LY call is no longer needed. A second call gets net YTD per store.
     var storeUrl = API + '/api/revenue/by-store-net?date_from=' + encodeURIComponent(pd.from) + '&date_to=' + encodeURIComponent(pd.to);
     var ytdUrl = API + '/api/revenue/by-store-net?period=ytd';
+    // On the 1st of a month/year the window has no complete day in it yet, so
+    // from > to. Don't ask the API for an inverted range — YTD is still valid.
     const [s30, ytdRes] = await Promise.all([
-      fetch(storeUrl).then(function(r){ return r.json(); }),
+      pd.noCompleteDays
+        ? Promise.resolve({ stores: [], company: null })
+        : fetch(storeUrl).then(function(r){ return r.json(); }),
       fetch(ytdUrl).then(function(r){ return r.json(); })
     ]);
     return { s30: s30, lyStore: null, ytd: ytdRes, periodDates: pd };
@@ -1311,14 +1341,20 @@ async function fetchBundles() {
 
 // Loyalty (BON) signups — cumulative counts since 2026-06-09 (per store +
 // total). Headline is the signup count; conversion is an automation-health dot.
-async function fetchLoyalty() {
+// Scoped to the selected period, the same way fetchStoreData is — signups were
+// cumulative while every other column in the table was period-scoped, so any
+// rate built on them divided ~2 months of signups by 1 month of orders.
+async function fetchLoyalty(period) {
   try {
-    const r = await fetch(API + '/api/stats/loyalty-signups');
+    var pd = getPeriodDates(period || currentPeriod);
+    if (pd.noCompleteDays) return null;
+    const r = await fetch(API + '/api/stats/loyalty-signups?date_from='
+      + encodeURIComponent(pd.from) + '&date_to=' + encodeURIComponent(pd.to));
     return await r.json();
   } catch(e) { return null; }
 }
 
-function buildStoreRows(rows, bundlePctByStore, loyaltyByStore) {
+function buildStoreRows(rows, bundlePctByStore, loyaltyByStore, bundleNoneNote) {
   return rows.map(function(s, i) {
     var target = STORE_TARGETS_2026[s.location_name] || 0;
     // NOTE (Phase 2): attainment compares NET ytd to GROSS 2026 targets → reads ~15% low
@@ -1329,7 +1365,12 @@ function buildStoreRows(rows, bundlePctByStore, loyaltyByStore) {
     var vsLy = (s.vs_ly_pct === undefined || s.vs_ly_pct === null) ? null : Math.round(s.vs_ly_pct);
     var vsLyStatus = (vsLy !== null && vsLy >= 0) ? 'up' : 'down';
     var hasAov = s.aov !== null && s.aov !== undefined;
-    var aovStatus = !hasAov ? 'gray' : s.aov >= KPI_TARGETS.aov ? 'green' : s.aov >= KPI_TARGETS.aov * 0.75 ? 'amber' : 'red';
+    // Three bands against the real program rule, not 75%-of-target:
+    // green $45+, amber $40–44.99 (meeting the $40 rule), red below $40.
+    var aovStatus = !hasAov ? 'gray'
+      : s.aov >= KPI_TARGETS.aov       ? 'green'
+      : s.aov >= KPI_TARGETS.aov_floor ? 'amber'
+      : 'red';
     var attStatus = attPct && attPct >= 0.95 ? 'up' : 'down';
     var partialMark = s.ly_partial ? '<span title="partial LY (no comparable 2025) — like-for-like">*</span>' : '';
     var vsLyChip = vsLy !== null
@@ -1339,15 +1380,32 @@ function buildStoreRows(rows, bundlePctByStore, loyaltyByStore) {
       ? '<span class="vs-target-chip ' + attStatus + '">' + (attPct * 100).toFixed(0) + '%</span>'
       : '<span class="no-data">—</span>';
     var bPct = bundlePctByStore ? bundlePctByStore[s.location_name] : undefined;
+    // A store showing exactly 0 while bundles have stopped company-wide is a real
+    // zero, not a missing number — label it rather than printing "0.0%".
     var bCell = (bPct === undefined || bPct === null)
       ? '<span class="no-data">—</span>'
-      : '<span class="kpi-dot ' + (bPct >= 10 ? 'green' : bPct >= 5 ? 'amber' : 'red') + '"></span>' + bPct.toFixed(1) + '%';
+      : (bPct === 0 && bundleNoneNote)
+        ? '<span class="kpi-dot red"></span><span title="' + bundleNoneNote + ' — verified correct, not a broken metric">none</span>'
+        : '<span class="kpi-dot ' + (bPct >= 10 ? 'green' : bPct >= 5 ? 'amber' : 'red') + '"></span>' + bPct.toFixed(1) + '%';
     // Loyalty signups (count headline) + automation-health dot from conversion.
     var lname = s.location_name === 'Online/DTC' ? 'Online' : s.location_name;
     var loy = loyaltyByStore ? loyaltyByStore[lname] : undefined;
+    // Count stays the headline; rate rides alongside. The dot is unchanged — it
+    // is automation health (conversion_pct), which measures something different.
+    // Where there is no order base (e.g. Festivals & Events) blank the RATE only
+    // and keep the count.
+    // Online/DTC enrols automatically at checkout; in-store depends on staff
+    // asking. Mark the non-comparable row so its rate can't be read as a store
+    // ranking — an 85% next to a 22% would be unfair to every store manager.
+    var loyComparable = !loy || loy.comparable !== false;
+    var loyRate = (!loy || loy.signup_rate_pct == null)
+      ? ''
+      : ' <span style="color:var(--text-3);font-weight:500">· ' + loy.signup_rate_pct.toFixed(0) + '%'
+        + (loyComparable ? '' : '<span title="Auto-enrolled at checkout — not comparable to in-store, where staff must ask">&#8225;</span>')
+        + '</span>';
     var loyCell = (!loy)
       ? '<span class="no-data">—</span>'
-      : '<span class="kpi-dot ' + (loy.conversion_pct == null ? 'gray' : loy.conversion_pct >= 90 ? 'green' : loy.conversion_pct >= 75 ? 'amber' : 'red') + '"></span>' + (loy.signups != null ? loy.signups.toLocaleString() : '—');
+      : '<span class="kpi-dot ' + (loy.conversion_pct == null ? 'gray' : loy.conversion_pct >= 90 ? 'green' : loy.conversion_pct >= 75 ? 'amber' : 'red') + '"></span>' + (loy.signups != null ? loy.signups.toLocaleString() : '—') + loyRate;
     return '<tr>' +
       '<td class="store-name ' + (i === 0 ? 'top' : '') + '">' + s.location_name + '</td>' +
       '<td class="revenue-val">' + fmt$(s.period_revenue || s.revenue || 0) + '</td>' +
@@ -1377,6 +1435,23 @@ function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bund
   const bundleDtcPct = bundles?.dtc?.bundle_dtc_pct;
   const bundleStatus = v => (v == null) ? 'neutral' : v >= bundleTarget ? 'green' : v >= bundleTarget / 2 ? 'amber' : 'red';
 
+  // A true zero must not look like a broken metric. Retail bundle sales stopped
+  // 2026-06-15 (verified by SKU, product_id and title independently), and a bare
+  // "0.0%" read as a bug for two weeks. When the window genuinely contains no POS
+  // bundle sales, say so in words and name the date instead of printing a number.
+  const bundlePosLastSale = bundles?.pos_last_sale_date || null;
+  const bundleRetailNone = (bundles?.retail_total?.bundle_orders === 0)
+    && (bundles?.retail_total?.orders > 0);
+  const shortDate = d => {
+    if (!d) return null;
+    const p = String(d).split('-');
+    return new Date(+p[0], +p[1] - 1, +p[2])
+      .toLocaleDateString('en-CA', { month: 'short', day: 'numeric' });
+  };
+  const bundleNoneNote = bundleRetailNone
+    ? 'No POS bundle sales since ' + (shortDate(bundlePosLastSale) || 'last recorded sale')
+    : null;
+
   // Loyalty signups — headline is the signup count (cumulative since Jun 9);
   // conversion is an automation-health dot (auto-enrollment keeps it ~99%).
   const loyaltyByStore = {};
@@ -1400,12 +1475,34 @@ function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bund
   const netDelta30d = stats?.net_30d_delta_pct;    // clean net YoY (DoW-matched)
   const ytdTarget = yearTarget2026 * yearPct;
 
-  // AOV from stats
-  const aov = stats ? (rev30d / Math.max(stats.orders * (30/365), 1)) : null;
-  const aovFromOrders = stats?.orders > 0 ? rev30d / (stats.unfulfilled > 0 ? stats.orders * 0.02 : 100) : null;
+  // (removed: `aov` and `aovFromOrders` — dead code. Both were computed from
+  // meaningless formulas (orders * 30/365, orders * 0.02), never read anywhere,
+  // and read like real AOV logic to anyone reviewing this file. The live figure
+  // is aov30d above, straight from the net endpoint.)
 
   // KPI status
   const revenueStatus = getStatus(rev30d * 12, yearTarget2026);
+  // Same three-band rule as the store table: green $45+, amber $40–44.99 (meets
+  // the $40 program floor), red below $40. getStatus's generic %-of-target bands
+  // don't express a hard floor, so this metric sets its own.
+  const aovTileStatus = !aov30d ? 'neutral'
+    : aov30d >= KPI_TARGETS.aov       ? 'green'
+    : aov30d >= KPI_TARGETS.aov_floor ? 'amber'
+    : 'red';
+
+  // Data staleness — every window ends yesterday, but daily_sales only gains
+  // yesterday's row at the 3:30 AM sync. If that hasn't run, the window silently
+  // stops short. Say so loudly: a quiet short window is the same failure class as
+  // a 0.0% tile that looks broken.
+  const dataThrough = storeData && storeData.s30 ? storeData.s30.data_through : null;
+  const windowEnd = periodDates ? periodDates.to : null;
+  const dataStale = Boolean(dataThrough && windowEnd && dataThrough < windowEnd);
+  const staleBanner = dataStale
+    ? `<div style="margin:0 0 14px;padding:10px 14px;border-radius:6px;background:var(--red-light,#fdecea);color:var(--red,#c0392b);font-size:12px;font-weight:600;line-height:1.5">
+         ⚠ Sales data only reaches ${dataThrough}, but this window ends ${windowEnd}.
+         Every figure below is missing its most recent day(s) — the 3:30 AM net-sales sync has not run or failed.
+       </div>`
+    : '';
 
   // Tasks analysis — live data from /api/tasks (falls back to empty if unavailable)
   const today_str = new Date().toISOString().split('T')[0];
@@ -1493,6 +1590,8 @@ function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bund
       <span class="period-context">${periodDates ? periodDates.label : ''}</span>
     </div>
 
+    ${staleBanner}
+
     <!-- HERO -->
     <div class="hero fade-in">
       <div class="hero-left">
@@ -1550,10 +1649,13 @@ function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bund
     <div class="kpi-grid">
       ${renderKPI('Net Sales (30d)', fmt$(rev30d), 'YTD net: ' + fmt$(revYTD) + ' · gross ' + fmt$(grossRev30d), getStatus(revYTD, ytdTarget), null, revYTD / ytdTarget)}
       ${renderKPI('Orders (30d)', orders30d ? orders30d.toLocaleString() : '—', 'Unfulfilled: ' + (stats?.unfulfilled || 0), stats?.unfulfilled > 20 ? 'amber' : 'green', null, null)}
-      ${renderKPI('Avg Order Value', aov30d ? '$' + aov30d.toFixed(0) : '—', 'Retail only · Target: $' + KPI_TARGETS.aov, getStatus(aov30d, KPI_TARGETS.aov), null, aov30d / KPI_TARGETS.aov)}
+      ${renderKPI('Avg Order Value', aov30d ? '$' + aov30d.toFixed(0) : '—', 'Retail only · Target: $' + KPI_TARGETS.aov + ' · Floor: $' + KPI_TARGETS.aov_floor, aovTileStatus, null, aov30d / KPI_TARGETS.aov)}
       ${renderKPI('Active SKUs', stats?.active_products ? stats.active_products.toLocaleString() : '—', 'Target: 270 by EOY', 'amber', null, null)}
       ${renderKPI('Inventory Units', stats?.inventory_units ? stats.inventory_units.toLocaleString() : '—', 'Across 10 locations', 'neutral', null, null)}
-      ${renderKPI('Packaged Bundle % · Retail', bundleRetailPct != null ? bundleRetailPct.toFixed(1) + '%' : '—', 'Gift sets · 30d · Target ' + bundleTarget + '%', bundleStatus(bundleRetailPct), null, bundleRetailPct != null ? bundleRetailPct / bundleTarget : null)}
+      ${bundleRetailNone
+        ? renderKPI('Packaged Bundle % · Retail', 'None',
+            bundleNoneNote + ' · verified, not a data error', 'red', null, null)
+        : renderKPI('Packaged Bundle % · Retail', bundleRetailPct != null ? bundleRetailPct.toFixed(1) + '%' : '—', 'Gift sets · 30d · Target ' + bundleTarget + '%', bundleStatus(bundleRetailPct), null, bundleRetailPct != null ? bundleRetailPct / bundleTarget : null)}
       ${renderKPI('Packaged Bundle % · Online', bundleDtcPct != null ? bundleDtcPct.toFixed(1) + '%' : '—', 'Gift sets · 30d · Target ' + bundleTarget + '%', bundleStatus(bundleDtcPct), null, bundleDtcPct != null ? bundleDtcPct / bundleTarget : null)}
       ${renderKPI('Loyalty Signups', loyaltyTotal != null ? loyaltyTotal.toLocaleString() : '—', '<span class="kpi-dot ' + loyaltyDot(loyaltyConv) + '"></span>' + (loyaltyConv != null ? loyaltyConv + '% of ' + (loyaltyFirstTimers != null ? loyaltyFirstTimers.toLocaleString() : '—') + ' first-timers' : 'enrollment —') + ' · since ' + loyaltySince, 'neutral', null, null)}
       ${(function() {
@@ -1583,10 +1685,11 @@ function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bund
           </div>
           <div style="text-align:right">
             <div style="font-family:'DM Mono',monospace;font-size:13px;font-weight:600">
-              ${periodDates ? periodDates.label : 'Period'}: ${fmt$(periodTotal.revenue || 0)}
+              ${periodDates ? periodDates.label : 'Period'}: ${periodDates && periodDates.noCompleteDays ? '—' : fmt$(periodTotal.revenue || 0)}
+              ${periodDates && periodDates.noCompleteDays ? '' : `
               <span style="font-size:11px;padding:2px 8px;border-radius:4px;margin-left:6px;background:${(vsPeriodLyPct||0) >= 0 ? 'var(--green-light)' : 'var(--red-light)'};color:${(vsPeriodLyPct||0) >= 0 ? 'var(--green)' : 'var(--red)'}">
                 ${vsPeriodLyPct !== null ? ((vsPeriodLyPct >= 0 ? '+' : '') + vsPeriodLyPct + '% vs LY') : '—'}
-              </span>
+              </span>`}
             </div>
             <div style="font-size:11px;color:var(--text-3);margin-top:2px">YTD: ${fmt$(ytdTotal.revenue || 0)} · LY period: ${fmt$(lyPeriodTotal.revenue || 0)}</div>
           </div>
@@ -1608,16 +1711,21 @@ function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bund
             </tr>
           </thead>
           <tbody>
-            ${buildStoreRows(storeRows, bundlePctByStore, loyaltyByStore)}
+            ${buildStoreRows(storeRows, bundlePctByStore, loyaltyByStore, bundleNoneNote)}
           </tbody>
         </table>
         </div>
         <div style="font-size:11px;color:var(--text-3);padding:10px 4px 2px;line-height:1.5">
           <strong>Pkg Bundle %</strong> = share of orders containing a packaged gift-set product (tagged bundle SKU), last 30d, since 2026-05-01.
           Packaged gift sets only — a subset of $40-threshold compliance, and <em>not</em> the 35–40% program target. Multi-item basket bundles tracked separately (Phase 3).
+          ${bundleNoneNote ? '<br><strong style="color:var(--red,#c0392b)">' + bundleNoneNote + '.</strong> Retail gift sets last sold ' + bundlePosLastSale + '. Confirmed by SKU, product ID and product title independently — the metric is working; the sales stopped.' : ''}
         </div>
         <div style="font-size:11px;color:var(--text-3);padding:2px 4px 2px;line-height:1.5">
-          <strong>Loyalty Signups</strong> = cumulative BON signups since 2026-06-09 (location tags started fresh that date). The dot is an
+          <strong>Loyalty Signups</strong> = BON signups in the selected period, shown as <em>count · signup rate</em>. The rate is signups ÷ all
+          transactions at that location for the same period (every transaction is a chance to ask, including a $6 soap bar), so it is directly
+          comparable across stores. Location tags started 2026-06-09, so periods reaching before that date under-report.
+          <strong>Online/DTC (&#8225;) is excluded from the retail comparison</strong> — it auto-enrols at checkout, whereas in-store depends on staff asking,
+          so its much higher rate reflects a different mechanism, <em>not</em> better performance. Do not rank stores against it. The dot is an
           automation-health check on enrollment conversion (<span class="kpi-dot green"></span>≥90% · <span class="kpi-dot amber"></span>75–89% · <span class="kpi-dot red"></span>&lt;75%) — near-universal due to auto-enrollment, so it's a <em>health indicator, not a staff target</em>; a drop signals a broken Flow or misfired BON tagging.
         </div>
       </div>
@@ -1769,7 +1877,7 @@ async function loadAll(period) {
   renderSyncBadge(syncStatus);
 
   // Loyalty is a live Shopify call (~2.7s) — fetch separately, fill in when ready.
-  fetchLoyalty().then(function(loyalty) {
+  fetchLoyalty(currentPeriod).then(function(loyalty) {
     if (loyalty) renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bundles, loyalty);
   });
 
