@@ -11,9 +11,43 @@
 
 ---
 
-## 0. Merge gate — timezone and index findings
+## 0. ROOT CAUSE — lexicographic timestamp skew
 
-### Timezone: `orders.created_at` is stored in **Toronto local time with an explicit
+**This is the largest correctness win in the change, and it was not in the spec.**
+
+`orders.created_at` is stored as Toronto local time **with an offset**
+(`2026-07-08T00:44:13-04:00`). Every windowed query compared it against UTC `Z`
+instants (`2026-07-01T04:00:00.000Z`) — and SQLite compares TEXT
+**lexicographically**, character by character. It never parsed either side as a time.
+
+Two independent errors resulted, on every windowed number on the dashboard:
+
+1. **A 4–5 hour boundary skew.** `'2026-07-08T00:44:13-04:00'` vs
+   `'2026-07-08T04:44:13.000Z'` are the *same instant*, but compare as `00 < 04`.
+   Every window silently started and ended in the wrong place by the UTC offset.
+2. **An exclusive upper bound.** `created_at < to` combined with the above meant the
+   final day of every range was dropped entirely. A same-day query
+   (`date_from=date_to=2026-06-15`) returned **nothing at all**.
+
+**This is the root cause of the discrepancies in the spec's own figures.** The spec
+quotes May as 6,079 retail orders and July as 11,083. Those are the *skewed* numbers.
+Corrected: **6,310** and **11,455**. Reproducing the old comparison returns 11,083 for
+July **exactly**, confirming the mechanism.
+
+Fixed by comparing on the Toronto calendar date —
+`substr(created_at,1,10) BETWEEN ? AND ?` — inclusive at both ends, across all six
+windowed queries plus `/stats/ceo-net`. Because `created_at` is already Toronto-local,
+`substr(...,1,10)` *is* the Toronto calendar date, so this is both correct and simpler
+than converting instants.
+
+Anyone touching date filtering in this codebase should read §0.1 before assuming
+`created_at` is UTC. It is not.
+
+---
+
+## 0.1 Merge gate — timezone verification
+
+### `orders.created_at` is stored in **Toronto local time with an explicit
 ### offset**, not UTC. The `substr()` change is correct.
 
 Three-way count, run on both sides of the DST boundary:
@@ -42,7 +76,11 @@ Corroborated by the schema itself: `daily_sales.sale_date` is commented
 `date(created_at,'-4 hours')` was **not** used anywhere — it would hardcode EDT and break
 in November, as flagged.
 
-### Index: **full table scan, both before and after. No regression.**
+---
+
+## 0.2 Merge gate — index verification
+
+### **Full table scan, both before and after. No regression.**
 
 ```
 NEW (substr BETWEEN):   SCAN orders  |  USE TEMP B-TREE FOR GROUP BY
@@ -82,6 +120,7 @@ i.e. strictly better than the pre-existing code. Awaiting go-ahead.
 | `by-store-net`: returns `data_through` + `data_stale` | staleness signal |
 | `/bundles/penetration`: returns `pos_last_sale_date`; echoes `custom` when explicit dates given | 1c, 1.4 |
 | `/stats/loyalty-signups`: accepts `date_from`/`date_to`; joins retail-orders denominator; returns `orders`, `signup_rate_pct`, `comparable`, `enrolment`, and a retail-only `retail_total` | item 4 |
+| `/stats/ceo-net`: 30d/YTD windows now end **yesterday** (were ending today, disagreeing with the store table by $17,986.54); secondary gross figures moved off the §0 skew | item 2 |
 | Three catch blocks honour `err.status` | — |
 
 ### `server/public/ceo.html`
@@ -117,8 +156,79 @@ Replaced with (a)/(b)/(c) below.
 | 4 | Loyalty rate | retail **2,949 / 11,455 = 25.7%**; per-store 21.9–34.8% ✅ |
 | 4 | `conversion_pct` / `first_timers` | unchanged, 98.6% total ✅ |
 | 4 | Loyalty < 5 s | ⚠️ **5.3 s cold**, 0.11 s warm — **NOT MET**, see §5 |
+| 3 | AOV dots: "four amber, Elora red" | ⚠️ **Logic correct, spec's predicted colours do NOT reproduce** — see §2.1 |
+| 2 | MTD on the 1st / YTD on Jan 1 | ✅ verified by forced-clock test — see §2.2 |
 | — | Staleness flag fires | `to=2026-08-07` → `data_through: 2026-08-06, data_stale: true` ✅ |
 | — | Bad input doesn't crash server | 400/500 JSON returned, next request `HTTP 200` ✅ |
+| — | Hero tiles agree with store table | ✅ after the `ceo-net` fix (§8); previously off by $17,986.54 |
+
+### 2.1 AOV bands — live values, both windows
+
+The three-band logic is implemented and behaves exactly as specified
+(green ≥ $45, amber ≥ $40, red < $40). **But the spec's predicted outcome — "four amber,
+Elora red" — does not reproduce on live data in either window.** Reporting what the code
+actually returns, not the prediction:
+
+**Default view (30d, `2026-07-08 → 2026-08-06`) — what Robert sees on opening the page:**
+
+| Store | AOV | OLD (target 55, amber @ 41.25) | NEW (45 / 40) |
+|---|---|---|---|
+| Flower Farm | $43.38 | amber | **amber** |
+| Queen Street | $39.49 | red | **red** |
+| Elora | $35.11 | red | **red** |
+| Stratford | $39.06 | red | **red** |
+| Bracebridge | $39.12 | red | **red** |
+| Festivals & Events / Online/DTC | — | gray | **gray** |
+
+**YTD (`2026-01-01 → 2026-08-06`) — closest to the spec's §3 table:**
+
+| Store | AOV | OLD | NEW | Spec predicted |
+|---|---|---|---|---|
+| Flower Farm | $45.09 | amber | **green** | amber ← **mismatch** |
+| Stratford | $41.56 | amber | **amber** | amber ✅ |
+| Queen Street | $41.03 | red | **amber** | amber ✅ |
+| Bracebridge | $39.97 | red | **red** | amber ← **mismatch (by 3¢)** |
+| Elora | $39.39 | red | **red** | red ✅ |
+
+Two reasons the prediction misses:
+
+1. **The spec's §3 numbers are from a different/older window.** It lists Flower Farm as
+   `203,558.85 / 5,007 orders = $40.65`; live YTD is **13,566 orders / $45.09**. Flower
+   Farm has since crossed $45 → green. Bracebridge sits at **$39.97 — three cents under
+   the $40 floor** → red, not amber.
+2. **The spec predicted against YTD, but the table defaults to 30d.** On 30d most stores
+   genuinely sit in the $39s, so four dots are still red.
+
+**This does not mean the change failed.** Its stated purpose was to stop painting red over
+a metric that is up 8% YoY *for the wrong reason*. That is achieved: dots now mean "below
+the real $40 program floor" instead of "below 75% of a stale gross-basis $55 target." On
+30d the stores really are below $40, so red is the honest answer. Queen Street moving
+red → amber on YTD is the change working exactly as intended.
+
+⚠️ **Worth Robert's attention:** Bracebridge at **$39.97** will flip amber on a few cents
+of movement, and Flower Farm at **$45.09** will flip back to amber just as easily. Do not
+read either dot as a stable signal this month.
+
+### 2.2 MTD on the 1st / YTD on Jan 1 — forced-clock test
+
+This branch cannot occur naturally until 2026-09-01, so `getPeriodDates` was extracted
+from `ceo.html` verbatim (not retyped) and run against a stubbed clock:
+
+```
+MTD @ 2026-09-01 00:05 Toronto   from=2026-09-01 to=2026-08-31 noCompleteDays=true
+                                 label="Month to date — no complete days yet"
+MTD @ 2026-09-02 09:00 Toronto   from=2026-09-01 to=2026-09-01 noCompleteDays=false
+                                 label="Sep 1 – Sep 1"
+YTD @ 2027-01-01 00:05 Toronto   from=2027-01-01 to=2026-12-31 noCompleteDays=true
+                                 label="Year to date — no complete days yet"
+YTD @ 2027-01-02 09:00 Toronto   from=2027-01-01 to=2027-01-01 noCompleteDays=false
+                                 label="Jan 1 – Jan 1"
+```
+
+Correct on all four: `from > to` is detected rather than clamped, so no previous-month day
+is ever shown labelled "MTD" and no 2026 figure appears labelled "YTD" on Jan 1. The
+frontend also skips the API call entirely for an inverted window and renders `—`. Both
+recover to a normal one-day window on the 2nd.
 
 Jun 1–15 returned **190** bundle orders, not the spec's "~180". The extra 10 are Jun 15's,
 which the old exclusive bound dropped: 180 + 10 = 190. The fix explains the delta exactly.
@@ -310,9 +420,12 @@ Verified live: `to=2026-08-07` → `data_stale: true`; normal 30d → `data_stal
 
 ## 8. Also fixed along the way (not in the spec)
 
-- **Lexicographic timestamp skew.** Every windowed query compared UTC `Z` strings against
-  Toronto-offset stored values *as text*, skewing boundaries by 4–5 hours. Fixed by the
-  Toronto-date comparison.
+- **Lexicographic timestamp skew — promoted to §0**, as it is the root cause of the
+  spec's own discrepant figures and the largest correctness win in this change.
+- **Hero KPI tiles vs store table disagreed by $17,986.54.** `/stats/ceo-net` never got
+  the yesterday-anchor: it read $449,394.99 / AOV $40.65 for "30 days" while the store
+  table below it read $467,381.53 / $40.49 for the same label. Its secondary gross
+  figures also carried the §0 skew. Both fixed; the two now agree.
 - **`by-store-net` off-by-one.** `torontoDay(new Date('2026-08-06'))` parses as UTC midnight
   = Aug 5 in Toronto, shifting date-only windows back a day. Replaced with `toTorontoDate()`.
 - **Frontend day arithmetic** moved off browser-local midnight to UTC-anchored Toronto dates
@@ -341,16 +454,27 @@ Verified live: `to=2026-08-07` → `data_stale: true`; normal 30d → `data_stal
    fast local data immediately, fill loyalty in when it lands. Removing it was not requested.
 4. **Expression index on `substr(created_at,1,10)`** — would make the six rewritten queries
    sargable for the first time. Requires a DB write; awaiting go-ahead.
-5. **`getStoreRevenue()` and the YTD/LY endpoint (`api.js:~504`, `~644`)** still build their
-   own ISO windows and carry the original lexicographic skew. Out of scope — they do not use
-   `resolvePeriod`, and `/api/revenue/by-store` is not called by any frontend.
-6. **Frontend `lyFrom`/`lyTo`** (`ceo.html:~1132`) are computed and never read — vestigial.
+5. **`/api/revenue/ytd` and `getStoreRevenue()` still carry the §0 skew — but both are
+   dead code.** Verified by exhaustive search: `/api/revenue/ytd` appears nowhere in the
+   repo except its own route definition (no HTML, no JS caller), and `getStoreRevenue()`
+   is called *only* from inside it. ceo.html's YTD figures come from
+   `by-store-net?period=ytd`, which is fixed. The complete list of endpoints ceo.html
+   actually calls is: `bundles/penetration`, `revenue/by-store-net`, `stats/ceo-net`,
+   `stats/loyalty-signups`, `sync/status`, `tasks`, `usage/mtd`, `usage/today` — none of
+   which now carry the skew. Left unfixed deliberately: changing unreachable code adds
+   merge risk without changing any number. **Delete these routes** rather than fix them.
+   (Same applies to the legacy `/api/stats` and `/api/stats/ceo` gross endpoints.)
+6. **One rolling operational query left as-is** — `ceo-net`'s "unfulfilled in the last 14
+   days" (`api.js:~307`) still uses an ISO cutoff. It is a rolling health count, not a
+   reporting window, so the 4–5h boundary skew is immaterial and item #2's rule does not
+   apply to it.
+7. **Frontend `lyFrom`/`lyTo`** (`ceo.html:~1132`) are computed and never read — vestigial.
    Left consistent with the corrected dates rather than deleted, as removal was not in scope.
-7. **Stale pm2 entry.** `pm2` reports `neob-production` (pid 53843, started Jul 21) as
+8. **Stale pm2 entry.** `pm2` reports `neob-production` (pid 53843, started Jul 21) as
    "online", but it holds no port. The live app is pid 22469 under **launchd**
    (`/Library/LaunchDaemons/com.neob.production.plist`). Suggest `pm2 delete neob-production`
    so it stops misreporting. Not done — outside scope.
-8. **Bundle `target_pct` still 10.** Left alone deliberately; the spec says the real program
+9. **Bundle `target_pct` still 10.** Left alone deliberately; the spec says the real program
    goal is 35–40% and neither is close. That is a target-setting conversation, not code.
 
 ---
@@ -359,8 +483,13 @@ Verified live: `to=2026-08-07` → `data_stale: true`; normal 30d → `data_stal
 
 - **Process manager is `launchd`, not pm2.** Reload with:
   `sudo launchctl kickstart -k system/com.neob.production`
-- **One reload is still outstanding** for the final `by-store-net` catch-block fix
-  (`err.status` → returns 400 instead of 500 on an invalid date). Everything else in this
-  report was verified against the running service.
+- **A reload is outstanding** for two changes made after the last restart:
+  1. `by-store-net` catch block (`err.status` → 400 instead of 500 on an invalid date).
+  2. `/stats/ceo-net` yesterday-anchor + de-skewed gross figures. **Until this reload,
+     the hero tiles still read $449,394.99 / AOV $40.65 while the store table reads
+     $467,381.53 / $40.49.** After it they agree.
+
+  Everything else in this report was verified against the running service. The §2.1 AOV
+  values were read from `by-store-net`, which is unaffected by the pending reload.
 - `ceo.html` is static — a browser hard-refresh is enough.
 - Nothing was committed or pushed. Branch `ceo-dashboard-fixes-aug7` holds the work.

@@ -274,21 +274,30 @@ const torontoDaysAgo = (n) => torontoDay(new Date(Date.now() - n * 86400000));
 // the transition. Margin/AOV use the cost-bearing / excluded-txn rollups.
 router.get('/stats/ceo-net', (req, res) => {
   try {
+    // Windows END YESTERDAY, matching by-store-net and the period selector. These
+    // tiles previously ran to today: the hero read $449,394.99 / AOV $40.65 while
+    // the store table below it read $467,381.53 / $40.49 for the same "30 days" —
+    // an $18k contradiction on one screen, plus a partial today dragging AOV down.
     const today = torontoDay();
-    const start30 = torontoDaysAgo(29);                 // 30-day inclusive window
+    const yesterday = torontoDaysAgo(1);
+    const start30 = torontoDaysAgo(30);                 // 30 complete days
     const startYTD = `${today.slice(0, 4)}-01-01`;
 
-    const y30 = netSalesCompanyYoY(start30, today);
-    const yYTD = netSalesCompanyYoY(startYTD, today);
+    const y30 = netSalesCompanyYoY(start30, yesterday);
+    const yYTD = netSalesCompanyYoY(startYTD, yesterday);
     const c30 = y30.current;
     const cYTD = yYTD.current;
 
     // Gross (secondary, same basis as the live /stats/ceo) for transition display.
-    const grossSince = (iso) => db.prepare(
-      'SELECT COALESCE(SUM(CAST(total_price AS REAL)),0) AS rev FROM orders WHERE created_at >= ?'
-    ).get(iso).rev;
-    const rev30 = grossSince(new Date(Date.now() - 30 * 86400000).toISOString());
-    const revYTD = grossSince(new Date(new Date().getFullYear(), 0, 1).toISOString());
+    // Compared on the Toronto calendar date: created_at is stored Toronto-local
+    // with offset, so comparing it against a UTC 'Z' instant as TEXT skewed the
+    // boundary by 4–5h. Inclusive both ends.
+    const grossBetween = (from, to) => db.prepare(
+      `SELECT COALESCE(SUM(CAST(total_price AS REAL)),0) AS rev FROM orders
+       WHERE substr(created_at,1,10) BETWEEN ? AND ?`
+    ).get(from, to).rev;
+    const rev30 = grossBetween(start30, yesterday);
+    const revYTD = grossBetween(startYTD, yesterday);
 
     const dayOfYear = Math.ceil((Date.now() - new Date(new Date().getFullYear(), 0, 1)) / 86400000);
 
