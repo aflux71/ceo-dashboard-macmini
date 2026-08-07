@@ -551,63 +551,6 @@ router.get('/revenue/by-store', (req, res) => {
   } catch(err) { res.status(err.status || 500).json({ error: err.message }); }
 });
 
-// ── /api/revenue/ytd ──────────────────────────────────────────────
-// YTD revenue vs same period last year, by store + total
-router.get('/revenue/ytd', (req, res) => {
-  try {
-    const now = new Date();
-    const yearStart = `${now.getFullYear()}-01-01T00:00:00Z`;
-    const today = now.toISOString();
-
-    // Same day/month range last year
-    const lyStart = `${now.getFullYear()-1}-01-01T00:00:00Z`;
-    const lyEnd = new Date(now);
-    lyEnd.setFullYear(lyEnd.getFullYear() - 1);
-    const lyToday = lyEnd.toISOString();
-
-    const ytdStores = getStoreRevenue(yearStart, today);
-    const lyStores = getStoreRevenue(lyStart, lyToday);
-
-    // Merge YTD and LY
-    const storeMap = {};
-    for (const s of ytdStores) {
-      storeMap[s.location_name] = { ...s, ly_revenue: 0, ly_orders: 0, ly_aov: 0 };
-    }
-    for (const s of lyStores) {
-      if (storeMap[s.location_name]) {
-        storeMap[s.location_name].ly_revenue = s.revenue;
-        storeMap[s.location_name].ly_orders = s.orders;
-        storeMap[s.location_name].ly_aov = s.aov;
-      } else {
-        storeMap[s.location_name] = { location_name: s.location_name, revenue: 0, orders: 0, aov: 0, ly_revenue: s.revenue, ly_orders: s.orders, ly_aov: s.aov };
-      }
-    }
-
-    const stores = Object.values(storeMap).sort((a,b) => b.revenue - a.revenue);
-
-    // Totals
-    const ytdTotal = db.prepare(`
-      SELECT COUNT(*) AS orders, ROUND(SUM(CAST(total_price AS REAL)),2) AS revenue
-      FROM orders WHERE source_name NOT IN (${EXCLUDED_SOURCES}) AND created_at >= ? AND created_at < ?
-    `).get(yearStart, today);
-
-    const lyTotal = db.prepare(`
-      SELECT COUNT(*) AS orders, ROUND(SUM(CAST(total_price AS REAL)),2) AS revenue
-      FROM orders WHERE source_name NOT IN (${EXCLUDED_SOURCES}) AND created_at >= ? AND created_at < ?
-    `).get(lyStart, lyToday);
-
-    res.json({
-      ytd_from: yearStart,
-      ytd_to: today,
-      ly_from: lyStart,
-      ly_to: lyToday,
-      stores,
-      ytd_total: ytdTotal,
-      ly_total: lyTotal,
-      vs_ly_pct: lyTotal.revenue > 0 ? Math.round(((ytdTotal.revenue - lyTotal.revenue) / lyTotal.revenue) * 100) : null
-    });
-  } catch(err) { res.status(500).json({ error: err.message }); }
-});
 
 // ── /api/bundles/penetration ──────────────────────────────────────
 // "Packaged Bundle %" — share of orders containing a tagged bundle product
@@ -731,31 +674,6 @@ function resolvePeriod(period, date_from, date_to) {
       throw e;
     }
   }
-}
-
-function getStoreRevenue(from, to) {
-  const storeRows = db.prepare(`
-    SELECT location_name, COUNT(*) AS orders,
-      ROUND(SUM(CAST(total_price AS REAL)),2) AS revenue,
-      ROUND(SUM(CAST(total_price AS REAL))/COUNT(*),2) AS aov
-    FROM orders
-    WHERE source_name NOT IN (${EXCLUDED_SOURCES})
-      AND created_at >= ? AND created_at < ?
-      AND location_id IS NOT NULL
-      AND location_name NOT IN ('neob HQ','Ecommerce Warehouse','3PL-Online Orders','Festivals & Events','Walkers Market Warehouse','Retail (unattributed)','Unattributed')
-    GROUP BY location_name ORDER BY revenue DESC
-  `).all(from, to);
-
-  const onlineRow = db.prepare(`
-    SELECT COUNT(*) AS orders,
-      ROUND(SUM(CAST(total_price AS REAL)),2) AS revenue,
-      ROUND(SUM(CAST(total_price AS REAL))/COUNT(*),2) AS aov
-    FROM orders WHERE source_name = 'web' AND created_at >= ? AND created_at < ?
-  `).get(from, to);
-
-  const result = [...storeRows];
-  if (onlineRow?.revenue) result.push({ location_name: 'Online/DTC', ...onlineRow });
-  return result;
 }
 
 

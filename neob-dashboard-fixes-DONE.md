@@ -440,11 +440,69 @@ Verified live: `to=2026-08-07` → `data_stale: true`; normal 30d → `data_stal
 
 ---
 
+## 8.1 Spec item #5 — the unattributed gap, investigated
+
+Originally report-only. Investigated on request, specifically to test whether returns and
+exchanges were the cause. **They are.**
+
+### The gap is two separate things
+
+**1. The gap existing at all is by design, not a bug.** `net_sales_queries.js:29` defines
+`NON_STORE = ['Unattributed', 'Retail (unattributed)']`, and line 193 comments that it is
+*"intentionally not shown as a row; it remains in netSalesCompany's total, so store rows
+may sum to slightly under company net."* The store table deliberately omits it while
+company totals include it.
+
+Current size — **$573.34 YTD out of $1,733,588.12 (0.03%)**. The spec's "$26" was the same
+bucket over a smaller window. All eleven `daily_sales` buckets sum to the company total
+exactly, so nothing is lost, only unattributed:
+
+| Bucket | YTD net |
+|---|---|
+| Flower Farm / Queen St / Elora / Stratford / Bracebridge | (five retail stores) |
+| neob HQ · 3PL-Online Orders · Ecommerce Warehouse · Online/DTC · Festivals & Events | (non-retail) |
+| **Unattributed** | **$573.34** ← the gap |
+
+**2. What lands in that bucket is overwhelmingly refunds.** An order becomes
+`Unattributed` when `locationName()` (`shopify.js:71-76`) finds no known `location_id`
+*and* `source_name` is neither `web` nor `pos`. Two channels do this: `shopify_draft_order`
+and app `3890849`. Within those channels, refund status is decisive:
+
+| Channel | Refunded → unattributed | Not refunded → unattributed |
+|---|---|---|
+| `3890849` | **7 / 7 = 100%** | 1 / 188 = 0.5% |
+| `shopify_draft_order` | **5 / 7 = 71%** | 3 / 961 = 0.3% |
+| **Combined** | **12 / 14 = 86%** | **4 / 1,149 = 0.35%** |
+
+A refunded order in these channels loses its location roughly **245× more often** than a
+non-refunded one. Refunds elsewhere are fine — 441 of 453 refunded orders company-wide
+(97.3%) are correctly attributed.
+
+### What this is NOT
+
+- **Not a returns-accounting error.** Returns are recorded and netted: `daily_sales`
+  carries negative `net_sales` / `net_items` on the expected days for Ecommerce Warehouse
+  (−$1,631.74), 3PL-Online Orders (−$430.33) and neob HQ (−$358.11).
+- **Not caused by any change in this branch.** The behaviour predates it.
+- **Not `Retail (unattributed)`** — that POS-without-location bucket has **0 orders**, so
+  no in-store sale is losing its location.
+
+### Recommendation (not actioned)
+
+Small in money, but it means **refunds and exchanges processed as draft orders are
+systematically invisible in per-store numbers** — a store's refunds may not be debited
+against it. Worth deciding: (a) map `shopify_draft_order` / `3890849` refunds back to the
+originating order's location, or (b) surface `Unattributed` as its own visible row so it
+stops being silent. Sample is small (14 refunded orders across both channels), so confirm
+the mechanism in Shopify before building either.
+
+---
+
 ## 9. Left undone — explicit list
 
-1. **Item #5 ($26 unattributed net sales).** Report-only per instruction. Not investigated.
-   Store rows sum to $519,774.07 vs company `net_sales` $519,800.07; some net sales carry no
-   location.
+1. **Item #5 (unattributed net sales) — INVESTIGATED, see §8.1.** Root cause identified
+   (refunds via `shopify_draft_order` / app `3890849` lose their location; the gap itself is
+   by design). No code change made: the recommendation needs a Shopify-side decision first.
 2. **Loyalty <5 s target NOT met.** 5.3 s cold (down from ~30 s timeout / 6.3 s intermediate),
    0.11 s warm via the 5-minute cache. The residual is pagination latency: Flower Farm alone
    is 1,302 customers = 6 pages with 300 ms inter-page sleeps. Halving the sleep would save
@@ -454,16 +512,16 @@ Verified live: `to=2026-08-07` → `data_stale: true`; normal 30d → `data_stal
    fast local data immediately, fill loyalty in when it lands. Removing it was not requested.
 4. **Expression index on `substr(created_at,1,10)`** — would make the six rewritten queries
    sargable for the first time. Requires a DB write; awaiting go-ahead.
-5. **`/api/revenue/ytd` and `getStoreRevenue()` still carry the §0 skew — but both are
-   dead code.** Verified by exhaustive search: `/api/revenue/ytd` appears nowhere in the
-   repo except its own route definition (no HTML, no JS caller), and `getStoreRevenue()`
-   is called *only* from inside it. ceo.html's YTD figures come from
-   `by-store-net?period=ytd`, which is fixed. The complete list of endpoints ceo.html
-   actually calls is: `bundles/penetration`, `revenue/by-store-net`, `stats/ceo-net`,
-   `stats/loyalty-signups`, `sync/status`, `tasks`, `usage/mtd`, `usage/today` — none of
-   which now carry the skew. Left unfixed deliberately: changing unreachable code adds
-   merge risk without changing any number. **Delete these routes** rather than fix them.
-   (Same applies to the legacy `/api/stats` and `/api/stats/ceo` gross endpoints.)
+5. **`/api/revenue/ytd` and `getStoreRevenue()` — DELETED** (81 lines). Both were dead:
+   `/api/revenue/ytd` had no caller anywhere in the repo, and `getStoreRevenue()` was
+   called only from inside it. They were the last carriers of the §0 skew on the
+   `api.js` surface. ceo.html's YTD comes from `by-store-net?period=ytd`, which is fixed.
+   The eight endpoints ceo.html actually calls — `bundles/penetration`,
+   `revenue/by-store-net`, `stats/ceo-net`, `stats/loyalty-signups`, `sync/status`,
+   `tasks`, `usage/mtd`, `usage/today` — are now all skew-free.
+   Still present and also dead: the legacy `/api/stats` and `/api/stats/ceo` gross
+   endpoints, and the `STORE_LOCATIONS` constant (`api.js:469`), which was **already
+   unreferenced on `main`** before this branch. Not removed — not in scope.
 6. **One rolling operational query left as-is** — `ceo-net`'s "unfulfilled in the last 14
    days" (`api.js:~307`) still uses an ISO cutoff. It is a rolling health count, not a
    reporting window, so the 4–5h boundary skew is immaterial and item #2's rule does not
