@@ -6,7 +6,7 @@ import { loadKnowledge, getLoadedDocs, getKnowledgeStatus } from '../knowledge.j
 import { logUsage } from '../usage.js';
 import { getLoyaltySignups } from '../sync/shopify.js';
 import { netSalesCompany, netSalesByStore, netSalesCompanyYoY, netSalesByStoreYoY, ONLINE_DTC_MEMBERS, shiftDate } from '../db/net_sales_queries.js';
-import { ensureEntryEditsSchema } from '../db/schema.js';
+import { ensureEntryEditsSchema, ensureOrderDiscountsSchema } from '../db/schema.js';
 
 const router = express.Router();
 
@@ -879,6 +879,134 @@ router.post('/portal-sync', (req, res) => {
     console.error('Portal sync error:', err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+// ── IN-STORE PROMO PARTICIPATION (Round 2 item 6) ────────────────────────────
+// The measurement fix for the bundle gap. "Packaged Bundle %" is genuinely zero
+// (the 33 gift sets were rebuilt as Shopify Bundles, which POS cannot sell), but
+// a real in-store bundle promo DOES run and was invisible: the automatic
+// "Bath Bomb Mix & Match" discount, which lives in discount_applications.
+//
+// ALLOW-LIST, not a heuristic. Measured 2026-08-09 over 1,892 POS orders: 80+
+// distinct discount titles, of which the overwhelming majority are one-off
+// `manual` entries — staff names, receipt numbers ("77105"), "Employee (Jack)",
+// plus a long tail of single-use `discount_code` strings. Matching loosely would
+// sweep staff discounts and price overrides into a "bundle" metric. Only
+// deliberately-configured automatic promos count, and each is listed here.
+//
+// To add a promo: add its lowercased title. Nothing else needs changing — the
+// list is applied at query time, so it works on already-synced history.
+const POS_PROMOS = [
+  { norm_title: 'bath bomb mix & match', label: 'Bath Bomb Mix & Match' }
+];
+// Ad-hoc manual titles seen once or twice ('custom set', '2 small soaps for
+// price of 1 large') are deliberately EXCLUDED: cashier free-text, not a
+// configured promo, and not countable as participation.
+
+// GET /api/promos/participation?period=30d
+// Rate = retail orders carrying an allow-listed promo / ALL retail orders.
+// Denominator matches the loyalty-rate convention: every transaction is an
+// opportunity, including the $6 soap bar.
+router.get('/promos/participation', (req, res) => {
+  try {
+    ensureOrderDiscountsSchema();
+    const { period, date_from, date_to } = req.query;
+    const { from, to } = (!period && !(date_from && date_to))
+      ? resolvePeriod('30d')
+      : resolvePeriod(period, date_from, date_to);
+
+    // COVERAGE GUARD. order_discounts only fills forward from the first sync
+    // that captured it; no backfill has been run. Without this, a window that
+    // predates capture would report a confident 0.0% — which is exactly the
+    // failure mode that had "Packaged Bundle %" mistaken for a broken metric
+    // twice. Report null + a reason instead of a number we cannot support.
+    const cov = db.prepare(
+      `SELECT MIN(substr(o.created_at,1,10)) AS first_day,
+              MAX(substr(o.created_at,1,10)) AS last_day,
+              COUNT(DISTINCT o.id)           AS orders_with_discounts
+         FROM order_discounts d JOIN orders o ON o.id = d.order_id`
+    ).get();
+    const dataSince = cov?.first_day || null;
+    const covered = Boolean(dataSince) && from >= dataSince;
+
+    const retailPh = RETAIL_STORES;   // already a quoted, comma-joined list
+    const denomRows = db.prepare(
+      `SELECT location_name AS store, COUNT(*) AS orders
+         FROM orders
+        WHERE location_name IN (${retailPh})
+          AND substr(created_at,1,10) BETWEEN ? AND ?
+        GROUP BY location_name`
+    ).all(from, to);
+
+    const promoKeys = POS_PROMOS.map(p => p.norm_title);
+    const keyPh = promoKeys.map(() => '?').join(',');
+    const numRows = promoKeys.length ? db.prepare(
+      `SELECT o.location_name AS store, COUNT(DISTINCT o.id) AS orders
+         FROM orders o JOIN order_discounts d ON d.order_id = o.id
+        WHERE o.location_name IN (${retailPh})
+          AND substr(o.created_at,1,10) BETWEEN ? AND ?
+          AND d.type = 'automatic'
+          AND d.norm_title IN (${keyPh})
+        GROUP BY o.location_name`
+    ).all(from, to, ...promoKeys) : [];
+
+    const denom = Object.fromEntries(denomRows.map(r => [r.store, r.orders]));
+    const num = Object.fromEntries(numRows.map(r => [r.store, r.orders]));
+    const rate = (n, d) => (covered && d > 0 ? Math.round((n / d) * 1000) / 10 : null);
+
+    const stores = Object.keys(denom).sort().map(s => ({
+      store: s,
+      promo_orders: covered ? (num[s] || 0) : null,
+      orders: denom[s],
+      participation_pct: rate(num[s] || 0, denom[s])
+    }));
+    const totalDenom = denomRows.reduce((a, r) => a + r.orders, 0);
+    const totalNum = numRows.reduce((a, r) => a + r.orders, 0);
+
+    res.json({
+      period: period || 'custom', from, to,
+      promos: POS_PROMOS.map(p => p.label),
+      stores,
+      retail_total: {
+        promo_orders: covered ? totalNum : null,
+        orders: totalDenom,
+        participation_pct: rate(totalNum, totalDenom)
+      },
+      data_since: dataSince,
+      covered,
+      // Say why a null is null, so nobody reads it as "no promo sales".
+      coverage_note: covered ? null
+        : (dataSince
+            ? `discount_applications captured only from ${dataSince}; this window starts ${from}. Rate withheld rather than reported as 0% — run a backfill to extend history.`
+            : 'No discount_applications captured yet — the order sync has not run since this feature shipped. Rate withheld rather than reported as 0%.')
+    });
+  } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
+});
+
+// GET /api/promos/discount-titles?period=30d — the raw tail, for deciding what
+// belongs on the allow-list. Admin-gated: it exposes cashier free-text.
+router.get('/promos/discount-titles', (req, res) => {
+  if (!checkAdminPin(req, res)) return;
+  try {
+    ensureOrderDiscountsSchema();
+    const { period, date_from, date_to } = req.query;
+    const { from, to } = (!period && !(date_from && date_to))
+      ? resolvePeriod('30d')
+      : resolvePeriod(period, date_from, date_to);
+    const rows = db.prepare(
+      `SELECT d.type, d.title, d.norm_title, COUNT(DISTINCT o.id) AS orders
+         FROM order_discounts d JOIN orders o ON o.id = d.order_id
+        WHERE o.location_name IN (${RETAIL_STORES})
+          AND substr(o.created_at,1,10) BETWEEN ? AND ?
+        GROUP BY d.type, d.norm_title
+        ORDER BY orders DESC, d.title`
+    ).all(from, to);
+    const allow = new Set(POS_PROMOS.map(p => p.norm_title));
+    res.json({
+      from, to,
+      titles: rows.map(r => ({ ...r, on_allow_list: r.type === 'automatic' && allow.has(r.norm_title) }))
+    });
+  } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
 });
 
 // ── ADMIN EDITS TO DAILY ENTRIES (Round 2 item 5) ⚠️ WRITES USER DATA ────────

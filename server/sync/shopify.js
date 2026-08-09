@@ -2,7 +2,7 @@ import axios from 'axios';
 import db from '../db/database.js';
 import dotenv from 'dotenv';
 import { syncInventory } from './inventory.js';
-import { ensureBundleSchema } from '../db/schema.js';
+import { ensureBundleSchema, ensureOrderDiscountsSchema } from '../db/schema.js';
 
 dotenv.config();
 
@@ -237,10 +237,25 @@ function detectBundles(order, bundleMap) {
   return { isBundlePos, isBundleDtc };
 }
 
+// The order payload already carries `discount_applications` — the fetch sets no
+// `fields=` filter, so this data has always been arriving and simply been
+// discarded. Capturing it needs no API change and no extra request.
+const DISCOUNT_INSERT_SQL = `
+  INSERT OR REPLACE INTO order_discounts
+  (order_id, idx, type, title, norm_title, code, value, value_type,
+   allocation_method, target_selection, target_type, synced_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+`;
+
+const normDiscountTitle = (d) =>
+  String(d.title || d.code || '').trim().toLowerCase() || null;
+
 function insertOrders(orders, bundleMap) {
   const insert = db.prepare(ORDER_INSERT_SQL);
   const insertLineItem = db.prepare(LINE_ITEM_INSERT_SQL);
   const deleteLineItems = db.prepare(`DELETE FROM order_line_items WHERE order_id = ?`);
+  const insertDiscount = db.prepare(DISCOUNT_INSERT_SQL);
+  const deleteDiscounts = db.prepare(`DELETE FROM order_discounts WHERE order_id = ?`);
 
   const insertMany = db.transaction((items) => {
     for (const o of items) {
@@ -257,6 +272,25 @@ function insertOrders(orders, bundleMap) {
         o.tags || null, isBundlePos, isBundleDtc,
         o.created_at, o.updated_at
       );
+
+      // Replace discounts wholesale, same reasoning as line items: a re-sync of
+      // an amended order must not leave stale rows behind.
+      deleteDiscounts.run(orderId);
+      const discounts = Array.isArray(o.discount_applications) ? o.discount_applications : [];
+      discounts.forEach((d, i) => {
+        insertDiscount.run(
+          orderId, i,
+          d.type || null,
+          d.title || d.code || null,
+          normDiscountTitle(d),
+          d.code || null,
+          d.value != null ? parseFloat(d.value) : null,
+          d.value_type || null,
+          d.allocation_method || null,
+          d.target_selection || null,
+          d.target_type || null
+        );
+      });
 
       // Replace line items wholesale so re-syncs stay correct if lines change.
       deleteLineItems.run(orderId);
@@ -282,6 +316,7 @@ const ORDER_HISTORY_FLOOR = '2024-01-01T00:00:00Z';
 export async function syncOrders(createdMin = ORDER_HISTORY_FLOOR) {
   console.log('Syncing orders (created_at_min ' + createdMin + ') with location data...');
   ensureBundleSchema();
+  ensureOrderDiscountsSchema();
   const bundleMap = await buildBundleTagMap();
   let synced = 0;
   let url = `${SHOPIFY_URL}/orders.json?limit=250&status=any&created_at_min=${createdMin}`;
@@ -307,6 +342,7 @@ export async function syncOrders(createdMin = ORDER_HISTORY_FLOOR) {
 export async function syncOrdersIncremental(hoursBack = 48) {
   console.log(`Syncing orders updated in last ${hoursBack}h...`);
   ensureBundleSchema();
+  ensureOrderDiscountsSchema();
   const bundleMap = await buildBundleTagMap();
   let synced = 0;
   const since = new Date();

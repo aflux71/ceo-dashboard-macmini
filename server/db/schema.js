@@ -245,3 +245,41 @@ export function ensureEntryEditsSchema() {
       ON daily_entry_edits(entry_date, store_name);
   `);
 }
+
+// ── Order discounts (Round 2 item 6) ─────────────────────────────────────────
+// One row per entry in an order's `discount_applications`. Captured because the
+// in-store "Bath Bomb Mix & Match" promo is a real bundle that lives ONLY here:
+// Shopify's Bundles app records component line items, so a bundle sale carries
+// no bundle SKU and no bundle product_id and is invisible to a SKU-keyed matcher.
+//
+// A TABLE rather than a `discount_titles TEXT` column on `orders` (the spec
+// allowed either) because the field is genuinely multi-valued — an order can
+// carry several discounts — and because the long tail is large and messy
+// (measured 2026-08-09: 80+ distinct titles over 5 days, mostly one-off manual
+// entries like staff names and receipt numbers). Rows let the allow-list be
+// changed without re-syncing, and let the tail be audited rather than guessed at.
+//
+// `norm_title` is the matching key: lowercased/trimmed title, falling back to
+// code for discount_code rows. Indexed, because the participation rate filters
+// on it over the full order history.
+export function ensureOrderDiscountsSchema() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS order_discounts (
+      order_id          TEXT NOT NULL,
+      idx               INTEGER NOT NULL,   -- position within discount_applications
+      type              TEXT,               -- manual | discount_code | automatic | script
+      title             TEXT,               -- title (manual/automatic) or code (discount_code)
+      norm_title        TEXT,               -- lowercased match key
+      code              TEXT,
+      value             REAL,
+      value_type        TEXT,               -- percentage | fixed_amount
+      allocation_method TEXT,
+      target_selection  TEXT,
+      target_type       TEXT,
+      synced_at         TEXT,
+      PRIMARY KEY (order_id, idx)
+    );
+    CREATE INDEX IF NOT EXISTS idx_order_discounts_norm ON order_discounts(norm_title);
+    CREATE INDEX IF NOT EXISTS idx_order_discounts_order ON order_discounts(order_id);
+  `);
+}
