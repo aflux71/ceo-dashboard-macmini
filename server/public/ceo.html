@@ -1504,9 +1504,21 @@ function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bund
   // conversion is an automation-health dot (auto-enrollment keeps it ~99%).
   const loyaltyByStore = {};
   (loyalty?.stores || []).forEach(s => { loyaltyByStore[s.store] = s; });
-  const loyaltyTotal = loyalty?.total?.signups;            // BON-enrolled — the accurate loyalty count (headline)
-  const loyaltyFirstTimers = loyalty?.total?.first_timers; // denominator behind the conversion health dot
-  const loyaltyConv = loyalty?.total?.conversion_pct;
+  // RETAIL ONLY. `total` includes Online/DTC, which auto-enrols at checkout and
+  // runs ~93% — folding that into the headline both flatters the number and
+  // makes it non-comparable to any store, which is the whole reason Online is
+  // marked comparable:false. retail_total excludes it. Do not switch this back
+  // to `total` (spec item 3).
+  const loyRetail = loyalty?.retail_total || null;
+  const loyaltyTotal = loyRetail?.signups;                 // BON-enrolled, retail only — the headline count
+  const loyaltyFirstTimers = loyRetail?.first_timers;      // denominator behind the conversion health dot
+  const loyaltyRate = loyRetail?.signup_rate_pct;          // signups ÷ all retail transactions
+  // retail_total carries no conversion_pct, so derive it on the SAME retail
+  // basis rather than borrowing the all-channel figure from `total` — mixing
+  // the two would put an Online-inflated dot next to a retail-only count.
+  const loyaltyConv = (loyRetail && loyRetail.first_timers > 0)
+    ? Math.round((loyRetail.signups / loyRetail.first_timers) * 1000) / 10
+    : null;
   const loyaltySince = loyalty?.data_since || '2026-06-09';
   const loyaltyDot = v => (v == null) ? 'gray' : v >= 90 ? 'green' : v >= 75 ? 'amber' : 'red';
 
@@ -1702,10 +1714,10 @@ function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bund
       ${renderKPI('Inventory Units', stats?.inventory_units ? stats.inventory_units.toLocaleString() : '—', 'Across 10 locations', 'neutral', null, null)}
       ${bundleRetailNone
         ? renderKPI('Packaged Bundle % · Retail', 'None',
-            bundleNoneNote + ' · verified, not a data error', 'red', null, null)
+            bundleNoneNote + ' · verified, not a data error · Shopify product issue, under review', 'red', null, null)
         : renderKPI('Packaged Bundle % · Retail', bundleRetailPct != null ? bundleRetailPct.toFixed(1) + '%' : '—', 'Gift sets · 30d · Target ' + bundleTarget + '%', bundleStatus(bundleRetailPct), null, bundleRetailPct != null ? bundleRetailPct / bundleTarget : null)}
       ${renderKPI('Packaged Bundle % · Online', bundleDtcPct != null ? bundleDtcPct.toFixed(1) + '%' : '—', 'Gift sets · 30d · Target ' + bundleTarget + '%', bundleStatus(bundleDtcPct), null, bundleDtcPct != null ? bundleDtcPct / bundleTarget : null)}
-      ${renderKPI('Loyalty Signups', loyaltyTotal != null ? loyaltyTotal.toLocaleString() : '—', '<span class="kpi-dot ' + loyaltyDot(loyaltyConv) + '"></span>' + (loyaltyConv != null ? loyaltyConv + '% of ' + (loyaltyFirstTimers != null ? loyaltyFirstTimers.toLocaleString() : '—') + ' first-timers' : 'enrollment —') + ' · since ' + loyaltySince, 'neutral', null, null)}
+      ${renderKPI('Loyalty Signups · Retail', loyaltyTotal != null ? (loyaltyTotal.toLocaleString() + (loyaltyRate != null ? ' · ' + loyaltyRate.toFixed(1) + '%' : '')) : '—', '<span class="kpi-dot ' + loyaltyDot(loyaltyConv) + '"></span>' + (loyaltyConv != null ? loyaltyConv + '% of ' + (loyaltyFirstTimers != null ? loyaltyFirstTimers.toLocaleString() : '—') + ' first-timers' : 'enrollment —') + ' · Online excluded · since ' + loyaltySince, 'neutral', null, null)}
       ${(function() {
         if (!usageMtd) return renderKPI('API Spend (MTD)', '—', 'Sign in for admin access', 'neutral', null, null);
         const mtdCents = usageMtd.total_cents || 0;
@@ -1765,7 +1777,12 @@ function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bund
         <div style="font-size:11px;color:var(--text-3);padding:10px 4px 2px;line-height:1.5">
           <strong>Pkg Bundle %</strong> = share of orders containing a packaged gift-set product (tagged bundle SKU), last 30d, since 2026-05-01.
           Packaged gift sets only — a subset of $40-threshold compliance, and <em>not</em> the 35–40% program target. Multi-item basket bundles tracked separately (Phase 3).
-          ${bundleNoneNote ? '<br><strong style="color:var(--red,#c0392b)">' + bundleNoneNote + '.</strong> Retail gift sets last sold ' + bundlePosLastSale + '. Confirmed by SKU, product ID and product title independently — the metric is working; the sales stopped.' : ''}
+          ${bundleNoneNote ? '<br><strong style="color:var(--red,#c0392b)">' + bundleNoneNote + '.</strong> Retail gift sets last sold ' + bundlePosLastSale + '.'
+            + ' <strong>This is not a dashboard bug — please do not re-open it as one.</strong> Root cause confirmed 2026-08-07: on 2026-06-15 the 33 in-store gift sets were rebuilt as'
+            + ' <em>Shopify Bundles</em>, and Shopify Bundles are not sellable on POS. They are genuinely unsellable in stores, so a zero is the correct reading.'
+            + ' Confirmed independently by SKU, product ID and product title, and by the Shopify Admin API (all 33 <code>requiresComponents = true</code>).'
+            + ' Remediation is a Shopify Admin change owned by Melissa (we hold no <code>write_products</code> scope) and is <strong>under review</strong> — no code change can make this number non-zero.'
+            + ' The separate in-store <em>Bath Bomb Mix &amp; Match</em> promo (~4% of POS orders) is real but not yet counted; capturing it is tracked as Round 2 item 6.' : ''}
         </div>
         <div style="font-size:11px;color:var(--text-3);padding:2px 4px 2px;line-height:1.5">
           <strong>These are two different measures on two different bases. They are not comparable to each other, and neither is a subtotal of the other.</strong><br>
