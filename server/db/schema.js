@@ -283,3 +283,42 @@ export function ensureOrderDiscountsSchema() {
     CREATE INDEX IF NOT EXISTS idx_order_discounts_order ON order_discounts(order_id);
   `);
 }
+
+// ── Bundle attribution (Round 2 follow-up, 2026-08-09) ───────────────────────
+// REAL bundle attribution, replacing the SKU match that silently broke.
+//
+// Shopify Bundles records COMPONENT line items on an order and never the bundle
+// parent as a line — "SKUs are listed for individual items in orders, not for
+// the bundle SKU". Matching orders on the GS#### SKU therefore found nothing
+// from the 2026-06-15 conversion onward, and the metric read 0% while the
+// bundles were in fact selling (Shopify Analytics: 32 bundles, 100% POS).
+//
+// The parent IS available — as `LineItem.lineItemGroup` on the GraphQL Admin
+// API (2024-10), which the REST 2023-10 order payload does not carry. That is
+// why every REST-side check missed it. One lineItemGroup per bundle purchased:
+// its component line items all share the group, and the group holds the bundle
+// title, productId, variantId and variantSku (the GS#### we key on).
+//
+// One row per (order, bundle instance). Written by the sync so there is a
+// single source of truth in our DB rather than a read-time ShopifyQL call.
+export function ensureOrderBundlesSchema() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS order_bundles (
+      order_id          TEXT NOT NULL,
+      group_id          TEXT NOT NULL,   -- lineItemGroup id: one per bundle instance
+      bundle_sku        TEXT,            -- variantSku, e.g. GS0006
+      bundle_title      TEXT,
+      bundle_product_id TEXT,
+      quantity          INTEGER,         -- bundles purchased in this group
+      component_lines   INTEGER,         -- line items belonging to the group
+      order_date        TEXT,            -- YYYY-MM-DD, America/Toronto
+      location_name     TEXT,            -- normalized to our store names
+      source_name       TEXT,            -- pos | web | ...
+      synced_at         TEXT,
+      PRIMARY KEY (order_id, group_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_order_bundles_date  ON order_bundles(order_date);
+    CREATE INDEX IF NOT EXISTS idx_order_bundles_sku   ON order_bundles(bundle_sku);
+    CREATE INDEX IF NOT EXISTS idx_order_bundles_store ON order_bundles(location_name, order_date);
+  `);
+}
