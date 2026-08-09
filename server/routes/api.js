@@ -2196,13 +2196,19 @@ router.get('/portal-totals/period', (req, res) => {
     // This matches netSalesCompanyYoY / the scorecard / ceo.html — the codebase
     // standard — and uses shiftDate() rather than re-implementing the shift.
     //
-    // NOTE, and it is labelled in the UI: the `target` in these same cells was
-    // built by Melissa in targets.html from SAME-CALENDAR-DATE GROSS revenue
-    // (lyDailyRevenue, exact calendar match, orders table). So LY and target
-    // here sit on different bases — different date rule AND net vs gross
-    // (~12% apart). Measured 2026-08-09: over one week the two date rules agree
-    // within 1.6% in total but 18 of 35 store-days differ by >=25%, which is
-    // exactly why the basis is stated on the page instead of left implicit.
+    // NOTE, and it is labelled in the UI: the `target` in these same cells is
+    // ALSO net. Targets are HELD at their dollar numbers as net — not rescaled
+    // when reporting moved to net (Phase 3, basis LOCKED 2026-07-19), which
+    // makes them a deliberate ~13% stretch and the ~64% annual pace intentional.
+    // Do NOT "correct" attainment for a net-vs-gross gap; that is a settled
+    // decision, not a bug.
+    //
+    // What genuinely differs is the DATE RULE: targets were derived in
+    // targets.html from SAME-CALENDAR-DATE last year (lyDailyRevenue), while LY
+    // here is day-of-week matched. Measured 2026-08-09: over one week the two
+    // date rules agree within 1.6% in total but 18 of 35 store-days differ by
+    // >=25%, which is exactly why the basis is stated on the page rather than
+    // left implicit.
     //
     // 'Online/DTC' is a ROLLUP in daily_sales, not a single store_name — its
     // revenue lives across ONLINE_DTC_MEMBERS (neob HQ, 3PL, warehouses). A
@@ -2323,7 +2329,7 @@ router.get('/portal-totals/period', (req, res) => {
         measure: 'net_sales',
         source: 'daily_sales',
         window: { from: lyStart, to: lyEnd },
-        note: 'LY is day-of-week matched (-364d) NET. The `target` in the same row derives from same-calendar-date GROSS (kpi_targets via targets.html) — different basis, not comparable to LY.'
+        note: 'LY is day-of-week matched (-364d) NET. The `target` in the same row is ALSO net — targets are held at their dollar numbers as net (basis locked 2026-07-19, not rescaled) — but it was derived on a SAME-CALENDAR-DATE date rule, so target and ly do not line up day-for-day and the gap between them is not performance.'
       }
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
