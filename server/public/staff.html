@@ -243,6 +243,7 @@
         <div class="section-title">Store Access Codes</div>
         <div class="section-sub">Store &amp; shift codes for staff kiosks, plus the manager code that unlocks the scorecard. Rotate on staff change.</div>
       </div>
+      <a class="btn btn-ghost" id="portalLink" target="_blank" rel="noopener" style="display:none">Open store portal ↗</a>
     </div>
     <div class="card" id="accessCard">
       <div class="loading"><div class="spinner"></div> Loading store access…</div>
@@ -318,6 +319,10 @@
 
 <script>
 const API = '';
+// Store portal (Cloudflare Pages app, separate codebase). One fixed URL for all
+// stores — login is store code + shift code and the server derives the store
+// from the session token, so there is no per-store URL. Change it here.
+const PORTAL_URL = 'https://neob-store-portal.pages.dev';
 const STORES = ['Queen Street', 'Flower Farm', 'Elora', 'Stratford', 'Bracebridge', 'Online/DTC'];
 const ROLES = ['staff', 'manager', 'admin'];
 
@@ -708,6 +713,20 @@ function toast(msg, kind) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => { t.className = 'toast ' + (kind || 'info'); }, 2600);
 }
+
+// ── STORE PORTAL LINK ───────────────────────────────────────────
+// Href is set from PORTAL_URL so the constant stays the single place to
+// change it. If it's ever blanked or malformed, leave the link hidden
+// rather than hand store staff a dead anchor.
+(function renderPortalLink() {
+  const el = document.getElementById('portalLink');
+  if (!el) return;
+  const url = (PORTAL_URL || '').trim();
+  if (!/^https?:\/\//i.test(url)) return;
+  el.href = url;
+  el.title = url;
+  el.style.display = '';
+})();
 
 // ── INIT ────────────────────────────────────────────────────────
 async function init() {
