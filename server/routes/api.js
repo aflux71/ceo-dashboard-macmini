@@ -2371,7 +2371,13 @@ router.get('/portal-totals/export', (req, res) => {
 const SCORECARD_PHYSICAL_STORES = ['Bracebridge', 'Elora', 'Flower Farm', 'Queen Street', 'Stratford'];
 
 const _scStoresStmt   = db.prepare('SELECT DISTINCT store_name FROM kpi_targets ORDER BY store_name');
-const _scSalesStmt    = db.prepare('SELECT COALESCE(SUM(net_sales),0) AS net, COALESCE(SUM(orders),0) AS txns FROM daily_sales WHERE store_name = ? AND sale_date BETWEEN ? AND ?');
+// aov_excluded_* are summed because AOV has a house definition that is NOT
+// net/txns — see the aov calculation in _scBuildPeriod.
+const _scSalesStmt    = db.prepare(`SELECT COALESCE(SUM(net_sales),0)           AS net,
+                                           COALESCE(SUM(orders),0)              AS txns,
+                                           COALESCE(SUM(aov_excluded_orders),0) AS exc_txns,
+                                           COALESCE(SUM(aov_excluded_net),0)    AS exc_net
+                                      FROM daily_sales WHERE store_name = ? AND sale_date BETWEEN ? AND ?`);
 const _scTargetStmt   = db.prepare('SELECT COALESCE(SUM(revenue_target),0) AS tgt, COUNT(revenue_target) AS days FROM kpi_targets WHERE store_name = ? AND target_date BETWEEN ? AND ?');
 const _scFirstSaleStmt = db.prepare('SELECT MIN(sale_date) AS first FROM daily_sales WHERE store_name = ?');
 
@@ -2430,7 +2436,21 @@ function _scBuildPeriod(store, label, start, end, firstSale) {
   const s = _scSalesStmt.get(store, start, end);
   const net = _scRound(s.net, 2);
   const transactions = s.txns;
-  const aov = transactions > 0 ? _scRound(s.net / transactions, 2) : null;
+  // AOV uses the HOUSE definition, not net/transactions:
+  //   Σ(net_sales − aov_excluded_net) / Σ(orders − aov_excluded_orders)
+  // (NET_SALES_REFERENCE.md §Definitions) — the first 5 sub-$15 transactions per
+  // store per day are excluded, so a run of tiny impulse buys can't drag the
+  // average under the $40 programme floor.
+  //
+  // This endpoint previously computed a raw net/txns average, which disagreed
+  // with ceo.html on every store — measured 2026-08-09 over the last-7-days
+  // window, by $1.14 to $5.29. It was not cosmetic: Stratford ($37.57 vs
+  // $42.86) and Bracebridge ($36.42 vs $41.26) read FAIL against the $40 floor
+  // on the manager's scorecard while reading PASS on Robert's dashboard for the
+  // same store, same week. `transactions` stays the FULL order count — only the
+  // AOV denominator is adjusted.
+  const aovDenom = transactions - s.exc_txns;
+  const aov = aovDenom > 0 ? _scRound((s.net - s.exc_net) / aovDenom, 2) : null;
 
   // Targets — sum kpi_targets across the range; partial coverage => no variance.
   const t = _scTargetStmt.get(store, start, end);
