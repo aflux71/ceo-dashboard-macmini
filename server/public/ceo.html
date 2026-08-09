@@ -1063,6 +1063,11 @@ var PERIODS = [
 var customFrom = null;
 var customTo = null;
 
+// Current-month revenue targets from kpi_targets, keyed by store name.
+// Period-independent (the scorecard shows the target on a monthly basis), so it
+// lives here rather than being threaded through renderDashboard's arguments.
+var monthlyTargets = null;
+
 // ── PERIOD WINDOWS ────────────────────────────────────────────────
 // Every window ends YESTERDAY (America/Toronto), never today. Robert reviews
 // this in the morning; a partial today drags down every average, AOV and
@@ -1315,7 +1320,18 @@ async function fetchStoreData(period) {
     // Phase 2 flip: net-sales store table. by-store-net carries DoW-matched LY
     // (ly_revenue) and partial-aware vs_ly_pct in the same response, so the
     // separate LY call is no longer needed. A second call gets net YTD per store.
-    var storeUrl = API + '/api/revenue/by-store-net?date_from=' + encodeURIComponent(pd.from) + '&date_to=' + encodeURIComponent(pd.to);
+    // Windows the SERVER knows are requested by name so resolvePeriod() is the
+    // single source of truth and the portal scorecard — which asks by name —
+    // provably gets the same window. 'last_week' / 'mtd' / 'custom' have no
+    // server equivalent, so those still send an explicit inclusive range.
+    // (getPeriodDates and resolvePeriod agree for 7d/30d: both are
+    // today−N .. yesterday. Verified side by side, 0 row delta, before this
+    // change — the named form is about removing the chance to drift, not
+    // about correcting a current difference.)
+    var SERVER_PERIODS = { '7d': '7d', '30d': '30d', 'ytd': 'ytd' };
+    var storeUrl = SERVER_PERIODS[period || currentPeriod]
+      ? API + '/api/revenue/by-store-net?period=' + SERVER_PERIODS[period || currentPeriod]
+      : API + '/api/revenue/by-store-net?date_from=' + encodeURIComponent(pd.from) + '&date_to=' + encodeURIComponent(pd.to);
     var ytdUrl = API + '/api/revenue/by-store-net?period=ytd';
     // On the 1st of a month/year the window has no complete day in it yet, so
     // from > to. Don't ask the API for an inverted range — YTD is still valid.
@@ -1326,6 +1342,19 @@ async function fetchStoreData(period) {
       fetch(ytdUrl).then(function(r){ return r.json(); })
     ]);
     return { s30: s30, lyStore: null, ytd: ytdRes, periodDates: pd };
+  } catch(e) { return null; }
+}
+
+// Monthly revenue targets, summed per store from kpi_targets for the CURRENT
+// Toronto month. Deliberately independent of the period selector: the scorecard
+// shows the target on a monthly basis, so it must not move when the window does.
+// Returns null on failure so the column degrades to '—' rather than taking the
+// dashboard down with it.
+async function fetchMonthlyTargets() {
+  try {
+    const r = await fetch(API + '/api/targets/monthly');
+    if (!r.ok) return null;
+    return await r.json();
   } catch(e) { return null; }
 }
 
@@ -1356,10 +1385,21 @@ async function fetchLoyalty(period) {
 
 function buildStoreRows(rows, bundlePctByStore, loyaltyByStore, bundleNoneNote) {
   return rows.map(function(s, i) {
-    var target = STORE_TARGETS_2026[s.location_name] || 0;
+    var annualTarget = STORE_TARGETS_2026[s.location_name] || 0;
     // NOTE (Phase 2): attainment compares NET ytd to GROSS 2026 targets → reads ~15% low
     // until Phase 3 sets net targets. Kept for continuity; flagged for the flip review.
-    var attPct = target > 0 ? (s.ytd_revenue / target) : null;
+    //
+    // TWO TARGET BASES COEXIST BY DESIGN — do not "unify" them:
+    //   - 'YTD vs Annual Target' is YTD net vs the ANNUAL plan (STORE_TARGETS_2026).
+    //   - 'Month Target (daily plan)' is the CURRENT MONTH summed from kpi_targets.
+    // kpi_targets begins 2026-05-27 because that is when daily target-setting
+    // actually started. Do NOT backfill it to Jan 1 to make the bases match
+    // (decision, Robert, 2026-08-09): a fabricated daily plan would make every
+    // historical attainment figure reflect numbers invented after the fact —
+    // worse than the inconsistency. The columns are named and footnoted so the
+    // two read as distinct measures rather than one broken one.
+    var attPct = annualTarget > 0 ? (s.ytd_revenue / annualTarget) : null;
+    var mt = (monthlyTargets && monthlyTargets.stores) ? monthlyTargets.stores[s.location_name] : null;
     // Partial-aware, DoW-matched YoY from the net endpoint (like-for-like when a
     // store's LY is partial, e.g. Bracebridge opened 2025-02 / Festivals ramped).
     var vsLy = (s.vs_ly_pct === undefined || s.vs_ly_pct === null) ? null : Math.round(s.vs_ly_pct);
@@ -1379,6 +1419,15 @@ function buildStoreRows(rows, bundlePctByStore, loyaltyByStore, bundleNoneNote) 
     var attChip = attPct
       ? '<span class="vs-target-chip ' + attStatus + '">' + (attPct * 100).toFixed(0) + '%</span>'
       : '<span class="no-data">—</span>';
+    // Month target: real dollars from kpi_targets. A partial month (some days
+    // have no target row) is marked rather than shown as if it were complete —
+    // an understated target would flatter every store against it.
+    var mtCell = (!mt || mt.target == null)
+      ? '<span class="no-data">—</span>'
+      : fmt$(mt.target) + (mt.partial
+          ? '<span title="Only ' + mt.days_with_target + ' of ' + monthlyTargets.days_in_month
+            + ' days in this month have a target set — this total understates the month">*</span>'
+          : '');
     var bPct = bundlePctByStore ? bundlePctByStore[s.location_name] : undefined;
     // A store showing exactly 0 while bundles have stopped company-wide is a real
     // zero, not a missing number — label it rather than printing "0.0%".
@@ -1412,10 +1461,9 @@ function buildStoreRows(rows, bundlePctByStore, loyaltyByStore, bundleNoneNote) 
       '<td>' + (hasAov ? '<span class="kpi-dot ' + aovStatus + '"></span>$' + s.aov.toFixed(0) : '<span class="no-data">—</span>') + '</td>' +
       '<td>' + bCell + '</td>' +
       '<td style="font-weight:600">' + loyCell + '</td>' +
-      '<td class="revenue-val" style="font-weight:600">' + fmt$(s.ytd_revenue || 0) + '</td>' +
       '<td class="revenue-val" style="color:var(--text-3)">' + (s.ly_revenue ? fmt$(s.ly_revenue) : '—') + '</td>' +
       '<td>' + vsLyChip + '</td>' +
-      '<td class="revenue-val" style="color:var(--text-3)">' + fmt$(target) + '</td>' +
+      '<td class="revenue-val" style="color:var(--text-3)">' + mtCell + '</td>' +
       '<td>' + attChip + '</td>' +
       '</tr>';
   }).join('');
@@ -1647,7 +1695,7 @@ function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bund
 
     <!-- KPI ROW -->
     <div class="kpi-grid">
-      ${renderKPI('Net Sales (30d)', fmt$(rev30d), 'YTD net: ' + fmt$(revYTD) + ' · gross ' + fmt$(grossRev30d), getStatus(revYTD, ytdTarget), null, revYTD / ytdTarget)}
+      ${renderKPI('Net Sales (30d)', fmt$(rev30d), 'YTD vs target: ' + (ytdTarget > 0 ? Math.round((revYTD / ytdTarget) * 100) + '%' : '—') + ' · gross ' + fmt$(grossRev30d), getStatus(revYTD, ytdTarget), null, revYTD / ytdTarget)}
       ${renderKPI('Orders (30d)', orders30d ? orders30d.toLocaleString() : '—', 'Unfulfilled: ' + (stats?.unfulfilled || 0), stats?.unfulfilled > 20 ? 'amber' : 'green', null, null)}
       ${renderKPI('Avg Order Value', aov30d ? '$' + aov30d.toFixed(0) : '—', 'Retail only · Target: $' + KPI_TARGETS.aov + ' · Floor: $' + KPI_TARGETS.aov_floor, aovTileStatus, null, aov30d / KPI_TARGETS.aov)}
       ${renderKPI('Active SKUs', stats?.active_products ? stats.active_products.toLocaleString() : '—', 'Target: 270 by EOY', 'amber', null, null)}
@@ -1691,7 +1739,7 @@ function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bund
                 ${vsPeriodLyPct !== null ? ((vsPeriodLyPct >= 0 ? '+' : '') + vsPeriodLyPct + '% vs LY') : '—'}
               </span>`}
             </div>
-            <div style="font-size:11px;color:var(--text-3);margin-top:2px">YTD: ${fmt$(ytdTotal.revenue || 0)} · LY period: ${fmt$(lyPeriodTotal.revenue || 0)}</div>
+            <div style="font-size:11px;color:var(--text-3);margin-top:2px">LY period: ${fmt$(lyPeriodTotal.revenue || 0)}</div>
           </div>
         </div>
         <div class="store-scroll">
@@ -1703,11 +1751,10 @@ function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bund
               <th>Period AOV</th>
               <th>Pkg Bundle %</th>
               <th>Loyalty Signups</th>
-              <th>YTD Revenue</th>
               <th>LY Same Period</th>
               <th>vs LY</th>
-              <th>2026 Target</th>
-              <th>Attainment</th>
+              <th>Month Target (daily plan)</th>
+              <th>YTD vs Annual Target</th>
             </tr>
           </thead>
           <tbody>
@@ -1719,6 +1766,17 @@ function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bund
           <strong>Pkg Bundle %</strong> = share of orders containing a packaged gift-set product (tagged bundle SKU), last 30d, since 2026-05-01.
           Packaged gift sets only — a subset of $40-threshold compliance, and <em>not</em> the 35–40% program target. Multi-item basket bundles tracked separately (Phase 3).
           ${bundleNoneNote ? '<br><strong style="color:var(--red,#c0392b)">' + bundleNoneNote + '.</strong> Retail gift sets last sold ' + bundlePosLastSale + '. Confirmed by SKU, product ID and product title independently — the metric is working; the sales stopped.' : ''}
+        </div>
+        <div style="font-size:11px;color:var(--text-3);padding:2px 4px 2px;line-height:1.5">
+          <strong>These are two different measures on two different bases. They are not comparable to each other, and neither is a subtotal of the other.</strong><br>
+          <strong>Month Target (daily plan)</strong> = the <em>current calendar month</em>${monthlyTargets && monthlyTargets.month ? ' (' + monthlyTargets.month + ')' : ''}, summed from the
+          per-day plan in <code>kpi_targets</code>. It is deliberately <em>not</em> rebased to the selected period, so it does not move when you change the
+          window. A <strong>*</strong> means some days in the month have no plan row yet, so that total understates the month.
+          The daily plan <strong>begins 2026-05-27</strong> — the date daily target-setting actually started. There is no daily plan for Jan–May 2026
+          because none was ever set; that is a real absence, not missing data, and it is deliberately <em>not</em> backfilled — inventing a
+          retrospective daily plan would make every historical attainment figure reflect numbers made up after the fact.<br>
+          <strong>YTD vs Annual Target</strong> = year-to-date net sales against the <em>annual</em> plan target, which does cover the full year. This is why
+          the year-to-date measure uses the annual basis and the monthly one uses the daily plan.
         </div>
         <div style="font-size:11px;color:var(--text-3);padding:2px 4px 2px;line-height:1.5">
           <strong>Loyalty Signups</strong> = BON signups in the selected period, shown as <em>count · signup rate</em>. The rate is signups ÷ all
@@ -1869,10 +1927,12 @@ async function loadAll(period) {
   if (btn) btn.classList.add('spinning');
 
   // Fast local-DB calls — all sub-100ms. Render as soon as these resolve.
-  const [stats, storeData, liveTasks, usageMtd, usageToday, syncStatus, bundles] = await Promise.all([
+  const [stats, storeData, liveTasks, usageMtd, usageToday, syncStatus, bundles, mTargets] = await Promise.all([
     fetchStats(), fetchStoreData(currentPeriod), fetchTasks(),
-    fetchUsageMtd(), fetchUsageToday(), fetchSyncStatus(), fetchBundles()
+    fetchUsageMtd(), fetchUsageToday(), fetchSyncStatus(), fetchBundles(),
+    fetchMonthlyTargets()
   ]);
+  monthlyTargets = mTargets;
   renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bundles, null);
   renderSyncBadge(syncStatus);
 

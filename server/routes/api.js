@@ -338,21 +338,18 @@ router.get('/stats/ceo-net', (req, res) => {
 // PARALLEL net-sales store table (Phase 2). period = '30d' | 'ytd' (Toronto days).
 router.get('/revenue/by-store-net', (req, res) => {
   try {
-    const today = torontoDay();
-    const yesterday = torontoDaysAgo(1);   // windows end on the last COMPLETE day
     const { period, date_from, date_to } = req.query;
-    let from, to;
-    if (date_from && date_to) {            // arbitrary range (from the dashboard period selector)
-      // toTorontoDate, not torontoDay(new Date(x)): '2026-08-06' parses as UTC
-      // midnight, which is the 5th in Toronto — that silently shifted the window
-      // back a day for every date-only request.
-      from = toTorontoDate(date_from);
-      to = toTorontoDate(date_to);
-    } else if (period === 'ytd') {
-      from = `${today.slice(0, 4)}-01-01`; to = yesterday;
-    } else {
-      from = torontoDaysAgo(30); to = yesterday;   // 30 complete days
-    }
+    // resolvePeriod is the single source of truth for windows (Round 1). This
+    // endpoint used to hand-roll them and handled only 'ytd' + explicit ranges;
+    // EVERY other period fell through to a silent 30-day default, so
+    // ?period=7d returned 30 days of data labelled "7d". resolvePeriod knows
+    // 7d/30d/90d/ytd/lytd/ly30d and 400s on anything else rather than
+    // substituting a different window. Explicit date_from+date_to still wins,
+    // which is what the dashboard's Last Week / This Month / Custom send.
+    // Default (no period, no range) stays 30 complete days ending yesterday.
+    const { from, to } = (!period && !(date_from && date_to))
+      ? resolvePeriod('30d')
+      : resolvePeriod(period, date_from, date_to);
     const byStore = netSalesByStoreYoY(from, to);
     // Back-compat aliases so the existing store-table renderer maps cleanly; the
     // partial-aware vs_ly_pct is the like-for-like delta when a store's LY is partial.
@@ -1045,6 +1042,53 @@ router.get('/targets/month', (req, res) => {
     }
     res.json({ store, year, month, rows });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/targets/monthly?month=YYYY-MM — per-store revenue target for a whole
+// calendar month, summed from kpi_targets (which is stored per DAY).
+//
+// The CEO scorecard shows the target on a MONTHLY basis rather than the selected
+// window's basis, so the number must not move when the period selector changes.
+// Unauthenticated, matching the other dashboard endpoints ceo.html reads
+// (/stats/ceo-net, /revenue/by-store-net) rather than the PIN-gated admin
+// targets editor.
+//
+// `partial` marks a store whose month is not fully covered by target rows — its
+// sum is real but understates the month, so the UI must not present it as a
+// complete target. Same convention as the scorecard's target_partial.
+router.get('/targets/monthly', (req, res) => {
+  try {
+    const monthArg = req.query.month || torontoDay().slice(0, 7);
+    if (!/^\d{4}-\d{2}$/.test(monthArg)) {
+      return res.status(400).json({ error: 'Invalid month (expected YYYY-MM)' });
+    }
+    const [year, month] = monthArg.split('-').map(Number);
+    if (month < 1 || month > 12) {
+      return res.status(400).json({ error: 'Invalid month (expected YYYY-MM)' });
+    }
+    const days = daysInMonth(year, month);
+    const monthStart = `${monthArg}-01`;
+    const monthEnd = `${monthArg}-${pad2(days)}`;
+
+    const rows = db.prepare(
+      `SELECT store_name,
+              ROUND(SUM(revenue_target), 2) AS target,
+              COUNT(*)                      AS days_with_target
+         FROM kpi_targets
+        WHERE target_date BETWEEN ? AND ?
+        GROUP BY store_name`
+    ).all(monthStart, monthEnd);
+
+    const byStore = {};
+    for (const r of rows) {
+      byStore[r.store_name] = {
+        target: r.target,
+        days_with_target: r.days_with_target,
+        partial: r.days_with_target < days
+      };
+    }
+    res.json({ month: monthArg, days_in_month: days, stores: byStore });
+  } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
 });
 
 router.get('/targets/ly-summary', (req, res) => {
