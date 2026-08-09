@@ -34,7 +34,52 @@ patch to exclude them — see Part 4 for the technique.
 
 ---
 
-# PART 2 — ⚠️ ROOT CAUSE: Shopify Bundles does not support POS
+# ⛔ PARTS 2 AND 2A ARE SUPERSEDED AND WRONG — corrected 2026-08-09
+
+**Do not act on Parts 2 or 2A. They are retained only as a record of the error.**
+The correction lives in `RESUME_round2-dashboard-fixes-2026-08-09.md` Part 7.
+
+**What Parts 2/2A claim:** the 33 in-store gift sets stopped selling on 2026-06-15
+because Shopify Bundles cannot be sold on POS; ~$570/day of lost revenue; remediation
+owned by Melissa.
+
+**The truth:** the gift sets **never stopped selling**. Shopify's own bundle Analytics
+(ShopifyQL) shows **32 bundles with sales in the last 30 days, 100% Point of Sale, zero
+online**. 2026-06-15 is the date they were **converted** to Shopify Bundles, not the date
+they stopped selling. **No revenue was lost.** "Shopify Bundles does not support POS" is
+false. Nothing was ever owed to Melissa.
+
+**What actually broke:** Shopify Bundles records **component** line items on an order and
+never the bundle parent — *"SKUs are listed for individual items in orders, not for the
+bundle SKU"*. Our detection keys off the bundle SKU, which Shopify never emits, so the
+metric fell to zero on the conversion date. It is an **attribution gap**, not a sales
+stoppage.
+
+### ⚠️ The reasoning error — more useful than the corrected number
+
+Part 2 calls the finding "confirmed independently by SKU, product ID and product title"
+and adds a fourth tag-agnostic title sweep. **All four query `orders` /
+`order_line_items` — the one table where the bundle parent structurally cannot appear.**
+That is *one source read four ways*, not four independent confirmations. Their agreement
+was guaranteed by construction and carried no information.
+
+Worse, the mechanism is written down **in this very document**, below, under "Also true
+regardless: Bundles hides the bundle SKU on every channel" — and the opposite conclusion
+was drawn from it anyway. If the bundle SKU never appears in orders, then its absence
+from orders cannot be evidence of anything.
+
+**Rule adopted:** when confirming that something did **not** happen, at least one check
+must come from a **different system**, not a different query against the same one. Here,
+one look at Shopify's own Analytics would have settled it in a minute.
+
+**Withdrawn:** $570/day · $462/day · ~$24,900 · ~$30,000 · "unsellable at POS" ·
+`MELISSA-HANDOVER-gift-set-bundles-2026-08-09.md` (do not send).
+
+---
+
+# PART 2 — ⚠️ SUPERSEDED — ROOT CAUSE: Shopify Bundles does not support POS
+
+> **This section is WRONG. See the correction above.** Kept verbatim for the record.
 
 `neob-dashboard-fixes-DONE.md` §0/§4 correctly observe that the 33 in-store gift sets
 stopped selling on 2026-06-15, but blame merchandising ("came off the floor, never
@@ -160,7 +205,16 @@ doesn't exist (**0 synthetic rows**). Harmless, but not load-bearing.
 
 ---
 
-# PART 2A — Shopify investigation (2026-08-07, read-only, NO writes made)
+# PART 2A — ⚠️ SUPERSEDED — Shopify investigation (2026-08-07, read-only)
+
+> **The premise of this section is WRONG** — it investigates how to fix a sales stoppage
+> that never happened. See the correction at the top of this document.
+>
+> Two findings here remain **factually true and useful**: all 33 live POS products have
+> `requiresComponents = true` (they ARE Bundles-app products), and the 33 pre-conversion
+> products were deleted (HTTP 404). Everything framed as remediation — un-bundle,
+> duplicate, retire, "Melissa must confirm" — is moot. The bundles work fine on POS;
+> only our attribution is broken.
 
 Commissioned to find out whether the fix is a simple re-publish/restock rather than
 un-bundling. **It is not** — and the working "Group A / Group B" model was inverted.

@@ -45,6 +45,17 @@ Established in Round 1. Getting any of these wrong reintroduces a fixed bug.
   onto the mini.** `origin` is `neob-operations-suite_truth`, a different repo; `main` tracks
   `macmini`. (An earlier draft of this line said "push both" — that was wrong.)
 - **Never `git add -A`.** Stage only files you changed.
+- **Confirming a NEGATIVE requires a second SYSTEM, not a second query.** When concluding
+  that something did *not* happen — no sales, no rows, no traffic — at least one check
+  must come from a **different system** than the one you are querying. Several queries
+  against the same store are not independent confirmations; if that store structurally
+  cannot hold the evidence, they will all agree and all be wrong.
+  **This cost us a full day on 2026-08-09.** "Retail bundle sales stopped 2026-06-15" was
+  called *verified* on the strength of four checks — SKU, product_id, title, and a
+  tag-agnostic title sweep — every one of which read `orders` / `order_line_items`, the
+  one table where a Shopify Bundles parent never appears. Shopify's own Analytics showed
+  32 bundles selling, 100% POS, the whole time. One look at a different system would have
+  settled it in a minute. See `RESUME_round2-dashboard-fixes-2026-08-09.md` Part 7.
 - **`grep` here is `ugrep`, and it silently skips files it classifies as binary.**
   If a search of a file you know exists returns nothing, re-run it with **`-a`** before
   concluding the string isn't there. `server/sync/net_sales.js` is the known case: it

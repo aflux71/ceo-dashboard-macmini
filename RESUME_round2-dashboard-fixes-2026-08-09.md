@@ -6,6 +6,14 @@
 **Spec:** `neob-dashboard-fixes-BUILD-2.md` (corrected in-place this session)
 **Predecessor:** `RESUME_ceo-dashboard-fixes-2026-08-07.md`
 
+> ## ⛔ READ PART 7 FIRST
+> A major correction landed late in this session. **The gift sets never stopped selling
+> and no revenue was lost** — Shopify Analytics shows 32 bundles selling, 100% POS. The
+> Jun 15 "cliff" is an **attribution gap**, not a sales stoppage.
+> **PART 4 is entirely withdrawn.** Part 1's item-3 row and Part 5's Melissa items are
+> superseded. The reasoning error behind it is documented in Part 7 and is the most
+> useful thing in this document.
+
 ---
 
 # PART 1 — What shipped
@@ -33,7 +41,7 @@ f38bfa3  Docs: shipping open question; ugrep/NUL pre-flight note
 | **1** Portal URL | `PORTAL_URL` const at `staff.html:325`; new-tab anchor in Store Access Codes header. Hidden unless the const parses as http(s), so a blanked value can't ship a dead link to staff |
 | **2** Scorecard shape (ceo.html) | Last-7-days by name; YTD dollars removed everywhere (survives as % vs target); target on a monthly basis from `kpi_targets`. **Also fixed a real bug** — see Part 2 |
 | **2** Portal half | **DEFERRED** — Pages source is not on this machine. Spec written: `PORTAL-HANDOFF-scorecard-round2-2026-08-09.md` |
-| **3** Bundles + Loyalty | Loyalty tile moved to `retail_total` (was `total`, which included Online's auto-enrolled 93%); bundle none-state now cites the root cause |
+| **3** Bundles + Loyalty | Loyalty tile moved to `retail_total` (was `total`, which included Online's auto-enrolled 93%) — **still correct**. The bundle half is **superseded**: the "root cause" it cited was wrong, and the none-state was replaced by an attribution-gap state in `11e1605`. See Part 7 |
 | **4** LY in daily breakdown | DOW-matched (−364d) net per store-day, `ly n/a` where a store didn't exist, `% vs LY` on submitted days only |
 | **5** Admin edits + audit | `daily_entry_edits`, edit route, value+audit in one transaction, ✎ markers. 30/30 acceptance |
 | **6** Promo capture | `order_discounts` + participation rate + targeted backfill. Backfill RUN: 72,991 rows |
@@ -123,18 +131,29 @@ already NET. The single exception is `kpi_targets`, which propagates to four pla
 
 ---
 
-# PART 4 — The gift-set loss, now measured
+# PART 4 — ⛔ SUPERSEDED AND WRONG — "the gift-set loss, now measured"
+
+> **There was no loss. See PART 7.** Every figure in this section is withdrawn. It is
+> kept because the *shape* of the error is instructive: the analysis was careful,
+> seasonality-controlled, and confidently wrong, because it measured a number derived
+> from the same blind source as the claim it was testing.
+>
+> `$0.00` post-cutover is not zero sales — it is **zero attributable** sales. The
+> gift-set lines vanished from `order_line_items` because Shopify Bundles stopped
+> emitting them, not because nothing sold. Every derived figure below inherits that.
+>
+> The +2.7% YoY top line flagged as an "unresolved tension" below was in fact **the
+> data telling us the premise was wrong**, and it was rationalised away instead.
 
 Backfilling `order_discounts` made this answerable for the first time.
 
-| | Value |
-|---|---|
-| Gift-set line revenue, Apr 1 – Jun 14 (75 d) | **$34,685.52 = $462/day** |
-| Gift-set line revenue, Jun 16 – Aug 8 (54 d) | **$0.00** |
-| Not rung up since the cutover | **~$24,900** |
+| | Value | Status |
+|---|---|---|
+| Gift-set line revenue, Apr 1 – Jun 14 (75 d) | $34,685.52 = $462/day | ⛔ withdrawn |
+| Gift-set line revenue, Jun 16 – Aug 8 (54 d) | $0.00 | ⛔ means *unattributable*, not zero |
+| Not rung up since the cutover | ~$24,900 | ⛔ withdrawn — no revenue was lost |
 
-**$462/day supersedes the earlier ~$570/day**, which counted the whole basket of any
-order containing a gift set rather than the gift-set lines themselves.
+~~**$462/day supersedes the earlier ~$570/day**~~ — both withdrawn.
 
 **Mix & Match did NOT absorb the demand.** Seasonality-controlled, YoY same window:
 
@@ -158,16 +177,19 @@ needs basket-level analysis of what gift-set buyers bought instead — not done.
 # PART 5 — Open items
 
 ### Needs Robert
-1. **The $24,900 vs +2.7% tension** — commission the basket-level analysis, or accept the
-   hedged framing.
-2. **Send the Melissa handover** — `MELISSA-HANDOVER-gift-set-bundles-2026-08-09.md` is
-   ready and now carries the measured figures plus the caveat.
+1. ~~The $24,900 vs +2.7% tension~~ — **VOID (Part 7).** There was no loss; the +2.7%
+   was the data contradicting the premise. Nothing to commission.
+2. ~~Send the Melissa handover~~ — **DO NOT SEND.**
+   `MELISSA-HANDOVER-gift-set-bundles-2026-08-09.md` is built on the withdrawn premise.
+   Delete it or mark it void; there is nothing for Melissa to rebuild.
+2b. **Real bundle attribution** — the actual outstanding work. See Part 7.
 3. **Dead endpoints** — `/api/stats`, `/api/stats/ceo`, `STORE_LOCATIONS` still present,
    still carrying the Round 1 skew bug. Deletion not authorised.
 
 ### Needs Melissa (Shopify Admin — we hold no `write_products`)
-4. **The 33 gift sets** — un-bundle / duplicate / retire. Component stock is already in
-   the stores, so option A needs no restock.
+4. ~~The 33 gift sets — un-bundle / duplicate / retire~~ — **VOID (Part 7).** The
+   bundles sell fine on POS; only our attribution was broken. **No Shopify change is
+   needed and nothing is owed to Melissa.**
 5. **`kpi_targets` ends 2026-08-31** — no daily plan for ANY store from September.
    Plus Bracebridge is missing **2026-08-27** (30/31 days for August).
 
@@ -222,3 +244,82 @@ data, rather than mocking. Caught the column/cell alignment and the edit markers
 staged blob that differed from the working tree (shell escaping ate a regex's backslashes,
 staging `/^https?:///i` — a syntax error) was caught only because the staged content was
 diffed rather than assumed. **Diff what you stage.**
+
+---
+
+# PART 7 — ⛔ MAJOR CORRECTION (2026-08-09, late session)
+
+## The gift sets never stopped selling. There was no lost revenue.
+
+Shopify's own bundle Analytics (ShopifyQL) shows **32 bundles with sales in the last 30
+days, 100% Point of Sale channel, zero online.** They have been selling in stores the
+whole time.
+
+**2026-06-15 is the date the gift sets were CONVERTED to Shopify Bundles — not the date
+they stopped selling.** DTC stayed visible only because it runs on five *ordinary*
+products (`GS0000`–`GS0005`, `requiresComponents = false`) that do emit SKUs.
+
+### What actually broke: attribution, not sales
+
+Shopify Bundles records **component** line items on an order and **never the bundle
+parent** — *"SKUs are listed for individual items in orders, not for the bundle SKU."*
+Our dashboard attributes by bundle SKU, which Shopify never emits. The metric went to
+zero on the conversion date and stayed there.
+
+### ⚠️ The reasoning error — the part worth keeping
+
+Four checks "independently confirmed" the stoppage: **SKU, product_id, product title, and
+a tag-agnostic title sweep.** All four query `orders` / `order_line_items` — the one
+table where the bundle parent **structurally cannot appear**.
+
+**That is one source queried four ways, not four independent confirmations.** Their
+agreement was guaranteed by construction and carried zero information. Compounding it,
+the mechanism was *written down in the Aug 7 report itself* ("the order records component
+line items — component SKUs and product_ids, no bundle line, no `GS####` SKU") and the
+opposite conclusion was drawn from it anyway. If the bundle SKU never appears in orders,
+its absence from orders cannot be evidence of anything.
+
+Two signals were rationalised away rather than followed:
+- **Retail net was UP 2.7% YoY** over the "loss" window (Part 4). Recorded as an
+  "unresolved tension"; it was the data saying the premise was wrong.
+- **Five GS-SKU sales appeared in July**, after the supposed stoppage. Explained away as
+  DTC SKUs sold in-store — true, but it should have prompted the question of *why only
+  the non-Bundle SKUs were visible.* That is the whole mechanism, sitting in plain view.
+
+### RULE ADOPTED (now in the BUILD-2 pre-flight)
+
+> **When confirming that something did NOT happen, at least one check must come from a
+> DIFFERENT SYSTEM — not a different query against the same one.**
+
+One look at Shopify's own Analytics would have settled this in a minute.
+
+### Withdrawn
+
+`$570/day` · `$462/day` · `~$24,900` · `~$30,000` · `"unsellable at POS"` ·
+`"Shopify Bundles does not support POS"` · the entire "recapture / did Mix & Match absorb
+it" analysis (Part 4) · `MELISSA-HANDOVER-gift-set-bundles-2026-08-09.md` — **do not
+send it; there is nothing for Melissa to rebuild.**
+
+Still true and still useful: all 33 live POS products are `requiresComponents = true`;
+the 33 pre-conversion products were deleted (404); the Mix & Match promo is real and now
+captured in `order_discounts`.
+
+### Fixed immediately (commit `11e1605`)
+
+`ceo.html` was live and stating *"No POS bundle sales since Jun 15 · verified, not a data
+error"* — the most confident wrong statement on the page. Now renders an **attribution
+gap**: tile `n/a` (neutral, was "None" in red), store cells `n/a` with a gray dot, and a
+footnote that says bundles ARE selling, cites the 32 / 100% POS figure, explains the
+component-SKU mechanism, and records that the earlier "verified" reading was one source
+read four ways.
+
+### Next: real bundle attribution
+
+Preferred: **`bundleComponents` on line items** (GraphQL Admin 2023-07+) so the sync keeps
+one source of truth. Fallback: ShopifyQL `line_item_is_bundle`. **Check the API version
+first and report before building.**
+
+**Acceptance — deliberately from a different source than the code:** the fixed dashboard
+must reproduce Shopify's bundle Analytics for the last 30 days — **32 bundles with POS
+sales**, Botanical Bliss Glorious **~46 orders**, Body Care Glorious **~41**, Botanical
+Bliss Massuet **~34**. If our number and Shopify's disagree, **ours is wrong.**
