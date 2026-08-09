@@ -577,6 +577,24 @@ the mechanism in Shopify before building either.
 
 ## 9. Left undone — explicit list
 
+0. **OPEN QUESTION (2026-08-09) — shipping revenue is not counted anywhere. Decision
+   needed, not code.** `server/sync/net_sales.js` never reads `shipping_lines`: net is
+   `Σ(line price × qty) − discounts − returns`, so shipping charged to a customer is
+   neither added as revenue nor subtracted as a cost — it is simply absent from every
+   money figure on every surface.
+   - Against the standing definition (**all totals are NET = selling price − discounts −
+     taxes**) this is a genuine omission: shipping *is* money the customer paid.
+   - **Negligible for POS** — walk-in retail has no shipping line.
+   - **Potentially material for Online/DTC**, which is where shipping actually accrues.
+     Online/DTC is ~$159k net YTD 2026, so even a few percent of shipping is real money
+     and would move that row's revenue and its target attainment.
+   - Note this is *separate* from the tax question: taxes are correctly excluded because
+     the shop is `taxes_included: false`, so `line_item.price` is already pre-tax.
+   - **Decide:** does neōb's "net sales" include shipping revenue? Shopify's own Net Sales
+     analytic **excludes** shipping, which is an argument for leaving it as-is and simply
+     documenting it. If it should be included, the change is confined to the
+     reconstruction engine plus a backfill — not a dashboard change.
+
 1. **Item #5 (unattributed net sales) — INVESTIGATED, see §8.1.** Root cause identified
    (refunds via `shopify_draft_order` / app `3890849` lose their location; the gap itself is
    by design). No code change made: the recommendation needs a Shopify-side decision first.
