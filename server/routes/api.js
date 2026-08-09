@@ -2400,6 +2400,8 @@ function _scMondayOf(ymd) {                              // week starts Monday
   return _scAddDays(ymd, -offset);
 }
 const _scValidYmd = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s) && _scAddDays(s, 0) === s;
+// Day 0 of the NEXT month = last day of this one. UTC so it can't slip on DST.
+const _scDaysInMonth = (y, m) => new Date(Date.UTC(y, m, 0)).getUTCDate();
 
 const _scRound = (n, p) => (n == null ? null : Math.round(n * 10 ** p) / 10 ** p);
 function _scVariancePct(actual, comparator) {
@@ -2503,12 +2505,38 @@ router.get('/scorecard', (req, res) => {
     const [yy, mm] = as_of.split('-');
     const periods = {
       day: _scBuildPeriod(store, 'Day',            as_of,               as_of, firstSale),
+      // last7 = 7 COMPLETE days ending as_of (which defaults to yesterday), i.e.
+      // as_of-6 .. as_of inclusive. Identical to resolvePeriod('7d') on the CEO
+      // side — deliberately so: the portal scorecard and ceo.html must return
+      // the same figures for the same store and window, and the only way to
+      // guarantee that is for both to take the window from the server rather
+      // than compute one locally. Do NOT re-derive this in the Pages app.
+      last7: _scBuildPeriod(store, 'Last 7 days',  _scAddDays(as_of, -6), as_of, firstSale),
       wtd: _scBuildPeriod(store, 'Week-to-date',   _scMondayOf(as_of),  as_of, firstSale),
       mtd: _scBuildPeriod(store, 'Month-to-date',  `${yy}-${mm}-01`,    as_of, firstSale),
       ytd: _scBuildPeriod(store, 'Year-to-date',   `${yy}-01-01`,       as_of, firstSale)
     };
 
-    res.json({ store, as_of, generated_at: _scTorontoNowIso(), periods });
+    // FULL-CALENDAR-MONTH target, separate from periods.mtd.target.
+    // mtd.target sums kpi_targets only over the elapsed days, so it grows as the
+    // month progresses. Round 2 item 2 requires the target to display on a
+    // MONTHLY basis — a fixed number that does not move with the window — so the
+    // whole month is served here alongside it. Same partial convention as
+    // elsewhere: if some days in the month have no target row, `partial` is true
+    // and the figure understates the month, so it must not be shown as complete.
+    const monthDays = _scDaysInMonth(Number(yy), Number(mm));
+    const monthStart = `${yy}-${mm}-01`;
+    const monthEnd = `${yy}-${mm}-${String(monthDays).padStart(2, '0')}`;
+    const mt = _scTargetStmt.get(store, monthStart, monthEnd);
+    const month_target = mt.days > 0 ? {
+      month: `${yy}-${mm}`,
+      target: _scRound(mt.tgt, 2),
+      days_with_target: mt.days,
+      days_in_month: monthDays,
+      partial: mt.days < monthDays
+    } : { month: `${yy}-${mm}`, target: null, days_with_target: 0, days_in_month: monthDays, partial: true };
+
+    res.json({ store, as_of, generated_at: _scTorontoNowIso(), periods, month_target });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
