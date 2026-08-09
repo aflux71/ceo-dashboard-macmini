@@ -241,11 +241,24 @@
     <div class="section-head">
       <div>
         <div class="section-title">Store Access Codes</div>
-        <div class="section-sub">7-character codes for the store portal kiosks. Rotate every 90 days or on staff change.</div>
+        <div class="section-sub">Store &amp; shift codes for staff kiosks, plus the manager code that unlocks the scorecard. Rotate on staff change.</div>
       </div>
     </div>
     <div class="card" id="accessCard">
       <div class="loading"><div class="spinner"></div> Loading store access…</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Sign-in Log</div>
+        <div class="section-sub">Recent portal sign-in attempts, most recent first. "Manager" rows are manager-code attempts; "Store" rows are staff store-code attempts.</div>
+      </div>
+      <button class="btn btn-ghost" onclick="loadLoginLog()">Refresh</button>
+    </div>
+    <div class="card" id="loginLogCard">
+      <div class="loading"><div class="spinner"></div> Loading sign-in log…</div>
     </div>
   </div>
 </main>
@@ -542,6 +555,8 @@ function renderAccess() {
     <th>Expires</th>
     <th>Shift Code</th>
     <th>Shift Expires</th>
+    <th>Manager Code</th>
+    <th>Manager Expires</th>
     <th>Status</th>
     <th class="col-actions">Actions</th>
   </tr></thead>`;
@@ -553,10 +568,13 @@ function renderAccess() {
       <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-2)">${esc(a.code_expires_at || '—')}</td>
       <td class="col-code">${esc(a.shift_code || '—')}</td>
       <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-2)">${esc(a.shift_code_expires_at || '—')}</td>
+      <td class="col-code">${esc(a.manager_code || '—')}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-2)">${esc(a.manager_code_expires_at || '—')}</td>
       <td><span class="badge ${status.cls}">${status.label}</span></td>
       <td class="col-actions">
         <button class="btn btn-sm btn-ghost" onclick="rotateCode(${a.id})">Rotate</button>
         <button class="btn btn-sm btn-ghost" onclick="rotateShift(${a.id})">Rotate shift</button>
+        <button class="btn btn-sm btn-ghost" onclick="rotateManager(${a.id})">Rotate mgr</button>
       </td>
     </tr>`;
   }).join('') + '</tbody>';
@@ -600,6 +618,71 @@ async function rotateShift(id) {
   }
 }
 
+async function rotateManager(id) {
+  if (!confirm('Rotate this manager code? The old manager code will stop working immediately.')) return;
+  try {
+    const r = await adminFetch(`/api/store-access/${id}/rotate-manager`, { method: 'POST' });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Rotate failed');
+    toast(`New manager code: ${data.manager_code}`, 'success');
+    loadAccess();
+  } catch (e) {
+    toast('Rotate manager failed: ' + e.message, 'error');
+  }
+}
+
+// ── SIGN-IN LOG ─────────────────────────────────────────────────
+async function loadLoginLog() {
+  const card = document.getElementById('loginLogCard');
+  if (!card) return;
+  card.innerHTML = '<div class="loading"><div class="spinner"></div> Loading sign-in log…</div>';
+  try {
+    const r = await adminFetch('/api/login-log');
+    const data = await r.json();
+    if (!r.ok) {
+      card.innerHTML = renderD1Error('login_attempts', data.error || 'Unknown error');
+      return;
+    }
+    renderLoginLog(data.attempts || []);
+  } catch (e) {
+    card.innerHTML = `<div class="empty-state" style="color:var(--red)">${e.message}</div>`;
+  }
+}
+
+function renderLoginLog(rows) {
+  const card = document.getElementById('loginLogCard');
+  if (!rows.length) {
+    card.innerHTML = '<div class="empty-state">No sign-in attempts recorded yet.</div>';
+    return;
+  }
+  // Map a current store code -> store name so staff attempts show which store.
+  const codeToStore = {};
+  accessRows.forEach(a => { if (a.store_code) codeToStore[String(a.store_code).toUpperCase()] = a.store_name; });
+
+  const head = `<thead><tr>
+    <th>When</th>
+    <th>Type</th>
+    <th>Store</th>
+    <th>Code tried</th>
+    <th>Result</th>
+  </tr></thead>`;
+  const body = '<tbody>' + rows.map(a => {
+    const raw = String(a.store_code || '');
+    const isMgr = raw.endsWith('#MGR');
+    const store = isMgr ? raw.replace(/#MGR$/, '') : (codeToStore[raw.toUpperCase()] || '—');
+    const codeTried = isMgr ? '—' : (raw || '—');
+    const ok = (a.success === 1 || a.success === true);
+    return `<tr>
+      <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-2)">${fmtDate(a.attempted_at)}</td>
+      <td><span class="badge ${isMgr ? 'expiring' : 'active'}" style="background:${isMgr ? 'var(--lavender-light)' : 'var(--surface-warm)'};color:${isMgr ? 'var(--lavender)' : 'var(--text-2)'}">${isMgr ? 'Manager' : 'Store'}</span></td>
+      <td class="col-name">${esc(store)}</td>
+      <td class="col-code">${esc(codeTried)}</td>
+      <td><span class="badge ${ok ? 'active' : 'expired'}">${ok ? 'Success' : 'Failed'}</span></td>
+    </tr>`;
+  }).join('') + '</tbody>';
+  card.innerHTML = `<table class="data">${head}${body}</table>`;
+}
+
 // ── HELPERS ─────────────────────────────────────────────────────
 function renderD1Error(table, msg) {
   return `<div class="empty-state">
@@ -629,6 +712,7 @@ function toast(msg, kind) {
 // ── INIT ────────────────────────────────────────────────────────
 async function init() {
   await Promise.all([loadStaff(), loadAccess()]);
+  loadLoginLog();
 }
 
 (async function bootstrap() {

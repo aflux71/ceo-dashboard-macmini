@@ -1151,6 +1151,10 @@ function newStoreCode() {
   const num = randomInt(100, 1000);
   return `${color}${num}`;
 }
+// Manager code: 'MGR-' + 4 digits, e.g. MGR-4821 — distinct from store + shift codes
+function newManagerCode() {
+  return 'MGR-' + randomInt(1000, 10000);
+}
 
 router.get('/store-access', async (req, res) => {
   if (!checkAdminPin(req, res)) return;
@@ -1184,6 +1188,35 @@ router.post('/store-access/:id/rotate-shift', async (req, res) => {
       [code, expiresAt, req.params.id]
     );
     res.json({ ok: true, shift_code: code, shift_code_expires_at: expiresAt });
+  } catch (err) { sendError(res, err); }
+});
+
+// POST /api/store-access/:id/rotate-manager — rotate the per-store MANAGER code
+// (gates the manager scorecard in the portal; staff never receive it)
+router.post('/store-access/:id/rotate-manager', async (req, res) => {
+  if (!checkAdminPin(req, res)) return;
+  try {
+    const code = newManagerCode();
+    const expiresAt = new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0]; // +90 days
+    await d1Query(
+      'UPDATE store_access SET manager_code = ?, manager_code_expires_at = ? WHERE id = ?',
+      [code, expiresAt, req.params.id]
+    );
+    res.json({ ok: true, manager_code: code, manager_code_expires_at: expiresAt });
+  } catch (err) { sendError(res, err); }
+});
+
+// GET /api/login-log — recent portal sign-in attempts (from D1 login_attempts).
+// Manager-code attempts are stored as "<Store>#MGR"; staff attempts store the
+// store code that was typed. Read-only, most recent first.
+router.get('/login-log', async (req, res) => {
+  if (!checkAdminPin(req, res)) return;
+  try {
+    const limit = Math.min(Math.max(Number(req.query.limit) || 60, 1), 200);
+    const rows = await d1Query(
+      `SELECT store_code, attempted_at, success FROM login_attempts ORDER BY attempted_at DESC LIMIT ${limit}`
+    );
+    res.json({ attempts: rows });
   } catch (err) { sendError(res, err); }
 });
 
