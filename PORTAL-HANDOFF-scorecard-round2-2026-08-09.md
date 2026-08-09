@@ -81,8 +81,19 @@ the form actually does and let Robert choose.
 
 ## 2. Scorecard changes (Round 2 item 2) — the portal half
 
-The same three changes shipped on `ceo.html` on the mini must land on the portal
-scorecard, so a store manager and Robert see identical figures.
+**Target surface: `https://neob-store-portal.pages.dev/scorecard`** — the manager
+scorecard page in the Cloudflare Pages app (source: `~/Downloads/neob-store-portal-v4`
+on `robertachal@Roberts-Mac-mini`). Reached in the portal after manager-code entry; the
+manager code is per-store and rotated from the mini's Staff page.
+
+Do not confuse it with two similarly-named things on the mini:
+- `ceo.html` — Robert's all-stores scorecard. The same three changes are **already
+  shipped** there; this task is to mirror them.
+- `/api/scorecard` — the mini API endpoint the portal page reads. Needs its own change
+  first, see §2a.
+
+The same three changes shipped on `ceo.html` must land on the portal scorecard page, so
+a store manager and Robert see identical figures for the same store and window.
 
 1. **Add "Last 7 days"** as a window alongside the existing ones.
 2. **Remove YTD dollar values.** YTD survives only as a **percentage vs target**.
@@ -206,7 +217,8 @@ matches.** If a window you need does not exist server-side, add it server-side.
 
 - [ ] **§1 answered** — does the entry form pre-fill revenue? From what? Since when?
 - [ ] `/api/scorecard` gains a `last7` period (mini-side; coordinate first)
-- [ ] Portal shows Last 7 days, matching the §2c figures exactly
+- [ ] `https://neob-store-portal.pages.dev/scorecard` shows Last 7 days, matching the
+      §2c figures exactly
 - [ ] No YTD dollar figure anywhere on the portal scorecard; YTD % vs target present
 - [ ] Month target on a monthly basis, matching §2c, Bracebridge marked partial
 - [ ] Both target bases labelled as in §2d
