@@ -99,17 +99,45 @@ a store manager and Robert see identical figures for the same store and window.
 2. **Remove YTD dollar values.** YTD survives only as a **percentage vs target**.
 3. **Target displays on a monthly basis**, not the selected window's basis.
 
-### 2a. This needs a change on the MINI too — `/api/scorecard` cannot serve it yet
+### 2a. ✅ The mini side is DONE — the API can serve all three changes
 
 The portal reads `GET /api/scorecard?store=<name>&as_of=YYYY-MM-DD` (Bearer auth) from the
-mini. As of today it returns four periods — `day`, `wtd`, `mtd`, `ytd` — and:
+mini. **This was the blocker; it has been cleared** (mini commits `e01854d`, `744d71f`,
+live on 2026-08-09). No further mini work is needed before the portal work starts.
 
-- **there is no `last7` period**, and
-- **`ytd` returns `net_sales` dollars**, which change 2 says to stop displaying.
+**`periods.last7` now exists** — 7 complete days ending `as_of`, e.g.
+`2026-08-02 .. 2026-08-08`. Server-computed and identical by construction to
+`resolvePeriod('7d')` on the CEO side. **Take the window from the server; do not
+hand-roll a 7-day range in the portal** — that is exactly the bug found and fixed on the
+mini this round (see §3).
 
-So the sequence is: mini adds a `last7` period to `/api/scorecard` → portal renders it.
-**Coordinate before building** — do not hand-roll a 7-day window in the portal. That is
-exactly the bug found and fixed on the mini this round (see §3).
+**`month_target` now exists**, at the top level of the response (a sibling of `periods`,
+not inside one), and is what change 3 needs:
+
+```json
+"month_target": { "month": "2026-08", "target": 145373,
+                  "days_with_target": 31, "days_in_month": 31, "partial": false }
+```
+
+Use this, **not `periods.mtd.target`** — `mtd.target` covers only the elapsed days, so it
+grows through the month, which is the behaviour change 3 exists to remove. Honour
+`partial: true` by marking the figure, never presenting it as a complete month.
+
+**`periods.ytd` still returns `net_sales` dollars.** That is deliberate — removing the
+field server-side would have broken the live portal before your deploy lands. Change 2 is
+satisfied by the portal **not displaying** it. Once the portal ships, the field can be
+retired on the mini.
+
+> ⚠️ **Heads-up: AOV values changed on 2026-08-09 and will look different.**
+> `/api/scorecard` had been computing a raw `net ÷ transactions` average, which is not
+> the house definition. It now uses
+> `Σ(net_sales − aov_excluded_net) / Σ(orders − aov_excluded_orders)` — the first 5
+> sub-$15 transactions per store per day are excluded — matching `ceo.html`.
+> Manager-visible AOV rises by **$1.14–$5.29** depending on store. Before the fix,
+> **Stratford ($37.57 vs $42.86) and Bracebridge ($36.42 vs $41.26) read as FAILING the
+> $40 floor on the portal while PASSING on Robert's dashboard**, same store, same week.
+> If a manager asks why their AOV jumped, that is the reason. `transactions` is unchanged
+> and is still the full order count.
 
 ### 2b. Field names and conventions to code against
 
@@ -216,11 +244,13 @@ matches.** If a window you need does not exist server-side, add it server-side.
 ## 4. Checklist
 
 - [ ] **§1 answered** — does the entry form pre-fill revenue? From what? Since when?
-- [ ] `/api/scorecard` gains a `last7` period (mini-side; coordinate first)
+- [x] `/api/scorecard` gains a `last7` period + `month_target` — DONE on the mini
+      2026-08-09 (`e01854d`, `744d71f`), live. Nothing to coordinate; just consume it.
 - [ ] `https://neob-store-portal.pages.dev/scorecard` shows Last 7 days, matching the
       §2c figures exactly
 - [ ] No YTD dollar figure anywhere on the portal scorecard; YTD % vs target present
-- [ ] Month target on a monthly basis, matching §2c, Bracebridge marked partial
+- [ ] Month target from top-level `month_target` (NOT `periods.mtd.target`), matching
+      §2c, Bracebridge marked partial
 - [ ] Both target bases labelled as in §2d
 - [ ] Partial target / partial LY render as "n/a", never `$0` or a variance
 - [ ] No window arithmetic in the portal — every window requested by name
