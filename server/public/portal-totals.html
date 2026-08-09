@@ -203,6 +203,9 @@
   /* LY sits below tgt: same scale, dotted underline so the two read as
      separate measures rather than one stacked figure (different bases). */
   .cell-ly { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-3); margin-top: 1px; border-bottom: 1px dotted var(--border, #ddd); display: inline-block; }
+  /* Admin-edited marker — must be visible without being alarming. Hover shows
+     who/when/from-what for the whole edit chain. */
+  .edit-mark { font-size: 10px; color: var(--amber, #b8860b); margin-left: 4px; cursor: help; vertical-align: super; }
   .cell-by { font-size: 10px; color: var(--lavender); margin-top: 2px; font-style: italic; }
   .cell-actual.over { color: var(--green); }
   .cell-actual.under { color: var(--red); }
@@ -581,8 +584,18 @@ function renderGrid(d) {
         const hasActual = c.actual !== null && c.actual !== undefined;
         let aCls = '';
         if (hasActual && c.target) aCls = c.actual >= c.target ? ' over' : ' under';
+        // Admin-edited cells are marked. Title carries the full chain oldest-first,
+        // so the ORIGINAL staff-entered value is the first "from" in the list.
+        const edits = c.edits || [];
+        const editMark = edits.length
+          ? `<span class="edit-mark" title="${edits.map(e =>
+              `${e.field}: ${e.old_value === null ? '(blank)' : e.old_value} → ${e.new_value === null ? '(blank)' : e.new_value}`
+              + ` · ${e.edited_by} · ${String(e.edited_at || '').replace('T', ' ')}`
+              + (e.reason ? ` · ${String(e.reason).replace(/"/g, '&quot;')}` : '')
+            ).join(' | ')}">✎</span>`
+          : '';
         return `<td class="${futureCls}">
-          <div class="cell-actual${hasActual ? aCls : ' none'}">${hasActual ? money(c.actual) : '—'}</div>
+          <div class="cell-actual${hasActual ? aCls : ' none'}">${hasActual ? money(c.actual) : '—'}${editMark}</div>
           ${c.target !== null ? `<div class="cell-target">tgt ${fmt0(c.target)}</div>` : ''}
           ${c.ly_partial
             ? `<div class="cell-ly" title="This store was not trading on ${c.ly_date} — no comparable last year">ly n/a</div>`

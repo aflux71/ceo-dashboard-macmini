@@ -6,6 +6,7 @@ import { loadKnowledge, getLoadedDocs, getKnowledgeStatus } from '../knowledge.j
 import { logUsage } from '../usage.js';
 import { getLoyaltySignups } from '../sync/shopify.js';
 import { netSalesCompany, netSalesByStore, netSalesCompanyYoY, netSalesByStoreYoY, ONLINE_DTC_MEMBERS, shiftDate } from '../db/net_sales_queries.js';
+import { ensureEntryEditsSchema } from '../db/schema.js';
 
 const router = express.Router();
 
@@ -880,6 +881,138 @@ router.post('/portal-sync', (req, res) => {
   }
 });
 
+// ── ADMIN EDITS TO DAILY ENTRIES (Round 2 item 5) ⚠️ WRITES USER DATA ────────
+// Admin corrections OVERWRITE the staff-entered value, and every change is
+// audited. The value change and the audit row go in ONE transaction: if the
+// audit insert fails the edit rolls back, so a value can never move without a
+// record of who moved it.
+//
+// EDITABLE FIELDS ARE DELIBERATELY NARROW. Only figures a human actually enters
+// and can therefore mis-enter:
+//   revenue, transactions  — staff-entered actuals
+// NOT editable, on purpose:
+//   aov          — DERIVED (revenue / transactions); it is recomputed here, so
+//                  editing it directly could contradict its own inputs
+//   shopify_net  — SYNCED from Shopify. If a synced figure is wrong, the sync is
+//                  wrong; papering over it in the UI hides a real defect
+//   target       — Melissa's to publish via targets.html; not an admin's to patch
+const EDITABLE_ENTRY_FIELDS = {
+  revenue:      { type: 'number', min: 0 },
+  transactions: { type: 'integer', min: 0 }
+};
+
+// POST /api/daily-entries/:store/:date/edit
+// body: { field, value, reason? }   header: X-Admin-Pin
+router.post('/daily-entries/:store/:date/edit', (req, res) => {
+  const admin = checkAdminPin(req, res);
+  if (!admin) return;                       // 401 already sent, and nothing written
+  try {
+    ensureEntryEditsSchema();
+
+    const store = String(req.params.store);
+    const date = String(req.params.date);
+    const { field, value, reason } = req.body || {};
+
+    if (!PORTAL_STORES.includes(store)) {
+      return res.status(400).json({ error: 'Unknown store' });
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ error: 'Invalid date (expected YYYY-MM-DD)' });
+    }
+    const spec = EDITABLE_ENTRY_FIELDS[field];
+    if (!spec) {
+      return res.status(400).json({
+        error: `Field '${field}' is not admin-editable`,
+        editable: Object.keys(EDITABLE_ENTRY_FIELDS),
+        note: 'Derived (aov) and Shopify-synced figures are deliberately not editable.'
+      });
+    }
+
+    // Normalise + validate the new value. null is allowed: clearing a wrongly
+    // entered figure is a legitimate correction, and the audit records it.
+    let newValue = null;
+    if (value !== null && value !== undefined && value !== '') {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return res.status(400).json({ error: 'Value must be a number or null' });
+      if (spec.type === 'integer' && !Number.isInteger(n)) {
+        return res.status(400).json({ error: 'Value must be a whole number' });
+      }
+      if (spec.min != null && n < spec.min) {
+        return res.status(400).json({ error: `Value must be >= ${spec.min}` });
+      }
+      newValue = n;
+    }
+
+    const row = db.prepare('SELECT * FROM daily_kpi WHERE store_name = ? AND entry_date = ?').get(store, date);
+    if (!row) return res.status(404).json({ error: 'No entry for that store and date' });
+
+    const oldValue = row[field] ?? null;
+    if (oldValue === newValue) {
+      return res.json({ ok: true, unchanged: true, store, date, field, value: newValue });
+    }
+
+    // Recompute the derived AOV from whichever inputs are in play after this
+    // edit, so it can never contradict revenue/transactions.
+    const nextRevenue = field === 'revenue' ? newValue : (row.revenue ?? null);
+    const nextTxns = field === 'transactions' ? newValue : (row.transactions ?? null);
+    const nextAov = (nextRevenue != null && nextTxns) ? Math.round((nextRevenue / nextTxns) * 100) / 100 : null;
+
+    // ── the single transaction ────────────────────────────────────────────────
+    // better-sqlite3 rolls the whole thing back if ANY statement throws.
+    const applyEdit = db.transaction((failAudit) => {
+      db.prepare(`UPDATE daily_kpi SET ${field} = ?, aov = ? WHERE store_name = ? AND entry_date = ?`)
+        .run(newValue, nextAov, store, date);
+
+      // Test hook: forces the audit leg to fail so the rollback can be proven.
+      // Only reachable when NEOB_DB_PATH is set, i.e. never against production.
+      if (failAudit) throw new Error('forced audit failure (rollback test)');
+
+      db.prepare(`INSERT INTO daily_entry_edits
+          (entry_date, store_name, field, old_value, new_value, edited_by, reason)
+          VALUES (?, ?, ?, ?, ?, ?, ?)`)
+        .run(date, store, field,
+             oldValue == null ? null : String(oldValue),
+             newValue == null ? null : String(newValue),
+             admin.name || ('admin#' + admin.id),
+             reason ? String(reason) : null);
+    });
+
+    const forceFail = Boolean(process.env.NEOB_DB_PATH) && req.query.__fail_audit === '1';
+    applyEdit(forceFail);
+
+    res.json({
+      ok: true, store, date, field,
+      old_value: oldValue, new_value: newValue, aov: nextAov,
+      edited_by: admin.name || ('admin#' + admin.id)
+    });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+// GET /api/daily-entries/edits?store=&from=&to=
+// The audit trail. Append-only, oldest first, so the chain reads as a history
+// and the ORIGINAL staff value is the first row's old_value.
+router.get('/daily-entries/edits', (req, res) => {
+  if (!checkAdminPin(req, res)) return;
+  try {
+    ensureEntryEditsSchema();
+    const where = [];
+    const params = [];
+    if (req.query.store) { where.push('store_name = ?'); params.push(String(req.query.store)); }
+    if (req.query.from) { where.push('entry_date >= ?'); params.push(String(req.query.from)); }
+    if (req.query.to) { where.push('entry_date <= ?'); params.push(String(req.query.to)); }
+    const limit = Math.min(Math.max(Number(req.query.limit) || 200, 1), 1000);
+    const rows = db.prepare(
+      `SELECT * FROM daily_entry_edits
+        ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+        ORDER BY entry_date DESC, store_name, field, id ASC
+        LIMIT ?`
+    ).all(...params, limit);
+    res.json({ edits: rows });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // GET /api/portal-sync/entries — view recent entries (CEO use)
 router.get('/portal-sync/entries', (req, res) => {
   if (!checkPortalAuth(req, res)) return;
@@ -1256,9 +1389,14 @@ router.post('/store-access/:id/rotate-manager', async (req, res) => {
 router.get('/login-log', async (req, res) => {
   if (!checkAdminPin(req, res)) return;
   try {
+    // Bound, not interpolated. The clamp already guarantees a number, so this
+    // was not injectable — but every other query in this file binds its params,
+    // and a lone string-built LIMIT is the pattern that gets copied into a
+    // query where the input ISN'T clamped. (Round 2 item 5.)
     const limit = Math.min(Math.max(Number(req.query.limit) || 60, 1), 200);
     const rows = await d1Query(
-      `SELECT store_code, attempted_at, success FROM login_attempts ORDER BY attempted_at DESC LIMIT ${limit}`
+      'SELECT store_code, attempted_at, success FROM login_attempts ORDER BY attempted_at DESC LIMIT ?',
+      [limit]
     );
     res.json({ attempts: rows });
   } catch (err) { sendError(res, err); }
@@ -1905,6 +2043,25 @@ router.get('/portal-totals/period', (req, res) => {
     const kpiMap = new Map();  // store|date -> row
     for (const k of kpiRows) kpiMap.set(k.store_name + '|' + k.entry_date, k);
 
+    // Admin-edit markers (Round 2 item 5). An edited cell must SAY it was edited
+    // — a corrected number that looks identical to a staff-entered one hides the
+    // correction. Table may not exist yet on an un-migrated DB, so this is
+    // best-effort and never takes the grid down.
+    const editMap = new Map();   // store|date -> [{field, old_value, new_value, edited_by, edited_at, reason}]
+    try {
+      const editRows = db.prepare(
+        `SELECT entry_date, store_name, field, old_value, new_value, edited_by, edited_at, reason
+           FROM daily_entry_edits
+          WHERE store_name IN (${inStores}) AND entry_date >= ? AND entry_date <= ?
+          ORDER BY id ASC`
+      ).all(...stores, start, end);
+      for (const e of editRows) {
+        const k = e.store_name + '|' + e.entry_date;
+        if (!editMap.has(k)) editMap.set(k, []);
+        editMap.get(k).push(e);
+      }
+    } catch { /* table not created yet — no markers, grid unaffected */ }
+
     // ── LAST YEAR, day-of-week matched (Round 2 item 4) ──────────────────────
     // Convention: shift each day back 364 days (= 52 weeks) so a Saturday
     // compares against last year's Saturday, and read NET from daily_sales.
@@ -1988,6 +2145,7 @@ router.get('/portal-totals/period', (req, res) => {
           submitted_at: k ? k.submitted_at : null,
           transactions: k ? k.transactions : null,
           aov: k ? k.aov : null,
+          edits: editMap.get(key) || null,   // null = never edited
         });
         if (target !== null) { tgtFull += target; if (day.is_elapsed) tgtElapsed += target; }
         if (k) { actual += k.revenue; anyActual = true; daysSubmitted++; }

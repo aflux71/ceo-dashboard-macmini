@@ -214,3 +214,34 @@ export function ensureDailySalesSchema() {
        GROUP BY item_key;
   `);
 }
+
+// ── Admin edit audit (Round 2 item 5) ────────────────────────────────────────
+// Admin corrections to daily entries OVERWRITE the value, but every change is
+// audited. The audit row and the value change are written in ONE transaction —
+// a failed audit must roll the edit back, so a value can never change without a
+// record of who changed it, when, and from what.
+//
+// The trail is append-only: a correction to a correction adds a row, it never
+// updates or deletes one. That is what makes the ORIGINAL staff-entered value
+// recoverable — replay the chain for a (entry_date, store_name, field) and the
+// oldest row's old_value is what the staff member actually submitted.
+//
+// Lazily called (like ensureBundleSchema / ensureDailySalesSchema) because
+// initSchema() is not wired into boot. Idempotent.
+export function ensureEntryEditsSchema() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS daily_entry_edits (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      entry_date TEXT NOT NULL,
+      store_name TEXT NOT NULL,
+      field TEXT NOT NULL,
+      old_value TEXT,
+      new_value TEXT,
+      edited_by TEXT NOT NULL,
+      edited_at TEXT DEFAULT (datetime('now')),
+      reason TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_entry_edits_lookup
+      ON daily_entry_edits(entry_date, store_name);
+  `);
+}
