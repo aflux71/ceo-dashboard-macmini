@@ -19,6 +19,16 @@ dotenv.config();
 //                      falls on the day, attributed to the refund line's location
 //                      (NOT the original order date/location).
 //   net_sales        = gross − discounts − returns   (the headline revenue tile).
+//
+// SETTLED DEFINITION (Robert, 2026-08-09) - do NOT "fix" these omissions:
+//   net_sales = selling price − discounts − taxes − refunds.
+//   SHIPPING IS EXCLUDED, intentionally. shipping_lines is deliberately never
+//     read: shipping the customer paid is neither revenue nor cost here. This
+//     matches Shopify's own Net Sales analytic. Confirmed as correct-as-is on
+//     2026-08-09 after review; adding it would be a regression, not a fix.
+//   TAXES are excluded by construction, not by subtraction - the shop is
+//     taxes_included=false, so line price is already pre-tax.
+//   GIFT CARDS are excluded in BOTH directions (sales and refunds).
 //   no_cost_net      = net of items whose variant unitCost is null; Shopify's
 //                      PROFIT report excludes these. Symmetric: a return of a
 //                      no-cost item subtracts from no_cost_net.

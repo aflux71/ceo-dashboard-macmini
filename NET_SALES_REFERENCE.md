@@ -27,6 +27,23 @@ existing token's read scopes) because the token lacks `read_reports`/ShopifyQL.
 
 ## Definitions & formulas (match Shopify exactly)
 
+> **SETTLED — the standing definition (Robert, 2026-08-09). Applies to every money figure
+> on every surface.**
+>
+> **`net_sales` = selling price − discounts − taxes − refunds.**
+> **Shipping is EXCLUDED. Gift cards are EXCLUDED in both directions.**
+>
+> These are deliberate, reviewed choices, not gaps:
+> - **Shipping** — `shipping_lines` is never read by the reconstruction engine. Shipping the
+>   customer paid is neither counted as revenue nor deducted as cost. This matches Shopify's
+>   own Net Sales analytic. Reviewed 2026-08-09 and confirmed **correct as-is**; adding
+>   shipping would be a regression, not a fix. Do not "fix" it.
+> - **Taxes** — excluded *by construction* rather than by subtraction: the shop is
+>   `taxes_included=false`, so `line_item.price` is already pre-tax. The result is identical
+>   to subtracting them.
+> - **Refunds** — subtracted, on the date the refund was PROCESSED and at the refund line's
+>   location.
+
 - **gross** = Σ(line `price` × `quantity`), pre-tax, excluding gift-card lines. Shop is
   `taxes_included=false`, so `price` is already pre-tax.
 - **discounts** = Σ `line_item.discount_allocations` (order- and line-level).
