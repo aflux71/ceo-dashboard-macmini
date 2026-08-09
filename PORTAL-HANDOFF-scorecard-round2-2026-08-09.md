@@ -89,8 +89,8 @@ manager code is per-store and rotated from the mini's Staff page.
 Do not confuse it with two similarly-named things on the mini:
 - `ceo.html` — Robert's all-stores scorecard. The same three changes are **already
   shipped** there; this task is to mirror them.
-- `/api/scorecard` — the mini API endpoint the portal page reads. Needs its own change
-  first, see §2a.
+- `/api/scorecard` — the mini API endpoint the portal page reads. Already updated and
+  live; see §2a for the new fields.
 
 The same three changes shipped on `ceo.html` must land on the portal scorecard page, so
 a store manager and Robert see identical figures for the same store and window.
