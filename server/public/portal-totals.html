@@ -200,6 +200,9 @@
   .cell-actual { font-size: 14px; font-weight: 600; color: var(--text); line-height: 1.1; }
   .cell-actual.none { color: var(--text-3); font-weight: 400; }
   .cell-target { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-3); margin-top: 2px; }
+  /* LY sits below tgt: same scale, dotted underline so the two read as
+     separate measures rather than one stacked figure (different bases). */
+  .cell-ly { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-3); margin-top: 1px; border-bottom: 1px dotted var(--border, #ddd); display: inline-block; }
   .cell-by { font-size: 10px; color: var(--lavender); margin-top: 2px; font-style: italic; }
   .cell-actual.over { color: var(--green); }
   .cell-actual.under { color: var(--red); }
@@ -216,6 +219,7 @@
   }
   .ft-actual { font-size: 14px; }
   .ft-target { font-size: 11px; color: var(--text-3); font-weight: 500; margin-top: 2px; }
+  .ft-ly { font-size: 11px; font-weight: 600; margin-top: 2px; }
 
   /* PIN GATE */
   .pin-gate {
@@ -580,6 +584,11 @@ function renderGrid(d) {
         return `<td class="${futureCls}">
           <div class="cell-actual${hasActual ? aCls : ' none'}">${hasActual ? money(c.actual) : '—'}</div>
           ${c.target !== null ? `<div class="cell-target">tgt ${fmt0(c.target)}</div>` : ''}
+          ${c.ly_partial
+            ? `<div class="cell-ly" title="This store was not trading on ${c.ly_date} — no comparable last year">ly n/a</div>`
+            : (c.ly !== null && c.ly !== undefined
+                ? `<div class="cell-ly" title="Last year, day-of-week matched: ${c.ly_date} (net). Not the same basis as tgt.">ly ${fmt0(c.ly)}</div>`
+                : '')}
           ${c.submitted_by ? `<div class="cell-by">${c.submitted_by}</div>` : ''}
         </td>`;
       }).join('')}
@@ -593,9 +602,15 @@ function renderGrid(d) {
       <td class="date-col">Running total</td>
       ${stores.map(store => {
         const s = smap[store];
+        const lyVar = s.ly_variance_pct;
         return `<td>
           <div class="ft-actual">${s.actual !== null ? money(s.actual) : '—'}</div>
           <div class="ft-target">of ${money(s.target_elapsed)}</div>
+          ${lyVar !== null && lyVar !== undefined
+            ? `<div class="ft-ly" style="color:${lyVar >= 0 ? 'var(--green,#2e7d32)' : 'var(--red,#c0392b)'}" title="Actual vs last year over the ${s.ly_matched_days} submitted day${s.ly_matched_days === 1 ? '' : 's'} only (${money(s.ly_matched)}), so both sides cover the same days. LY over the whole elapsed window was ${money(s.ly_elapsed)}.">${lyVar >= 0 ? '+' : ''}${lyVar.toFixed(0)}% vs LY</div>`
+            : (s.ly_elapsed !== null && s.ly_elapsed !== undefined
+                ? `<div class="ft-ly" style="color:var(--text-3)" title="No staff submissions in this window, so there is nothing to compare like-for-like against.">LY ${money(s.ly_elapsed)}</div>`
+                : '')}
         </td>`;
       }).join('')}
     </tr>
@@ -605,7 +620,12 @@ function renderGrid(d) {
   document.getElementById('gridContainer').innerHTML =
     `<div class="grid-head">
        <div class="grid-title">Daily breakdown</div>
-       <div class="grid-note">Bold = staff-entered actual · <span style="font-family:'DM Mono',monospace">tgt</span> = daily target · name = who submitted · ${noteRange}</div>
+       <div class="grid-note">Bold = staff-entered actual · <span style="font-family:'DM Mono',monospace">tgt</span> = daily target · <span style="font-family:'DM Mono',monospace">ly</span> = last year · name = who submitted · ${noteRange}</div>
+       <div class="grid-note" style="margin-top:2px">
+         <strong>ly</strong> is <strong>day-of-week matched</strong> — the same weekday last year (−364 days, ${d.ly_basis ? d.ly_basis.window.from + ' → ' + d.ly_basis.window.to : ''}), measured as <strong>net</strong> sales.
+         This matches the CEO dashboard and scorecard. <strong>tgt</strong> is on a different basis — it was built from <em>same-calendar-date gross</em> revenue —
+         so <em>ly and tgt are not comparable to each other</em>. “% vs LY” in the footer compares only the days that were actually submitted, so both sides cover the same days.
+       </div>
      </div>
      <div class="grid-wrap"><table class="grid">${head}${body}${foot}</table></div>`;
 }

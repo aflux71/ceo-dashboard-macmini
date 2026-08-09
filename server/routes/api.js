@@ -5,7 +5,7 @@ import db from '../db/database.js';
 import { loadKnowledge, getLoadedDocs, getKnowledgeStatus } from '../knowledge.js';
 import { logUsage } from '../usage.js';
 import { getLoyaltySignups } from '../sync/shopify.js';
-import { netSalesCompany, netSalesByStore, netSalesCompanyYoY, netSalesByStoreYoY } from '../db/net_sales_queries.js';
+import { netSalesCompany, netSalesByStore, netSalesCompanyYoY, netSalesByStoreYoY, ONLINE_DTC_MEMBERS, shiftDate } from '../db/net_sales_queries.js';
 
 const router = express.Router();
 
@@ -1905,23 +1905,85 @@ router.get('/portal-totals/period', (req, res) => {
     const kpiMap = new Map();  // store|date -> row
     for (const k of kpiRows) kpiMap.set(k.store_name + '|' + k.entry_date, k);
 
+    // ── LAST YEAR, day-of-week matched (Round 2 item 4) ──────────────────────
+    // Convention: shift each day back 364 days (= 52 weeks) so a Saturday
+    // compares against last year's Saturday, and read NET from daily_sales.
+    // This matches netSalesCompanyYoY / the scorecard / ceo.html — the codebase
+    // standard — and uses shiftDate() rather than re-implementing the shift.
+    //
+    // NOTE, and it is labelled in the UI: the `target` in these same cells was
+    // built by Melissa in targets.html from SAME-CALENDAR-DATE GROSS revenue
+    // (lyDailyRevenue, exact calendar match, orders table). So LY and target
+    // here sit on different bases — different date rule AND net vs gross
+    // (~12% apart). Measured 2026-08-09: over one week the two date rules agree
+    // within 1.6% in total but 18 of 35 store-days differ by >=25%, which is
+    // exactly why the basis is stated on the page instead of left implicit.
+    //
+    // 'Online/DTC' is a ROLLUP in daily_sales, not a single store_name — its
+    // revenue lives across ONLINE_DTC_MEMBERS (neob HQ, 3PL, warehouses). A
+    // literal store_name='Online/DTC' lookup returns ~nothing, so that row sums
+    // the member set, exactly as netSalesByStore does.
+    const lyStart = shiftDate(start, -364);
+    const lyEnd = shiftDate(end, -364);
+    const lyMembersFor = (s) => (s === 'Online/DTC' ? ONLINE_DTC_MEMBERS : [s]);
+    const lyLookupNames = [...new Set(stores.flatMap(lyMembersFor))];
+    const lyRows = db.prepare(
+      `SELECT store_name, sale_date, net_sales FROM daily_sales
+        WHERE store_name IN (${lyLookupNames.map(() => '?').join(',')})
+          AND sale_date >= ? AND sale_date <= ?`
+    ).all(...lyLookupNames, lyStart, lyEnd);
+    const lyRaw = new Map();   // member_store|ly_date -> net
+    for (const r of lyRows) lyRaw.set(r.store_name + '|' + r.sale_date, r.net_sales);
+    const lyFor = (store, lyDate) => {
+      let sum = null;
+      for (const m of lyMembersFor(store)) {
+        const v = lyRaw.get(m + '|' + lyDate);
+        if (v != null) sum = (sum || 0) + v;
+      }
+      return sum;
+    };
+
+    // A store that did not exist yet last year (Bracebridge opened 2025-02-27,
+    // Online/DTC's series starts 2025-03-19) must read as "no comparable LY",
+    // never as $0 — a zero would show as a catastrophic decline against a store
+    // that simply wasn't trading.
+    const firstSaleStmt = db.prepare('SELECT MIN(sale_date) f FROM daily_sales WHERE store_name IN (SELECT value FROM json_each(?))');
+    const firstSale = {};
+    for (const s of stores) firstSale[s] = firstSaleStmt.get(JSON.stringify(lyMembersFor(s))).f || null;
+
     const rows = [];       // every store-day cell that has a target or an actual
     const summary = [];
     let totTargetElapsed = 0, totTargetFull = 0, totActual = 0, totAnyActual = false;
+    let totLy = 0, totAnyLy = false;
+    let totLyMatched = 0, totAnyLyMatched = false;
 
     for (const s of stores) {
       let tgtElapsed = 0, tgtFull = 0, actual = 0, anyActual = false, daysSubmitted = 0;
+      // Two LY sums, deliberately separate:
+      //   lyElapsed — every elapsed day, for "what LY did over this window"
+      //   lyMatched — ONLY days that have a staff submission, so the variance
+      //               compares like with like. `actual` exists only on submitted
+      //               days; varying it against all-elapsed LY compares 2 days of
+      //               actual to 7 days of LY and prints a fictional -74%.
+      let lyElapsed = 0, anyLy = false;
+      let lyMatched = 0, lyMatchedDays = 0, anyLyMatched = false;
       for (const day of days) {
         const key = s + '|' + day.date;
         const target = tgtMap.has(key) ? tgtMap.get(key) : null;
         const k = kpiMap.get(key);
         if (target === null && !k) continue;
+        const lyDate = shiftDate(day.date, -364);
+        const lyPartial = Boolean(firstSale[s] && lyDate < firstSale[s]);
+        const ly = lyPartial ? null : lyFor(s, lyDate);
         rows.push({
           date: day.date,
           store: s,
           is_elapsed: day.is_elapsed,
           target,
           actual: k ? k.revenue : null,
+          ly,                        // DOW-matched (-364d) NET from daily_sales
+          ly_date: lyDate,
+          ly_partial: lyPartial,     // store did not exist yet last year
           submitted_by: k ? k.staff_name : null,
           submitted_at: k ? k.submitted_at : null,
           transactions: k ? k.transactions : null,
@@ -1929,6 +1991,8 @@ router.get('/portal-totals/period', (req, res) => {
         });
         if (target !== null) { tgtFull += target; if (day.is_elapsed) tgtElapsed += target; }
         if (k) { actual += k.revenue; anyActual = true; daysSubmitted++; }
+        if (ly != null && day.is_elapsed) { lyElapsed += ly; anyLy = true; }
+        if (ly != null && k) { lyMatched += ly; lyMatchedDays++; anyLyMatched = true; }
       }
       const actualVal = anyActual ? actual : null;
       summary.push({
@@ -1939,9 +2003,16 @@ router.get('/portal-totals/period', (req, res) => {
         days_submitted: daysSubmitted,
         variance_dollars: anyActual ? actual - tgtElapsed : null,
         variance_pct: anyActual ? pctVar(actual, tgtElapsed) : null,
+        ly_elapsed: anyLy ? lyElapsed : null,              // all elapsed days
+        ly_matched: anyLyMatched ? lyMatched : null,       // submitted days only
+        ly_matched_days: lyMatchedDays,
+        // Like-for-like: actual vs LY over the SAME days.
+        ly_variance_pct: (anyActual && anyLyMatched) ? pctVar(actual, lyMatched) : null,
       });
       totTargetElapsed += tgtElapsed; totTargetFull += tgtFull;
       if (anyActual) { totActual += actual; totAnyActual = true; }
+      if (anyLy) { totLy += lyElapsed; totAnyLy = true; }
+      if (anyLyMatched) { totLyMatched += lyMatched; totAnyLyMatched = true; }
     }
 
     const total = {
@@ -1951,9 +2022,24 @@ router.get('/portal-totals/period', (req, res) => {
       actual: totAnyActual ? totActual : null,
       variance_dollars: totAnyActual ? totActual - totTargetElapsed : null,
       variance_pct: totAnyActual ? pctVar(totActual, totTargetElapsed) : null,
+      ly_elapsed: totAnyLy ? totLy : null,
+      ly_matched: totAnyLyMatched ? totLyMatched : null,
+      ly_variance_pct: (totAnyActual && totAnyLyMatched) ? pctVar(totActual, totLyMatched) : null,
     };
 
-    res.json({ view, offset, period_start: start, period_end: end, label, today, days, stores, rows, summary, total });
+    res.json({
+      view, offset, period_start: start, period_end: end, label, today, days, stores, rows, summary, total,
+      // State the LY basis in the payload, not just the UI, so any other
+      // consumer knows which of the two conventions in this codebase it got.
+      ly_basis: {
+        convention: 'dow-matched',
+        shift_days: -364,
+        measure: 'net_sales',
+        source: 'daily_sales',
+        window: { from: lyStart, to: lyEnd },
+        note: 'LY is day-of-week matched (-364d) NET. The `target` in the same row derives from same-calendar-date GROSS (kpi_targets via targets.html) — different basis, not comparable to LY.'
+      }
+    });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
