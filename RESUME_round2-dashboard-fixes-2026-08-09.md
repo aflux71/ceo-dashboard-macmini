@@ -313,13 +313,77 @@ footnote that says bundles ARE selling, cites the 32 / 100% POS figure, explains
 component-SKU mechanism, and records that the earlier "verified" reading was one source
 read four ways.
 
-### Next: real bundle attribution
+### ✅ Real bundle attribution — DONE and reconciled exactly (2026-08-09)
 
-Preferred: **`bundleComponents` on line items** (GraphQL Admin 2023-07+) so the sync keeps
-one source of truth. Fallback: ShopifyQL `line_item_is_bundle`. **Check the API version
-first and report before building.**
+Shipped in `70aec79` (module + schema) and `47877e1` (nightly, backfill, metric).
+Live in production after reload.
 
-**Acceptance — deliberately from a different source than the code:** the fixed dashboard
-must reproduce Shopify's bundle Analytics for the last 30 days — **32 bundles with POS
-sales**, Botanical Bliss Glorious **~46 orders**, Body Care Glorious **~41**, Botanical
-Bliss Massuet **~34**. If our number and Shopify's disagree, **ours is wrong.**
+**`bundleComponents` does not exist** at API 2024-10 or 2025-01 — introspected both. The
+field that does carry the bundle parent is **`LineItem.lineItemGroup`**
+(id / title / productId / variantId / variantSku / quantity), one group per bundle
+purchased, shared by its component lines. It is absent from the REST 2023-10 order
+payload the main sync reads, which is exactly why every REST-side check was blind to it.
+
+Implemented as `server/sync/bundle_attribution.js` writing `order_bundles`, running
+**alongside** the REST order sync (the `net_sales.js` pattern) rather than converting the
+whole order sync to GraphQL for one field.
+
+**THE LAST GAP WAS UNITS vs ORDERS.** Counts sat ~11% below Shopify until the exact
+ShopifyQL figures arrived: `bundles_ordered` counts bundle **units**; I was counting
+distinct **orders**. On 2026-07-10..2026-08-08:
+
+| Bundle | Shopify | Ours (units) |
+|---|---|---|
+| Botanical Bliss Glorious | 44 | **44** |
+| Body Care Glorious | 41 | **41** |
+| Lavatory Luxury Glorious | 28 | **28** |
+| The Complete Ritual Glorious | 23 | **23** |
+| The Top Tour | 22 | **22** |
+| Distinct products | 32 | **32** |
+
+Reporting one figure while labelling it the other was the entire discrepancy, so the
+endpoint now returns **both**, named for what they are: `bundle_units` (matches Shopify)
+and `bundle_orders` (share of baskets — what a penetration % needs).
+
+**The false cliff is gone.** Retail penetration by month, bridging the legacy SKU match
+(pre-conversion) with `order_bundles` (post):
+
+```
+2026-05  5.2%    2026-06  4.7%    2026-07  4.0%    2026-08  3.9%
+```
+
+July and August previously read **0.0%**.
+
+**Backfill run** from 2026-01-01: 434 pages, 43,306 orders, **902 rows**, 6.5 min, zero
+errors. Earliest row **2026-06-15** — exactly the conversion date, with zero rows in the
+10,000 orders scanned before it, confirming `lineItemGroup` simply does not exist
+pre-conversion. Verified backup taken first.
+
+**Nightly**: `syncOrderBundlesTrailing(3)` at 3:15 AM Toronto — between orders (3:00) and
+net-sales (3:30) so the mirror is populated first. Confirmed armed in the production
+launchd log.
+
+### Three things caught in verification, not review
+
+1. **`scheduler.js` holds no `db` import**, but the first error handler called
+   `db.prepare()`. Passed `node --check`; would have thrown a `ReferenceError` *only when
+   a sync failed* — turning a recoverable error into a crash in the one path that matters.
+2. **9 rows stored a location contradicting `orders.location_name`** — GraphQL
+   `physicalLocation` is null for web/draft orders. The resolver now prefers the mirror;
+   re-ran, zero disagreements.
+3. **13 rows carry numeric SKUs**, all 2026-06-15..22: the DTC gift sets were *also*
+   briefly converted to Bundles during the June change and reverted. Outside every
+   reporting window; 889 of 902 rows carry proper `GS####`.
+
+### The zero-state is deliberately inverted
+
+`ceo.html` once asserted *"verified, not a data error."* It now says a zero means
+**attribution has probably broken — check Shopify Analytics before concluding anything.**
+Given this metric's history, a zero should prompt suspicion of our own code first.
+
+### What made this verifiable
+
+The acceptance criterion came from a **different system** (Shopify's own Analytics), not
+another query against our orders table. That is the only reason the units-vs-orders error
+surfaced instead of shipping. It is the rule now in the BUILD-2 pre-flight, and it is the
+single most useful thing to carry out of this session.

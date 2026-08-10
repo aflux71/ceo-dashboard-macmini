@@ -1,3 +1,35 @@
+# ⛔ VOID — DO NOT SEND. THIS DOCUMENT IS WRONG.
+
+**Voided 2026-08-09, the same day it was written.** Retained only as a record of the
+error; every factual claim below is withdrawn.
+
+**What it claims:** the 33 in-store gift sets stopped selling on 2026-06-15 because
+Shopify Bundles cannot be sold on POS; ~$462/day and ~$24,900 of lost revenue; Melissa
+must un-bundle, duplicate or retire them.
+
+**The truth:** the gift sets **never stopped selling**. Shopify's own bundle Analytics
+shows **32 bundles sold in the last 30 days, 100% Point of Sale**. 2026-06-15 was the
+date they were **converted** to Shopify Bundles, not the date they stopped selling.
+**No revenue was lost. There is nothing for Melissa to do.** "Shopify Bundles does not
+support POS" is false.
+
+**What actually broke:** Shopify Bundles records *component* line items on an order and
+never the bundle parent, so our dashboard — which attributed by bundle SKU — stopped
+seeing them. An attribution gap in our code, not a business event. It has since been
+fixed (`70aec79`, `47877e1`) and now reconciles exactly against Shopify's figures.
+
+**Why it was believed:** four checks "independently confirmed" the stoppage — SKU,
+product_id, title, tag-agnostic sweep — but all four queried the same `orders` table,
+where a bundle parent structurally cannot appear. One blind source read four ways.
+Their agreement was guaranteed and proved nothing.
+
+**Rule adopted:** confirming that something did NOT happen requires a check from a
+**different system**, not a different query against the same one.
+
+Full account: `RESUME_round2-dashboard-fixes-2026-08-09.md` Part 7.
+
+---
+
 # In-store gift sets have been unsellable since June 15 — action needed in Shopify Admin
 
 **To:** Melissa
