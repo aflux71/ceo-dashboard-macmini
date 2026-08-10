@@ -470,15 +470,31 @@ async function countCustomersWithTier(queryStr) {
 //                  tier tag) — the numerator.
 //   conversion   = signups / first_timers (target 50%).
 // Window clause for the customer search. Customers are tagged signup-<loc> by
-// Flow on their FIRST order, so the customer's created_at is effectively the
-// signup date — it is the only window key Shopify exposes here. `to` is
-// exclusive-shifted to the next day so the final day is fully included
-// (created_at:<=DATE would cut at that day's midnight).
+// Flow on their FIRST order, so the customer's creation date is effectively the
+// signup date — it is the only window key Shopify exposes here.
+//
+// MUST be customer_date, NOT created_at. The customers search accepts
+// `created_at:` without complaint and then SILENTLY IGNORES it — no GraphQL
+// error, no warning, just an unfiltered result set. Measured 2026-08-09 against
+// tag:'signup-flower-farm' (1350 customers):
+//
+//   tag only                          1350
+//   tag AND created_at 2026-08-08     1350   <- filter ignored
+//   tag AND created_at 2019-01-01     1350   <- absurd window, still everything
+//   created_at 2019-01-01, no tag    10000+  <- ignored here too
+//   tag AND customer_date 2026-08-08    24   <- actually filters
+//
+// So every "period-scoped" loyalty figure this function has ever returned was in
+// fact cumulative since data_since. Divided by a windowed order count, that
+// produced rates over 100% (a single day read 666.7% for Flower Farm) — which is
+// how the bug was caught. customer_date is verified self-consistent: the seven
+// per-day counts for 2026-08-02..08 sum to 117, and the range query returns 117.
+//
+// customer_date is a DATE, not a timestamp, so `to` is inclusive and needs no
+// next-day shift (created_at:<=DATE would have cut at that day's midnight).
 function loyaltyDateClause(from, to) {
   if (!from || !to) return '';
-  const next = new Date(Date.UTC(+to.slice(0,4), +to.slice(5,7) - 1, +to.slice(8,10) ) );
-  next.setUTCDate(next.getUTCDate() + 1);
-  return ` AND created_at:>=${from} AND created_at:<${next.toISOString().slice(0,10)}`;
+  return ` AND customer_date:>=${from} AND customer_date:<=${to}`;
 }
 
 // Cheap in-process cache. The underlying Shopify paging is slow (see below) and
