@@ -2430,6 +2430,22 @@ const _scSalesStmt    = db.prepare(`SELECT COALESCE(SUM(net_sales),0)           
                                       FROM daily_sales WHERE store_name = ? AND sale_date BETWEEN ? AND ?`);
 const _scTargetStmt   = db.prepare('SELECT COALESCE(SUM(revenue_target),0) AS tgt, COUNT(revenue_target) AS days FROM kpi_targets WHERE store_name = ? AND target_date BETWEEN ? AND ?');
 const _scFirstSaleStmt = db.prepare('SELECT MIN(sale_date) AS first FROM daily_sales WHERE store_name = ?');
+// Presence probe for the daily breakdown. A store that was CLOSED on a date has
+// no daily_sales row at all, and the aggregate above COALESCEs that to 0 — which
+// would publish a closed day as "$0 of sales", indistinguishable from a day that
+// was open and sold nothing. The breakdown reports null for it instead.
+const _scDayRowStmt = db.prepare('SELECT 1 AS present FROM daily_sales WHERE store_name = ? AND sale_date = ? LIMIT 1');
+// Loyalty denominator: this store's retail transactions in the window. Same
+// convention as /api/stats/loyalty-signups — ALL transactions, not the
+// AOV-filtered count, because every transaction is a chance to ask for a signup.
+const _scStoreOrdersStmt = db.prepare(
+  `SELECT COUNT(*) AS orders FROM orders
+    WHERE location_name = ? AND substr(created_at,1,10) BETWEEN ? AND ?`
+);
+// BON location tags started fresh on this date; before it, a signup count is not
+// missing-because-zero, it is missing-because-untagged. Windows that open before
+// it get null + a reason rather than a rate that reads as a store failing.
+const _SC_LOYALTY_DATA_SINCE = '2026-06-09';
 
 // Served set: distinct kpi_targets stores intersected with physical stores.
 function scorecardStores() {
@@ -2549,6 +2565,91 @@ function _scBuildPeriod(store, label, start, end, firstSale) {
   return period;
 }
 
+// One entry of periods.days[] — a single Toronto calendar date.
+//
+// Built by calling _scBuildPeriod with start === end === date, deliberately.
+// The daily breakdown MUST agree with the aggregate it sits under, and the only
+// way to guarantee that is to run the same code over a one-day range rather than
+// write a second per-day query. That is what makes days[6] === periods.day an
+// identity rather than a coincidence: periods.day is _scBuildPeriod(as_of,
+// as_of), and so is the last element here.
+//
+// A closed day (no daily_sales row) reports null for the measured fields. The
+// target is NOT nulled — kpi_targets may well carry a plan for a day the store
+// did not trade, and that is a real, useful fact. But target_variance_pct is
+// nulled: variance against an absent actual is not 0% or −100%, it is unknown.
+function _scBuildDay(store, date, firstSale) {
+  const present = Boolean(_scDayRowStmt.get(store, date));
+  const p = _scBuildPeriod(store, 'Day', date, date, firstSale);
+  return {
+    date,
+    net_sales: present ? p.net_sales : null,
+    target: p.target,
+    target_variance_pct: present ? p.target_variance_pct : null,
+    aov: present ? p.aov : null
+  };
+}
+
+// Per-window loyalty signup rate for ONE store, on the retail basis.
+//
+// Never the all-channel figure. Online/DTC enrols automatically at checkout
+// while a store has to ask, so folding the two together would flatter every
+// store it is compared against — /api/stats/loyalty-signups keeps Online out of
+// retail_total for exactly this reason, and this endpoint inherits that. Each
+// store served here is physical, so its own rate is already a retail rate.
+//
+// COST. getLoyaltySignups paginates the Shopify customers connection for six
+// locations per window — slow enough that it carries its own 5-minute cache.
+// So: distinct windows only (day and wtd collapse to one fetch when as_of is a
+// Monday), uncovered windows skipped entirely rather than fetched and discarded,
+// and all remaining windows in flight together.
+//
+// FAILS SOFT. If Shopify is down or slow, this endpoint's core job — net sales
+// against target — still has to answer. A loyalty failure sets loyalty to null
+// with a reason on every period; it does not 500 the scorecard.
+async function _scAttachLoyalty(store, periods) {
+  const covered = Object.entries(periods).filter(([, p]) => p.start >= _SC_LOYALTY_DATA_SINCE);
+  const withheld = (reason) => ({ signups: null, first_timers: null, orders: null, signup_rate_pct: null, basis: 'retail', reason });
+
+  for (const [, p] of Object.entries(periods)) {
+    p.loyalty = withheld(
+      `Loyalty location tags start ${_SC_LOYALTY_DATA_SINCE}; this window starts ${p.start}. Rate withheld rather than reported as a low number the store did not earn.`
+    );
+  }
+  if (!covered.length) return;
+
+  // Dedupe by window — several periods can resolve to the same dates.
+  const windows = new Map();
+  for (const [, p] of covered) windows.set(`${p.start}..${p.end}`, { from: p.start, to: p.end });
+
+  let fetched;
+  try {
+    const pairs = await Promise.all([...windows.entries()].map(async ([key, w]) => [key, await getLoyaltySignups(w)]));
+    fetched = new Map(pairs);
+  } catch (err) {
+    for (const [, p] of covered) p.loyalty = withheld(`Loyalty lookup failed: ${err.message}`);
+    return;
+  }
+
+  for (const [, p] of covered) {
+    const loy = fetched.get(`${p.start}..${p.end}`);
+    const row = loy?.stores?.find(s => s.store === store);
+    if (!row) {
+      p.loyalty = withheld(`No loyalty signup-location tag maps to ${store}.`);
+      continue;
+    }
+    const orders = _scStoreOrdersStmt.get(store, p.start, p.end).orders;
+    p.loyalty = {
+      signups: row.signups,
+      first_timers: row.first_timers,
+      orders,
+      signup_rate_pct: orders > 0 ? _scRound((row.signups / orders) * 100, 1) : null,
+      basis: 'retail',
+      reason: null
+    };
+  }
+}
+
 // GET /api/scorecard/stores — the served store list, straight from the data.
 router.get('/scorecard/stores', (req, res) => {
   if (!checkPortalAuth(req, res)) return;
@@ -2558,7 +2659,7 @@ router.get('/scorecard/stores', (req, res) => {
 });
 
 // GET /api/scorecard?store=<name>&as_of=YYYY-MM-DD
-router.get('/scorecard', (req, res) => {
+router.get('/scorecard', async (req, res) => {
   if (!checkPortalAuth(req, res)) return;
   try {
     const store = req.query.store;
@@ -2573,6 +2674,11 @@ router.get('/scorecard', (req, res) => {
 
     const firstSale = _scFirstSaleStmt.get(store).first;
     const [yy, mm] = as_of.split('-');
+    // ONE definition of the 7-day window, shared by last7 and days[] below.
+    // Written once on purpose: the acceptance test for the breakdown is that it
+    // sums to last7 exactly, and two separately-written −6 offsets are precisely
+    // how that drifts apart later.
+    const last7Start = _scAddDays(as_of, -6);
     const periods = {
       day: _scBuildPeriod(store, 'Day',            as_of,               as_of, firstSale),
       // last7 = 7 COMPLETE days ending as_of (which defaults to yesterday), i.e.
@@ -2581,11 +2687,23 @@ router.get('/scorecard', (req, res) => {
       // the same figures for the same store and window, and the only way to
       // guarantee that is for both to take the window from the server rather
       // than compute one locally. Do NOT re-derive this in the Pages app.
-      last7: _scBuildPeriod(store, 'Last 7 days',  _scAddDays(as_of, -6), as_of, firstSale),
+      last7: _scBuildPeriod(store, 'Last 7 days',  last7Start,          as_of, firstSale),
       wtd: _scBuildPeriod(store, 'Week-to-date',   _scMondayOf(as_of),  as_of, firstSale),
       mtd: _scBuildPeriod(store, 'Month-to-date',  `${yy}-${mm}-01`,    as_of, firstSale),
       ytd: _scBuildPeriod(store, 'Year-to-date',   `${yy}-01-01`,       as_of, firstSale)
     };
+
+    // Daily breakdown of the SAME 7 days last7 covers, oldest first, so a
+    // manager can see which day carried the week. Derived from last7Start rather
+    // than from its own offset — see the note there.
+    const days = Array.from({ length: 7 }, (_, i) => _scBuildDay(store, _scAddDays(last7Start, i), firstSale));
+
+    // Loyalty is the one part of this endpoint that leaves the database, so it
+    // is attached last and is allowed to fail without taking the rest down.
+    await _scAttachLoyalty(store, periods);
+    // Attached after the loyalty pass, which walks periods expecting each value
+    // to be a period object with .start/.end. days[] is an array, not a period.
+    periods.days = days;
 
     // FULL-CALENDAR-MONTH target, separate from periods.mtd.target.
     // mtd.target sums kpi_targets only over the elapsed days, so it grows as the
