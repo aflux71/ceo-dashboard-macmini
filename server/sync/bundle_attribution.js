@@ -49,8 +49,21 @@ const LOCATION_NAMES = {
   '72406401249': 'Bracebridge'
 };
 
-function locationName(locId, sourceName) {
+// GraphQL `physicalLocation` is null for web and draft orders, where the REST
+// mirror HAS already resolved a location (3PL, neob HQ, warehouses) via
+// fulfillments. Falling straight through to 'Unattributed' would store a
+// location that contradicts orders.location_name for the same order — a quiet
+// inconsistency that would mislead the next person to join these tables. So
+// prefer the mirror when GraphQL has no physical location. The orders sync runs
+// at 3:00 and this at 3:15, so the mirror is populated first.
+const mirrorLocStmt = db.prepare('SELECT location_name FROM orders WHERE id = ?');
+
+function locationName(locId, sourceName, orderId) {
   if (locId && LOCATION_NAMES[locId]) return LOCATION_NAMES[locId];
+  if (orderId) {
+    const m = mirrorLocStmt.get(String(orderId));
+    if (m && m.location_name) return m.location_name;
+  }
   if (sourceName === 'web') return 'Online/DTC';
   if (sourceName === 'pos') return 'Retail (unattributed)';
   return 'Unattributed';
@@ -132,7 +145,7 @@ export async function syncOrderBundles(fromDate, opts = {}) {
       if (!groups.size) continue;
       const locId = legacyId(o.physicalLocation?.id);
       const src = o.sourceName || null;
-      const loc = locationName(locId, src);
+      const loc = locationName(locId, src, orderId);
       const day = torontoDayOf(o.createdAt);
       for (const [gid, g] of groups) {
         insert.run(orderId, gid, g.sku, g.title, g.productId,

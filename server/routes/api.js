@@ -566,24 +566,57 @@ router.get('/bundles/penetration', (req, res) => {
     const { period = '30d', date_from, date_to } = req.query;
     const { from, to } = resolvePeriod(period, date_from, date_to);
 
+    // ── POS attribution, corrected 2026-08-09 ────────────────────────────────
+    // Was: SUM(orders.is_bundle_pos), the GS#### SKU match. That silently broke
+    // on 2026-06-15 when the gift sets became Shopify Bundles, which put only
+    // COMPONENT line items on an order — the bundle SKU it keys on is never
+    // emitted. The metric read 0% while the bundles were selling normally.
+    //
+    // Now: order_bundles, populated from GraphQL LineItem.lineItemGroup, which
+    // does carry the bundle parent. Reconciled EXACTLY against Shopify's own
+    // bundle Analytics for 2026-07-10..2026-08-08 — 32/32 products, and units
+    // 44/41/28/23/22 matching ShopifyQL `bundles_ordered` on all five checked.
+    //
+    // BRIDGES THE CONVERSION. Pre-2026-06-15 the gift sets were ordinary
+    // products and DID emit their SKUs, so those sales exist only in the legacy
+    // is_bundle_pos flag; post-conversion they exist only in order_bundles. An
+    // order counts if EITHER source sees it, so the series is continuous across
+    // the cutover instead of showing a false cliff.
+    //
+    // UNITS vs ORDERS: Shopify's `bundles_ordered` counts bundle UNITS, so a
+    // 2-of-the-same-bundle order is 2. `bundle_units` matches Shopify;
+    // `bundle_orders` is the order-level count the penetration % needs (share
+    // of baskets containing a bundle). Reporting one and labelling it the other
+    // was the entire reconciliation gap — keep both, named honestly.
     const stores = db.prepare(`
-      SELECT location_name AS store,
+      SELECT o.location_name AS store,
         COUNT(*) AS orders,
-        COALESCE(SUM(is_bundle_pos),0) AS bundle_orders,
-        ROUND(100.0*SUM(is_bundle_pos)/NULLIF(COUNT(*),0),1) AS bundle_pos_pct
-      FROM orders
-      WHERE location_name IN (${RETAIL_STORES})
-        AND substr(created_at,1,10) BETWEEN ? AND ?
-      GROUP BY location_name
+        COALESCE(SUM(CASE WHEN o.is_bundle_pos = 1 OR ob.order_id IS NOT NULL THEN 1 ELSE 0 END),0) AS bundle_orders,
+        COALESCE(SUM(ob.units),0) AS bundle_units,
+        ROUND(100.0*SUM(CASE WHEN o.is_bundle_pos = 1 OR ob.order_id IS NOT NULL THEN 1 ELSE 0 END)
+              /NULLIF(COUNT(*),0),1) AS bundle_pos_pct
+      FROM orders o
+      LEFT JOIN (
+        SELECT order_id, SUM(quantity) AS units FROM order_bundles GROUP BY order_id
+      ) ob ON ob.order_id = o.id
+      WHERE o.location_name IN (${RETAIL_STORES})
+        AND substr(o.created_at,1,10) BETWEEN ? AND ?
+      GROUP BY o.location_name
       ORDER BY bundle_pos_pct DESC
     `).all(from, to);
 
     const retailTotal = db.prepare(`
-      SELECT COUNT(*) AS orders, COALESCE(SUM(is_bundle_pos),0) AS bundle_orders,
-        ROUND(100.0*SUM(is_bundle_pos)/NULLIF(COUNT(*),0),1) AS bundle_pos_pct
-      FROM orders
-      WHERE location_name IN (${RETAIL_STORES})
-        AND substr(created_at,1,10) BETWEEN ? AND ?
+      SELECT COUNT(*) AS orders,
+        COALESCE(SUM(CASE WHEN o.is_bundle_pos = 1 OR ob.order_id IS NOT NULL THEN 1 ELSE 0 END),0) AS bundle_orders,
+        COALESCE(SUM(ob.units),0) AS bundle_units,
+        ROUND(100.0*SUM(CASE WHEN o.is_bundle_pos = 1 OR ob.order_id IS NOT NULL THEN 1 ELSE 0 END)
+              /NULLIF(COUNT(*),0),1) AS bundle_pos_pct
+      FROM orders o
+      LEFT JOIN (
+        SELECT order_id, SUM(quantity) AS units FROM order_bundles GROUP BY order_id
+      ) ob ON ob.order_id = o.id
+      WHERE o.location_name IN (${RETAIL_STORES})
+        AND substr(o.created_at,1,10) BETWEEN ? AND ?
     `).get(from, to);
 
     const dtc = db.prepare(`
@@ -594,13 +627,20 @@ router.get('/bundles/penetration', (req, res) => {
         AND substr(created_at,1,10) BETWEEN ? AND ?
     `).get(from, to);
 
-    // Last day a POS bundle actually sold, independent of the requested window.
-    // Retail bundle sales stopped 2026-06-15 (verified by SKU, product_id AND
-    // title — a correct zero, not a broken match), so the dashboard needs to
-    // distinguish "no sales" from "metric is broken". Derived, not hardcoded:
-    // if bundles start selling again this clears itself.
+    // Last day a POS bundle actually sold, across BOTH attribution sources.
+    //
+    // The old comment here claimed retail bundle sales "stopped 2026-06-15
+    // (verified by SKU, product_id AND title — a correct zero, not a broken
+    // match)". That was wrong, and the "verification" is why: all three checks
+    // read the same orders table, where a Shopify Bundles parent structurally
+    // cannot appear. They agreed because they were blind in the same way.
+    // Sales never stopped; attribution did. Corrected 2026-08-09.
     const posLastSale = db.prepare(`
-      SELECT MAX(substr(created_at,1,10)) AS d FROM orders WHERE is_bundle_pos = 1
+      SELECT MAX(d) AS d FROM (
+        SELECT MAX(substr(created_at,1,10)) AS d FROM orders WHERE is_bundle_pos = 1
+        UNION ALL
+        SELECT MAX(order_date) AS d FROM order_bundles
+      )
     `).get().d;
 
     res.json({
@@ -611,6 +651,16 @@ router.get('/bundles/penetration', (req, res) => {
       data_since: '2026-05-01',
       label: 'Packaged Bundle %',
       pos_last_sale_date: posLastSale || null,
+      // How the number is produced, so a consumer never has to guess which
+      // definition it got — and so a future zero can be told apart from a
+      // broken matcher.
+      attribution: {
+        sources: ['order_bundles (GraphQL lineItemGroup, post-2026-06-15 Shopify Bundles)',
+                  'orders.is_bundle_pos (legacy GS#### SKU match, pre-conversion)'],
+        bundle_orders_definition: 'orders containing >=1 bundle (share basis for bundle_pos_pct)',
+        bundle_units_definition: 'bundle units — matches ShopifyQL bundles_ordered',
+        reconciled_against: 'Shopify bundle Analytics 2026-07-10..2026-08-08: 32/32 products, units exact on all five bundles checked'
+      },
       stores,
       retail_total: retailTotal,
       dtc

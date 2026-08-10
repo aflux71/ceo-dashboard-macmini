@@ -1434,7 +1434,7 @@ function buildStoreRows(rows, bundlePctByStore, loyaltyByStore, bundleNoneNote) 
     var bCell = (bPct === undefined || bPct === null)
       ? '<span class="no-data">—</span>'
       : (bPct === 0 && bundleNoneNote)
-        ? '<span class="kpi-dot gray"></span><span title="Attribution gap, not a sales stoppage. Shopify Bundles emits component SKUs only, never the bundle SKU this metric keys on. Shopify Analytics shows these ARE selling in store. Attribution fix in progress.">n/a</span>'
+        ? '<span class="kpi-dot gray"></span><span title="No bundles attributed for this store in this window. Attribution comes from Shopify bundle line-item groups; a zero means attribution may have broken, not necessarily that no bundles sold. Verify against Shopify Analytics.">n/a</span>'
         : '<span class="kpi-dot ' + (bPct >= 10 ? 'green' : bPct >= 5 ? 'amber' : 'red') + '"></span>' + bPct.toFixed(1) + '%';
     // Loyalty signups (count headline) + automation-health dot from conversion.
     var lname = s.location_name === 'Online/DTC' ? 'Online' : s.location_name;
@@ -1483,27 +1483,26 @@ function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bund
   const bundleDtcPct = bundles?.dtc?.bundle_dtc_pct;
   const bundleStatus = v => (v == null) ? 'neutral' : v >= bundleTarget ? 'green' : v >= bundleTarget / 2 ? 'amber' : 'red';
 
-  // ATTRIBUTION GAP — NOT a sales stoppage. Corrected 2026-08-09.
+  // BUNDLE ATTRIBUTION — fixed 2026-08-09. Read this before trusting a zero.
   //
-  // This zero previously rendered as "No POS bundle sales since Jun 15 · verified,
-  // not a data error". That was FALSE. Shopify's own bundle Analytics (ShopifyQL)
-  // shows 32 bundles selling in the last 30 days, 100% Point of Sale. The gift
-  // sets never stopped selling.
+  // History: this tile once read "No POS bundle sales since Jun 15 · verified,
+  // not a data error". That was FALSE. The gift sets never stopped selling —
+  // Shopify Analytics showed 32 bundles selling, 100% POS, throughout.
+  // 2026-06-15 was the CONVERSION to Shopify Bundles, which put only COMPONENT
+  // line items on orders; the GS#### bundle SKU this metric keyed on is never
+  // emitted, so attribution died while sales continued.
   //
-  // What actually happened on 2026-06-15 is the CONVERSION to Shopify Bundles.
-  // Shopify records COMPONENT line items on orders and never the bundle parent
-  // ("SKUs are listed for individual items in orders, not for the bundle SKU").
-  // Our detection keys off the bundle SKU, which Shopify never emits — so the
-  // metric went to zero on the conversion date and stayed there.
+  // It was called "verified" because four checks agreed — SKU, product_id,
+  // title, tag-agnostic sweep — but all four read orders/order_line_items, the
+  // one table where a bundle parent structurally cannot appear. One blind
+  // source queried four ways. Agreement proved nothing.
   //
-  // Why it was mis-called "verified": the four checks that agreed — SKU,
-  // product_id, title, and a tag-agnostic title sweep — ALL query orders /
-  // order_line_items, the one table where the bundle parent structurally cannot
-  // appear. Four queries against one source that cannot hold the evidence. Their
-  // agreement was guaranteed, not corroborating. Do not read agreement between
-  // same-source checks as confirmation.
+  // Now attributed from order_bundles (GraphQL LineItem.lineItemGroup), bridged
+  // with the legacy SKU match for pre-conversion history. Reconciled exactly
+  // against Shopify's own Analytics.
   //
-  // So: report an ATTRIBUTION GAP, never a zero and never "no sales".
+  // So a zero here now means ATTRIBUTION IS BROKEN AGAIN, not "no sales" —
+  // which is why the none-state says to go and check, rather than asserting.
   const bundlePosLastSale = bundles?.pos_last_sale_date || null;
   const bundleRetailNone = (bundles?.retail_total?.bundle_orders === 0)
     && (bundles?.retail_total?.orders > 0);
@@ -1731,7 +1730,7 @@ function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bund
       ${renderKPI('Inventory Units', stats?.inventory_units ? stats.inventory_units.toLocaleString() : '—', 'Across 10 locations', 'neutral', null, null)}
       ${bundleRetailNone
         ? renderKPI('Packaged Bundle % · Retail', 'n/a',
-            'Bundles ARE selling in stores — Shopify Analytics confirms. We cannot attribute them yet: Shopify Bundles emits component SKUs only, never the bundle SKU we key on. Attribution fix in progress.', 'neutral', null, null)
+            'No bundle sales attributed in this window. If stores are selling bundles, attribution has broken again — check order_bundles is being populated before believing this.', 'neutral', null, null)
         : renderKPI('Packaged Bundle % · Retail', bundleRetailPct != null ? bundleRetailPct.toFixed(1) + '%' : '—', 'Gift sets · 30d · Target ' + bundleTarget + '%', bundleStatus(bundleRetailPct), null, bundleRetailPct != null ? bundleRetailPct / bundleTarget : null)}
       ${renderKPI('Packaged Bundle % · Online', bundleDtcPct != null ? bundleDtcPct.toFixed(1) + '%' : '—', 'Gift sets · 30d · Target ' + bundleTarget + '%', bundleStatus(bundleDtcPct), null, bundleDtcPct != null ? bundleDtcPct / bundleTarget : null)}
       ${renderKPI('Loyalty Signups · Retail', loyaltyTotal != null ? (loyaltyTotal.toLocaleString() + (loyaltyRate != null ? ' · ' + loyaltyRate.toFixed(1) + '%' : '')) : '—', '<span class="kpi-dot ' + loyaltyDot(loyaltyConv) + '"></span>' + (loyaltyConv != null ? loyaltyConv + '% of ' + (loyaltyFirstTimers != null ? loyaltyFirstTimers.toLocaleString() : '—') + ' first-timers' : 'enrollment —') + ' · Online excluded · since ' + loyaltySince, 'neutral', null, null)}
@@ -1794,15 +1793,9 @@ function renderDashboard(stats, storeData, liveTasks, usageMtd, usageToday, bund
         <div style="font-size:11px;color:var(--text-3);padding:10px 4px 2px;line-height:1.5">
           <strong>Pkg Bundle %</strong> = share of orders containing a packaged gift-set product (tagged bundle SKU), last 30d, since 2026-05-01.
           Packaged gift sets only — a subset of $40-threshold compliance, and <em>not</em> the 35–40% program target. Multi-item basket bundles tracked separately (Phase 3).
-          ${bundleNoneNote ? '<br><strong style="color:var(--amber,#b8860b)">Attribution gap — this is OUR measurement problem, not a sales problem.</strong>'
-            + ' <strong>In-store gift sets are selling normally.</strong> Shopify\'s own bundle Analytics shows <strong>32 bundles with sales in the last 30 days, 100% Point of Sale</strong>.'
-            + ' On 2026-06-15 the gift sets were converted to <em>Shopify Bundles</em>, which record <em>component</em> line items on an order and never the bundle parent'
-            + ' (&ldquo;SKUs are listed for individual items in orders, not for the bundle SKU&rdquo;). Our detection keys off the bundle SKU, which Shopify never emits — so this metric'
-            + ' fell to zero on the conversion date and has stayed there. The Jun 15 cliff is the conversion, not a stoppage.'
-            + ' <br><strong>Corrects an earlier reading on this page</strong> that said sales had stopped and was labelled &ldquo;verified&rdquo;. It was not: the four checks that agreed'
-            + ' (SKU, product ID, title, title sweep) all queried the same orders table, where the bundle parent structurally cannot appear — one source read four ways, not four'
-            + ' independent confirmations. No revenue was lost and there is nothing for Melissa to rebuild.'
-            + ' Real attribution is being implemented via bundle components; until it lands this reads <em>n/a</em>, never 0%.' : ''}
+          ${bundleNoneNote ? '<br><strong style="color:var(--amber,#b8860b)">No bundles attributed in this window.</strong>'
+            + ' Bundle sales are attributed from Shopify\'s bundle line-item groups. A zero here means attribution has broken, not that stores stopped selling bundles —'
+            + ' that mistake was made once (Jun–Aug 2026) and cost a fortnight. Verify against Shopify bundle Analytics before drawing any conclusion.' : ''}
         </div>
         <div style="font-size:11px;color:var(--text-3);padding:2px 4px 2px;line-height:1.5">
           <strong>These are two different measures on two different bases. They are not comparable to each other, and neither is a subtotal of the other.</strong><br>

@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { runNightlySync } from './sync/shopify.js';
 import { runNetSalesSync } from './sync/net_sales.js';
+import { syncOrderBundlesTrailing } from './sync/bundle_attribution.js';
 
 // Runs the nightly sync with automatic retry on transient failure.
 // Retries up to `maxRetries` times, waiting `delayMs` between attempts.
@@ -55,6 +56,26 @@ export function startScheduler() {
     timezone: 'America/Toronto'
   });
 
+  // Bundle attribution — ADDITIVE, GraphQL-based, independent of the REST order
+  // sync above. Runs at 3:15 AM, between the orders sync (3:00) and net sales
+  // (3:30), so a night's orders are mirrored before their bundles are attributed.
+  //
+  // A 3-day TRAILING window, not just yesterday: an amended or late-captured
+  // order must re-land, and the upsert is idempotent so re-scanning is free.
+  // Shopify Bundles never puts the bundle parent on a REST order line, so this
+  // is the ONLY path by which bundle sales become attributable.
+  cron.schedule('15 3 * * *', async () => {
+    console.log(`[${new Date().toISOString()}] Bundle attribution (3-day trailing) triggered`);
+    try {
+      const r = await syncOrderBundlesTrailing(3);
+      console.log('Bundle attribution done:', JSON.stringify(r));
+    } catch (err) {
+      // console only — scheduler.js deliberately holds no db handle; the other
+      // jobs log their own sync_log rows from inside the sync module.
+      console.error('Bundle attribution failed:', err.message);
+    }
+  }, { timezone: 'America/Toronto' });
+
   // Net-sales reconstruction — ADDITIVE, independent of the orders sync above
   // (it fetches from Shopify directly, not from the local orders table).
   //
@@ -79,5 +100,5 @@ export function startScheduler() {
     timezone: 'America/Toronto'
   });
 
-  console.log('Scheduler started — orders 3:00 AM; net-sales 3:30 AM (30d) + Sun 4:00 AM (90d), America/Toronto (with retry)');
+  console.log('Scheduler started — orders 3:00 AM; bundles 3:15 AM (3d trailing); net-sales 3:30 AM (30d) + Sun 4:00 AM (90d), America/Toronto (with retry)');
 }
